@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { tagClass } from '@/lib/ui';
+import { downloadCSV } from '@/lib/export';
 
 export default function Ums() {
   const [rows, setRows] = useState([]);
@@ -10,6 +11,9 @@ export default function Ums() {
   const pick = (f) => { setFilter(f); load(f); };
   const test = async () => { await fetch('/api/ums', { method:'POST', body: JSON.stringify({ service:'영수증 발급', doc:'거래 영수증' }) }); load(); };
   const time = (t) => new Date(t).toTimeString().slice(0,5);
+  const exportCsv = () => downloadCSV('ums.csv', rows, [
+    {label:'시각',value:r=>time(r.sent_at)},{label:'휴대폰',value:'phone'},{label:'서비스',value:'service'},
+    {label:'서류',value:'doc'},{label:'상태',value:'status'}]);
   return (
     <>
       <div className="sectionhead"><h2>UMS 문자발송</h2><span className="d">보이는 ARS 서류·영수증 링크 발송 로그</span></div>
@@ -22,7 +26,9 @@ export default function Ums() {
       <div className="toolbar" style={{marginTop:16}}>
         <div className="seg">{['전체','발송완료','대기','실패'].map(f=>(
           <button key={f} className={filter===f?'on':''} onClick={()=>pick(f)}>{f}</button>))}</div>
-        <span className="sp" /><button className="btn primary" onClick={test}>✉️ 테스트 발송</button>
+        <span className="sp" />
+        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button>
+        <button className="btn primary sm" onClick={test}>✉️ 테스트 발송</button>
       </div>
       <div className="card"><table className="tbl"><thead><tr><th>시각</th><th>휴대폰</th><th>서비스</th><th>서류</th><th>상태</th></tr></thead>
         <tbody>{rows.map(r=>(<tr key={r.id}><td>{time(r.sent_at)}</td><td>{r.phone}</td><td>{r.service}</td><td>{r.doc}</td>
