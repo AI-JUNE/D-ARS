@@ -41,11 +41,11 @@ export default function Landing() {
 
       {/* hero */}
       <section style={{...wrap, textAlign:'center', padding:'40px 20px 20px'}}>
-        <span className="tag t-mut" style={{background:'var(--brand-xl)',color:'var(--brand-d)'}}>AI 컨택센터 · 보이는 ARS</span>
+        <span className="tag t-mut" style={{background:'var(--brand-xl)',color:'var(--brand-d)'}}>쉽고 빠른 상담 · 보이는 ARS</span>
         <h1 style={{fontSize:'clamp(28px,7vw,52px)',margin:'16px 0 6px',lineHeight:1.15,letterSpacing:'-.5px'}}>
-          상담을 완결하는<br/><span style={{color:'var(--brand-d)'}}>보이는 ARS</span></h1>
+          전화 상담을<br/><span style={{color:'var(--brand-d)'}}>보고, 누르고, 끝내다</span></h1>
         <p style={{color:'var(--muted)',fontSize:'clamp(14px,3.6vw,17px)',maxWidth:560,margin:'0 auto 22px',lineHeight:1.6}}>
-          AI 음성상담에 실시간 화면을 더해, 안내·서류·문자·상담원 전환을 통화 한 번에 처리합니다.</p>
+          복잡한 ARS 메뉴 탐색 없이, 통화 중 스마트폰 화면에서 안내·서류·문자를 몇 번의 터치로 해결하세요.</p>
         <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
           <Link href="/visual" className="btn primary">📱 보이는 ARS 체험</Link>
           <Link href="/dashboard" className="btn">🖥️ 운영 콘솔 열기</Link>
