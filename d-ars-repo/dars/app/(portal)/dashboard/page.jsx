@@ -48,6 +48,9 @@ export default function Dashboard() {
   const launch = stats?.daily?.map(d=>d.multimodal) || [];
   return (
     <>
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:12}}>
+        <a href="/report" className="btn sm">📄 운영 리포트 (PDF)</a>
+      </div>
       <div className="grid g4">
         <Kpi n="1,220" l="발송 건수" delta="+6.2%" />
         <Kpi n="540" l="런처 자동런칭" delta="+4.1%" />

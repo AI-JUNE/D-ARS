@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 const NAV = [
-  ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/history','🗂️','멀티모달 이력'],['/stats','📈','이용 통계'],['/notifications','🔔','알림 센터']]],
+  ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/history','🗂️','멀티모달 이력'],['/stats','📈','이용 통계'],['/report','📄','운영 리포트'],['/notifications','🔔','알림 센터']]],
   ['콘텐츠', [['/scenarios','🧩','시나리오 관리'],['/templates','🖼️','화면 템플릿'],['/docs','📋','필요서류 관리']]],
   ['발송', [['/ums','✉️','UMS 문자발송']]],
   ['고객 화면', [['/visual','📱','보이는 ARS 데모'],['/','🏢','서비스 홈']]],
@@ -15,7 +15,8 @@ const TITLES = {
   '/scenarios':['시나리오 관리','콘텐츠 · 비주얼 시나리오'],'/docs':['필요서류 관리','콘텐츠 · 서류'],
   '/ums':['UMS 문자발송','발송 · UMS'],'/stats':['이용 통계','분석 · 통계'],
   '/notifications':['알림 센터','운영 · 알림'],'/help':['도움말','지원 · FAQ'],
-  '/history':['멀티모달 이력','운영 · 상호작용 로그'],'/templates':['화면 템플릿','콘텐츠 · 표출 화면'],
+  '/history':['멀티모달 이력','운영 · 상호작용 로그'],
+  '/report':['운영 리포트','운영 · 리포트(PDF)'],'/templates':['화면 템플릿','콘텐츠 · 표출 화면'],
 };
 
 export default function PortalLayout({ children }) {
