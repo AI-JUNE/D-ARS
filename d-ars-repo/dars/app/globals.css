@@ -142,3 +142,22 @@ svg{max-width:100%;height:auto}
   .tbl{min-width:460px}
   .sb .card{overflow-x:visible}
 }
+
+/* sidebar flex column + GOWON footer + user menu (v3) */
+.side{display:flex;flex-direction:column;overflow:hidden}
+.side-nav{flex:1;overflow-y:auto;min-height:0;padding-right:2px}
+.brand{cursor:pointer;text-decoration:none}
+.brand:hover{opacity:.92}
+.side-foot{border-top:1px solid rgba(255,255,255,.08);padding:12px 10px 6px;margin-top:6px}
+.gw-logo{font-weight:800;letter-spacing:2.5px;font-size:13px;color:#e9ddd6}
+.gw-stat{display:flex;align-items:center;gap:6px;font-size:11px;color:#b9a89f;margin-top:4px}
+.gw-stat .d{width:7px;height:7px;border-radius:50%;background:#7CFF9B;animation:blink 1.4s infinite}
+.gw-build{font-size:10px;color:#8f7d73;margin-top:3px}
+.av-btn{width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;border:0;font-size:16px;cursor:pointer;display:grid;place-items:center;flex:0 0 auto}
+.av-btn:hover{background:var(--brand-d)}
+.usermenu{position:absolute;right:0;top:46px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 34px rgba(60,30,20,.18);width:224px;padding:8px;z-index:60}
+.um-head{display:flex;align-items:center;gap:10px;padding:6px 8px 10px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.um-av{width:36px;height:36px;border-radius:50%;background:var(--brand-xl);display:grid;place-items:center;font-size:18px;flex:0 0 auto}
+.um-item{display:block;width:100%;text-align:left;background:transparent;border:0;padding:10px;border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer;font-weight:600}
+.um-item:hover{background:var(--brand-xl)}
+.um-catch{position:fixed;inset:0;z-index:50}

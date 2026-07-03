@@ -8,7 +8,8 @@ export default function Scenarios() {
   const [cur, setCur] = useState(null);
   const [view, setView] = useState('builder'); // builder | board
   const load = async (keep) => {
-    const d = await fetch('/api/scenarios').then(r=>r.json());
+    const d = await fetch('/api/scenarios').then(r=>r.json()).catch(()=>[]);
+    if (!d || !d.length) { setCur({id:'-',name:'데이터 없음',type:'-',version:0,nodes:[]}); setList([]); return; }
     setList(d);
     const sel = keep && d.find(s=>s.id===keep) ? d.find(s=>s.id===keep) : (cur && d.find(s=>s.id===cur.id)) || d[0];
     setCur(sel ? { ...sel, nodes: [...(sel.nodes||[])] } : null);
