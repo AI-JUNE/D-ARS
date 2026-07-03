@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { pct } from '@/lib/ui';
+import Counter from '@/lib/Counter';
 
 function Bars({ data }) {
   const max = Math.max(...data.map(d=>d.v));
@@ -20,10 +21,10 @@ export default function Stats() {
     <>
       <div className="sectionhead"><h2>이용 통계</h2><span className="d">멀티모달·스마트ARS 이용 분석</span></div>
       <div className="grid g4">
-        <div className="card kpi"><div className="n">4,182</div><div className="l">총 인입</div></div>
-        <div className="card kpi"><div className="n">540</div><div className="l">멀티모달 전환</div></div>
-        <div className="card kpi"><div className="n">902</div><div className="l">완료</div></div>
-        <div className="card kpi"><div className="n">318</div><div className="l">이탈</div></div>
+        <div className="card kpi"><div className="n"><Counter value="4,182" /></div><div className="l">총 인입</div></div>
+        <div className="card kpi"><div className="n"><Counter value="540" /></div><div className="l">멀티모달 전환</div></div>
+        <div className="card kpi"><div className="n"><Counter value="902" /></div><div className="l">완료</div></div>
+        <div className="card kpi"><div className="n"><Counter value="318" /></div><div className="l">이탈</div></div>
       </div>
       <div className="card" style={{marginTop:16}}><h3>📈 일별 멀티모달 전환</h3><Bars data={bars} /></div>
       <div className="card" style={{marginTop:16}}><h3>📋 서비스별 상세</h3>

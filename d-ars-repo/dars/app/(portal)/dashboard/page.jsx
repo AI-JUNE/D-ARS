@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { pct } from '@/lib/ui';
+import Counter from '@/lib/Counter';
 
 function Kpi({ n, l, delta }) {
-  return <div className="card kpi"><div className="n">{n}</div><div className="l">{l}</div>{delta && <div className="delta up">{delta}</div>}</div>;
+  return <div className="card kpi"><div className="n"><Counter value={n} /></div><div className="l">{l}</div>{delta && <div className="delta up">{delta}</div>}</div>;
 }
 function Spark({ data, color='#be5535', h=60 }) {
   const max = Math.max(...data), min = Math.min(...data), W=260;
