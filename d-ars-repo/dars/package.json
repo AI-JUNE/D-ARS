@@ -1,0 +1,23 @@
+{
+  "name": "d-ars",
+  "version": "0.1.0",
+  "private": true,
+  "description": "D-ARS · 보이는 ARS (Visual ARS) — 콜봇 연계 풀스택 (Next.js + Neon + Vercel)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:setup": "node scripts/db-setup.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4",
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "eslint": "8.57.1",
+    "eslint-config-next": "14.2.15"
+  }
+}
