@@ -41,11 +41,11 @@ export default function Landing() {
 
       {/* hero */}
       <section style={{...wrap, textAlign:'center', padding:'40px 20px 20px'}}>
-        <span className="tag t-mut" style={{background:'var(--brand-xl)',color:'var(--brand-d)'}}>콜봇 연계 · 상용 서비스</span>
+        <span className="tag t-mut" style={{background:'var(--brand-xl)',color:'var(--brand-d)'}}>AI 컨택센터 · 보이는 ARS</span>
         <h1 style={{fontSize:'clamp(28px,7vw,52px)',margin:'16px 0 6px',lineHeight:1.15,letterSpacing:'-.5px'}}>
-          들리는 ARS를 넘어,<br/><span style={{color:'var(--brand-d)'}}>보이는 ARS</span></h1>
+          상담을 완결하는<br/><span style={{color:'var(--brand-d)'}}>보이는 ARS</span></h1>
         <p style={{color:'var(--muted)',fontSize:'clamp(14px,3.6vw,17px)',maxWidth:560,margin:'0 auto 22px',lineHeight:1.6}}>
-          통화 중 고객 스마트폰에 화면을 띄워 음성 안내를 시각화하고, 서류·문자·상담원 전환을 화면에서 바로 처리합니다.</p>
+          AI 음성상담에 실시간 화면을 더해, 안내·서류·문자·상담원 전환을 통화 한 번에 처리합니다.</p>
         <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
           <Link href="/visual" className="btn primary">📱 보이는 ARS 체험</Link>
           <Link href="/dashboard" className="btn">🖥️ 운영 콘솔 열기</Link>
