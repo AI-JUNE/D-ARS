@@ -7,6 +7,7 @@ const NAV = [
   ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/stats','📈','이용 통계']]],
   ['콘텐츠', [['/scenarios','🧩','시나리오 관리'],['/docs','📋','필요서류 관리']]],
   ['발송', [['/ums','✉️','UMS 문자발송']]],
+  ['지원', [['/help','❓','도움말 · FAQ']]],
 ];
 const BOTTOM = [
   ['/dashboard','🏠','홈'],['/sessions','📡','세션'],['/scenarios','🧩','시나리오'],['/stats','📈','통계'],
@@ -15,6 +16,7 @@ const TITLES = {
   '/dashboard':['대시보드','운영 · 대시보드'],'/sessions':['실시간 세션','운영 · 모니터링'],
   '/scenarios':['시나리오 관리','콘텐츠 · 비주얼 시나리오'],'/docs':['필요서류 관리','콘텐츠 · 서류'],
   '/ums':['UMS 문자발송','발송 · UMS'],'/stats':['이용 통계','분석 · 통계'],
+  '/help':['도움말 · FAQ','지원 · 사용 안내'],
 };
 
 export default function PortalLayout({ children }) {
