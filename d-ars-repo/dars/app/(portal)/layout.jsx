@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 const NAV = [
-  ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/stats','📈','이용 통계']]],
+  ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/stats','📈','이용 통계'],['/notifications','🔔','알림 센터']]],
   ['콘텐츠', [['/scenarios','🧩','시나리오 관리'],['/docs','📋','필요서류 관리']]],
   ['발송', [['/ums','✉️','UMS 문자발송']]],
   ['고객 화면', [['/visual','📱','보이는 ARS 데모'],['/','🏢','서비스 홈']]],
@@ -14,6 +14,7 @@ const TITLES = {
   '/dashboard':['대시보드','운영 · 대시보드'],'/sessions':['실시간 세션','운영 · 모니터링'],
   '/scenarios':['시나리오 관리','콘텐츠 · 비주얼 시나리오'],'/docs':['필요서류 관리','콘텐츠 · 서류'],
   '/ums':['UMS 문자발송','발송 · UMS'],'/stats':['이용 통계','분석 · 통계'],
+  '/notifications':['알림 센터','운영 · 알림'],'/help':['도움말','지원 · FAQ'],
 };
 
 export default function PortalLayout({ children }) {
@@ -22,6 +23,7 @@ export default function PortalLayout({ children }) {
   const [menu, setMenu] = useState(false);   // user menu
   const [big, setBig] = useState(false);
   const [live, setLive] = useState(0);
+  const [noti, setNoti] = useState(0);
   const meta = TITLES[path] || ['D-ARS',''];
 
   useEffect(() => { setOpen(false); setMenu(false); }, [path]);
@@ -30,6 +32,12 @@ export default function PortalLayout({ children }) {
     let t;
     const poll = () => fetch('/api/sessions').then(r=>r.json()).then(d=>setLive((d||[]).filter(s=>s.step<4).length)).catch(()=>{});
     poll(); t = setInterval(poll, 6000); return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    let t;
+    const pn = () => fetch('/api/notifications').then(r=>r.json())
+      .then(d=>setNoti(((d&&d.summary)?(d.summary.bad||0)+(d.summary.warn||0):0))).catch(()=>{});
+    pn(); t = setInterval(pn, 30000); return () => clearInterval(t);
   }, []);
 
   const UserMenu = () => (
@@ -77,6 +85,7 @@ export default function PortalLayout({ children }) {
           <div className="sp" />
           <button className="btn sm" onClick={() => setBig(v => !v)} aria-pressed={big}>가 {big ? '작게' : '큰글씨'}</button>
           <span className="chip"><i />콜봇 연동 정상</span>
+          <Link href="/notifications" className="bell" aria-label="알림 센터">🔔{noti>0 && <span className="bell-badge">{noti>9?'9+':noti}</span>}</Link>
           <div className="who" style={{position:'relative'}}>
             <button className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴" aria-expanded={menu}>👤</button>
             {menu && <><div className="um-catch" onClick={()=>setMenu(false)} /><UserMenu/></>}
@@ -87,6 +96,7 @@ export default function PortalLayout({ children }) {
           <button className="hamb" onClick={() => setOpen(true)} aria-label="메뉴 열기"><span>☰</span></button>
           <div><h1>{meta[0]}</h1><div className="crumb">{meta[1]}</div></div>
           <div className="sp" />
+          <Link href="/notifications" className="bell" aria-label="알림 센터">🔔{noti>0 && <span className="bell-badge">{noti>9?'9+':noti}</span>}</Link>
           <div style={{position:'relative'}}>
             <button className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴">👤</button>
             {menu && <><div className="um-catch" onClick={()=>setMenu(false)} /><UserMenu/></>}
