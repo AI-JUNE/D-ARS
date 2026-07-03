@@ -42,3 +42,31 @@ export function demoSessions(n=6){ let sid=4820; const out=[];
       elapsed:Math.floor(Math.random()*200), status: step>=4?'완료':'진행' }); }
   return out; }
 export { journey, nodeByStep };
+
+// 멀티모달 이력(보이는 ARS 상호작용 로그) 데모 — DATABASE_URL 미설정 시 폴백.
+const mmChannels = [
+  ['화면 표출', 'SHOW_CARD'], ['음성 안내', 'VISUAL_LAUNCH'], ['메뉴 선택', 'SHOW_MENU'],
+  ['서류 안내', 'REQUEST_DOC'], ['RAG 응답', 'RAG_ANSWER'], ['문자 발송', 'REQUEST_DOC'],
+  ['채널 전환', 'CHANNEL_SWITCH'],
+];
+const mmResults = ['완료', '완료', '완료', '이탈', '상담원 전환'];
+export function demoMultimodal(n = 40) {
+  const now = Date.now();
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const [channel, node] = mmChannels[i % mmChannels.length];
+    const t = new Date(now - i * 4 * 60000 - Math.floor(Math.random() * 90000));
+    out.push({
+      id: 'MM-' + (9000 - i),
+      ts: t.toISOString(),
+      phone: rnd(),
+      scenario: demoScenarios[i % demoScenarios.length].name,
+      service: svc[i % svc.length],
+      channel,
+      node,
+      result: mmResults[Math.floor(Math.random() * mmResults.length)],
+      duration: 8 + Math.floor(Math.random() * 240),
+    });
+  }
+  return out;
+}
