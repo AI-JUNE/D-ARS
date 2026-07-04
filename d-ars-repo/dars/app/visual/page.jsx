@@ -30,9 +30,9 @@ export default function Visual() {
   };
 
   return (
-    <div style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'radial-gradient(1200px 600px at 50% -10%, #f7ece6, #e7ddd5)',padding:20}}>
-      <div style={{width:390,background:'#0d0b0a',borderRadius:44,padding:12,boxShadow:'0 8px 30px rgba(60,30,20,.2)'}}>
-        <div style={{background:'#f4f1ee',borderRadius:34,overflow:'hidden',height:720,display:'flex',flexDirection:'column'}}>
+    <div style={{minHeight:'100vh',display:'grid',placeItems:'center',background:'radial-gradient(1200px 600px at 50% -10%, #f7ece6, #e7ddd5)',padding:'20px 12px'}}>
+      <div style={{width:'min(390px,100%)',background:'#0d0b0a',borderRadius:44,padding:12,boxShadow:'0 8px 30px rgba(60,30,20,.2)'}}>
+        <div style={{background:'#f4f1ee',borderRadius:34,overflow:'hidden',height:'min(720px,80vh)',minHeight:520,display:'flex',flexDirection:'column'}}>
           <div style={{background:'linear-gradient(135deg,#be5535,#9c4025)',color:'#fff',padding:'22px 18px 14px'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <b>📞 고객센터 상담</b><span style={{fontSize:11,background:'rgba(255,255,255,.18)',padding:'4px 9px',borderRadius:999}}>● 통화 연결됨</span>
