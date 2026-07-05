@@ -5,6 +5,12 @@ export const metadata = {
   description: '보이는 ARS (Visual ARS) · 콜봇 연계 풀스택',
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#be5535',
+};
+
 export default function RootLayout({ children }) {
   return (
     <html lang="ko">
