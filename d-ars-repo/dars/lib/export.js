@@ -1,4 +1,15 @@
 // 공통 CSV 내보내기 (Excel 한글 호환: UTF-8 BOM)
+// 파일명 날짜 스탬프(일별 다운로드 덮어쓰기 방지·감사 추적): name.ext → name_YYYY-MM-DD.ext
+export function stampFilename(filename) {
+  const d = new Date();
+  const z = (n) => String(n).padStart(2, '0');
+  const tag = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+  const dot = String(filename).lastIndexOf('.');
+  return dot === -1
+    ? `${filename}_${tag}`
+    : `${filename.slice(0, dot)}_${tag}${filename.slice(dot)}`;
+}
+
 export function toCSV(rows, columns) {
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const head = columns.map(c => esc(c.label)).join(',');
@@ -14,7 +25,7 @@ export function downloadCSV(filename, rows, columns) {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  a.href = url; a.download = stampFilename(filename); a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -44,7 +55,7 @@ export function downloadExcel(filename, rows, columns, sheetName) {
   const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  a.href = url; a.download = stampFilename(filename); a.click();
   URL.revokeObjectURL(url);
 }
 
