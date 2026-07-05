@@ -19,7 +19,7 @@
 
 ## 다음 스프린트 (우선순위 순 — 한 번에 1~2개씩)
 1. [x] 시나리오 **보드/타임라인/캘린더 뷰** + 상태 그룹화(prism 반영)
-2. [x] **CSV 내보내기** 공통 유틸(시나리오·서류·세션·UMS·멀티모달 이력) + [x] **Excel(.xls) 내보내기**(의존성 없는 SpreadsheetML, 한글·전화번호 서식 보존, 5개 화면) — PDF는 예정
+2. [x] **CSV 내보내기** 공통 유틸(시나리오·서류·세션·UMS·멀티모달 이력) + [x] **Excel(.xls) 내보내기**(의존성 없는 SpreadsheetML, 한글·전화번호 서식 보존, 5개 화면) + [x] **PDF 내보내기**(의존성 없는 브라우저 인쇄·숨김 iframe, 브랜드 리포트 서식·짝수행 음영·마스킹 표기, 5개 화면 공통 유틸 `printPDF`)
 3. **로그인 · RBAC**: /login, 세션 쿠키, 역할별 접근 미들웨어
 4. [x] **세션 실시간 동기** (SSE 스트림 `/api/sessions/stream`, 콜봇 이벤트 스키마) + **세션 write API** POST `/api/sessions`(launch/progress/complete/drop → Neon upsert, 데모 폴백) — 세션 페이지 EventSource+폴링 폴백·실시간 연결 표시. 서버리스 수명 한계로 WebSocket 대신 SSE 채택
 5. [x] **알림 센터 · 연동 상태 · FAQ/도움말** 페이지 — FAQ·도움말(/help, 연동 상태 카드) · 알림 센터(/notifications: 서류 완료율·UMS 실패·장기 세션·이탈률 자동 도출, 심각도 정렬, 헤더 벨 배지, 읽음 관리)

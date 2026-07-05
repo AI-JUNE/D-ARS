@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { NODE_TYPES, journey, fmt } from '@/lib/ui';
-import { downloadCSV, downloadExcel } from '@/lib/export';
+import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 
 export default function Sessions() {
   const [rows, setRows] = useState([]);
@@ -36,6 +36,7 @@ export default function Sessions() {
     { label: '단계', value: s => journey[s.step] }, { label: '경과(초)', value: 'elapsed' }, { label: '상태', value: 'status' }];
   const exportCsv = () => downloadCSV('sessions.csv', rows, exportCols);
   const exportXlsx = () => downloadExcel('sessions.xls', rows, exportCols, '세션');
+  const exportPdf = () => printPDF('실시간 세션', rows, exportCols);
   return (
     <>
       <div className="sectionhead"><h2>실시간 보이는 ARS 세션</h2>
@@ -43,7 +44,7 @@ export default function Sessions() {
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: live ? '#2e9e5b' : '#c9a23a', boxShadow: live ? '0 0 0 3px rgba(46,158,91,.15)' : 'none', flex: '0 0 auto' }} />
           {live ? '실시간 스트림 연결됨' : '자동 갱신(4초) · 번호 마스킹'}
         </span>
-        <span className="sp" /><button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button></div>
+        <span className="sp" /><button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" onClick={exportPdf}>🖨 PDF</button></div>
       <div className="grid g4">
         <div className="card kpi"><div className="n">{active}</div><div className="l">진행 세션</div></div>
         <div className="card kpi"><div className="n">{fmt(avg)}</div><div className="l">평균 경과</div></div>

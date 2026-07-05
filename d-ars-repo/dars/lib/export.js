@@ -47,3 +47,52 @@ export function downloadExcel(filename, rows, columns, sheetName) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
+
+// 공통 PDF 내보내기 — 의존성 없이 브라우저 인쇄(PDF로 저장)로 표를 출력.
+// 숨김 iframe에 브랜드 리포트 HTML을 렌더 후 print() → 팝업 차단 영향 없음. 읽기 전용·비파괴.
+export function printPDF(title, rows, columns, opts = {}) {
+  if (typeof window === 'undefined') return;
+  const list = Array.isArray(rows) ? rows : [];
+  const esc = (v) => String(v ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const th = columns.map(c => `<th>${esc(c.label)}</th>`).join('');
+  const body = list.length
+    ? list.map(r => '<tr>' + columns.map(c => {
+        const v = typeof c.value === 'function' ? c.value(r) : r[c.value];
+        return `<td>${esc(v)}</td>`;
+      }).join('') + '</tr>').join('')
+    : `<tr><td class="empty" colspan="${columns.length}">데이터가 없습니다.</td></tr>`;
+  const now = new Date().toLocaleString('ko-KR', { dateStyle: 'long', timeStyle: 'short' });
+  const sub = opts.subtitle ? `<div class="sub">${esc(opts.subtitle)}</div>` : '';
+  const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
+*{box-sizing:border-box}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#2b201c;margin:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;color:#be5535;font-size:13px}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:#be5535;display:inline-block}
+h1{font-size:20px;margin:8px 0 2px}.meta,.sub{color:#8a7970;font-size:12px}.sub{margin-top:2px}
+table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}
+th{background:#be5535;color:#fff;text-align:left;padding:7px 10px;border:1px solid #d8c7bf;font-weight:700}
+td{padding:6px 10px;border:1px solid #e6dcd6;word-break:break-word}tbody tr:nth-child(even){background:#faf5f2}
+td.empty{text-align:center;color:#8a7970;padding:18px}
+.foot{margin-top:18px;color:#a2938b;font-size:11px;border-top:1px solid #ece3dd;padding-top:8px}
+@page{margin:14mm}
+</style></head><body>
+<div class="brand"><span class="dot"></span> D-ARS · 보이는 ARS</div>
+<h1>${esc(title)}</h1>
+<div class="meta">생성 ${esc(now)} · 운영 GOWON · ${list.length}건</div>${sub}
+<table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>
+<div class="foot">본 문서는 D-ARS 관리자 포털에서 자동 생성되었습니다. 고객 번호는 마스킹 처리됩니다. · #be5535</div>
+</body></html>`;
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });
+  document.body.appendChild(iframe);
+  const doc = iframe.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  const run = () => {
+    try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (e) {}
+    setTimeout(() => { try { document.body.removeChild(iframe); } catch (e) {} }, 1500);
+  };
+  if (doc.readyState === 'complete') setTimeout(run, 200);
+  else iframe.onload = () => setTimeout(run, 200);
+}

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { NODE_TYPES } from '@/lib/ui';
-import { downloadCSV, downloadExcel } from '@/lib/export';
+import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 
 export default function Scenarios() {
   const [list, setList] = useState([]);
@@ -30,6 +30,7 @@ export default function Scenarios() {
   const exportCsv = () => downloadCSV('scenarios.csv', list, exportCols);
   const exportXlsx = () => downloadExcel('scenarios.xls', list, exportCols, '시나리오');
 
+  const exportPdf = () => printPDF('시나리오 목록', list, exportCols);
   const groups = [['운영','t-ok'],['미운영','t-mut']];
 
   return (
@@ -38,7 +39,7 @@ export default function Scenarios() {
         <span className="sp" />
         <div className="seg"><button className={view==='builder'?'on':''} onClick={()=>setView('builder')}>🧩 빌더</button>
           <button className={view==='board'?'on':''} onClick={()=>setView('board')}>🗂️ 보드</button></div>
-        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button>
+        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" onClick={exportPdf}>🖨 PDF</button>
         <button className="btn primary sm" onClick={create}>+ 시나리오</button>
       </div>
 

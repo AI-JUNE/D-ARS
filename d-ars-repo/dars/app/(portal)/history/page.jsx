@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { NODE_TYPES, fmt, pct } from '@/lib/ui';
-import { downloadCSV, downloadExcel } from '@/lib/export';
+import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 
 /* 멀티모달 이력 — 보이는 ARS 상호작용 로그(화면·음성·문자·RAG·전환)를
    한 화면에서 조회·필터·내보내기. 읽기 전용 · 모바일 우선 · 브랜드 #be5535. */
@@ -47,13 +47,14 @@ export default function History() {
   const exportCsv = () => downloadCSV('multimodal-history.csv', filtered, exportCols);
   const exportXlsx = () => downloadExcel('multimodal-history.xls', filtered, exportCols, '멀티모달이력');
 
+  const exportPdf = () => printPDF('멀티모달 이력', filtered, exportCols);
   return (
     <>
       <div className="sectionhead">
         <h2>멀티모달 이력</h2>
         <span className="d">보이는 ARS 상호작용 로그 · 15초 자동 갱신 · 번호 마스킹</span>
         <span className="sp" />
-        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button>
+        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" onClick={exportPdf}>🖨 PDF</button>
       </div>
 
       <div className="grid g4">

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { tagClass } from '@/lib/ui';
-import { downloadCSV, downloadExcel } from '@/lib/export';
+import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 
 export default function Ums() {
   const [rows, setRows] = useState([]);
@@ -16,6 +16,7 @@ export default function Ums() {
     {label:'서류',value:'doc'},{label:'상태',value:'status'}];
   const exportCsv = () => downloadCSV('ums.csv', rows, exportCols);
   const exportXlsx = () => downloadExcel('ums.xls', rows, exportCols, 'UMS');
+  const exportPdf = () => printPDF('UMS 발송 내역', rows, exportCols);
   return (
     <>
       <div className="sectionhead"><h2>UMS 문자발송</h2><span className="d">보이는 ARS 서류·영수증 링크 발송 로그</span></div>
@@ -29,7 +30,7 @@ export default function Ums() {
         <div className="seg">{['전체','발송완료','대기','실패'].map(f=>(
           <button key={f} className={filter===f?'on':''} onClick={()=>pick(f)}>{f}</button>))}</div>
         <span className="sp" />
-        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button>
+        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" onClick={exportPdf}>🖨 PDF</button>
         <button className="btn primary sm" onClick={test}>✉️ 테스트 발송</button>
       </div>
       <div className="card"><table className="tbl"><thead><tr><th>시각</th><th>휴대폰</th><th>서비스</th><th>서류</th><th>상태</th></tr></thead>
