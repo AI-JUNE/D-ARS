@@ -210,3 +210,7 @@ svg{max-width:100%;height:auto}
   .seg button{padding:6px 9px;font-size:12px}
   .toolbar .btn,.sectionhead .btn{padding:7px 9px;font-size:11.5px}
 }
+
+/* sortable table headers (prism-pms 정렬) */
+.tbl th.sort{cursor:pointer;user-select:none;white-space:nowrap}
+.tbl th.sort:hover{color:var(--brand-d)}
