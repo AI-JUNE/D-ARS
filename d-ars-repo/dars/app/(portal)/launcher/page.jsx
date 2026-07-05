@@ -145,7 +145,7 @@ export default function Launcher() {
           </div>
         </div>
 
-        <div className="card" style={{ position: 'sticky', top: 76 }}>
+        <div className="card launcher-preview" style={{ position: 'sticky', top: 76 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <b style={{ fontSize: 14 }}>라이브 미리보기</b>
             <span className="sp" />
