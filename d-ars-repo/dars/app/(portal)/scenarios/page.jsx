@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { NODE_TYPES } from '@/lib/ui';
-import { downloadCSV } from '@/lib/export';
+import { downloadCSV, downloadExcel } from '@/lib/export';
 
 export default function Scenarios() {
   const [list, setList] = useState([]);
@@ -24,9 +24,11 @@ export default function Scenarios() {
   const save = async () => { await fetch('/api/scenarios/'+cur.id,{method:'PUT',body:JSON.stringify({nodes:cur.nodes,name:cur.name,type:cur.type,status:cur.status})}); await load(cur.id); alert('저장됨 · 버전 상향'); };
   const create = async () => { const name=prompt('시나리오명','새 시나리오'); if(name===null)return; const s=await fetch('/api/scenarios',{method:'POST',body:JSON.stringify({name})}).then(r=>r.json()); await load(s.id); };
   const validate = () => { const ok=cur.nodes.some(n=>n.type==='VISUAL_LAUNCH')&&cur.nodes.some(n=>n.type==='END'); alert(ok?'✓ 검증 통과 · 런칭·종료 노드 정상':'⚠ 런칭/종료 노드를 확인하세요'); };
-  const exportCsv = () => downloadCSV('scenarios.csv', list, [
+  const exportCols = [
     {label:'ID',value:'id'},{label:'시나리오',value:'name'},{label:'유형',value:'type'},
-    {label:'상태',value:'status'},{label:'버전',value:'version'},{label:'노드수',value:s=>(s.nodes||[]).length},{label:'수정일',value:'updated_at'}]);
+    {label:'상태',value:'status'},{label:'버전',value:'version'},{label:'노드수',value:s=>(s.nodes||[]).length},{label:'수정일',value:'updated_at'}];
+  const exportCsv = () => downloadCSV('scenarios.csv', list, exportCols);
+  const exportXlsx = () => downloadExcel('scenarios.xls', list, exportCols, '시나리오');
 
   const groups = [['운영','t-ok'],['미운영','t-mut']];
 
@@ -36,7 +38,7 @@ export default function Scenarios() {
         <span className="sp" />
         <div className="seg"><button className={view==='builder'?'on':''} onClick={()=>setView('builder')}>🧩 빌더</button>
           <button className={view==='board'?'on':''} onClick={()=>setView('board')}>🗂️ 보드</button></div>
-        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button>
+        <button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button>
         <button className="btn primary sm" onClick={create}>+ 시나리오</button>
       </div>
 

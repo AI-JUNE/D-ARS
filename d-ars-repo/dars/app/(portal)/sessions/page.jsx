@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { NODE_TYPES, journey, fmt } from '@/lib/ui';
-import { downloadCSV } from '@/lib/export';
+import { downloadCSV, downloadExcel } from '@/lib/export';
 
 export default function Sessions() {
   const [rows, setRows] = useState([]);
@@ -11,13 +11,15 @@ export default function Sessions() {
   }, []);
   const active = rows.filter(s=>s.step<4).length;
   const avg = rows.length ? Math.round(rows.reduce((a,s)=>a+s.elapsed,0)/rows.length) : 0;
-  const exportCsv = () => downloadCSV('sessions.csv', rows, [
+  const exportCols = [
     {label:'세션ID',value:'id'},{label:'고객',value:'phone'},{label:'시나리오',value:'scenario'},
-    {label:'단계',value:s=>journey[s.step]},{label:'경과(초)',value:'elapsed'},{label:'상태',value:'status'}]);
+    {label:'단계',value:s=>journey[s.step]},{label:'경과(초)',value:'elapsed'},{label:'상태',value:'status'}];
+  const exportCsv = () => downloadCSV('sessions.csv', rows, exportCols);
+  const exportXlsx = () => downloadExcel('sessions.xls', rows, exportCols, '세션');
   return (
     <>
       <div className="sectionhead"><h2>실시간 보이는 ARS 세션</h2><span className="d">4초 자동 갱신 · 번호 마스킹</span>
-        <span className="sp" /><button className="btn sm" onClick={exportCsv}>⬇ CSV</button></div>
+        <span className="sp" /><button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button></div>
       <div className="grid g4">
         <div className="card kpi"><div className="n">{active}</div><div className="l">진행 세션</div></div>
         <div className="card kpi"><div className="n">{fmt(avg)}</div><div className="l">평균 경과</div></div>

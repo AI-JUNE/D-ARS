@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { pct } from '@/lib/ui';
-import { downloadCSV } from '@/lib/export';
+import { downloadCSV, downloadExcel } from '@/lib/export';
 
 export default function Docs() {
   const [docs, setDocs] = useState([]);
@@ -13,13 +13,15 @@ export default function Docs() {
     await fetch('/api/docs', { method:'POST', body: JSON.stringify({ biz, name }) }); load();
   };
   const toggle = async (d) => { await fetch('/api/docs/'+d.id, { method:'PUT', body: JSON.stringify({ in_use: !d.in_use }) }); load(); };
-  const exportCsv = () => downloadCSV('docs.csv', docs, [
+  const exportCols = [
     {label:'업무',value:'biz'},{label:'서류명',value:'name'},{label:'요청',value:'req'},
-    {label:'발송',value:'sent'},{label:'완료',value:'done'},{label:'완료율%',value:d=>pct(d.done,d.req)},{label:'사용',value:d=>d.in_use?'Y':'N'}]);
+    {label:'발송',value:'sent'},{label:'완료',value:'done'},{label:'완료율%',value:d=>pct(d.done,d.req)},{label:'사용',value:d=>d.in_use?'Y':'N'}];
+  const exportCsv = () => downloadCSV('docs.csv', docs, exportCols);
+  const exportXlsx = () => downloadExcel('docs.xls', docs, exportCols, '서류');
   return (
     <>
       <div className="sectionhead"><h2>필요서류 관리</h2><span className="d">보이는 ARS·UMS 안내·발송 서류</span>
-        <span className="sp" /><button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn primary sm" onClick={add}>+ 서류</button></div>
+        <span className="sp" /><button className="btn sm" onClick={exportCsv}>⬇ CSV</button><button className="btn sm" onClick={exportXlsx}>⬇ Excel</button><button className="btn primary sm" onClick={add}>+ 서류</button></div>
       <div className="card"><table className="tbl">
         <thead><tr><th>순위</th><th>업무</th><th>서류명</th><th>요청</th><th>발송</th><th>완료</th><th>완료율</th><th>사용</th><th>조치</th></tr></thead>
         <tbody>{docs.map((d,i)=>{const p=pct(d.done,d.req);return (<tr key={d.id}>
