@@ -1,11 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NODE_TYPES, journey, fmt } from '@/lib/ui';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 
 export default function Sessions() {
   const [rows, setRows] = useState([]);
   const [live, setLive] = useState(false); // SSE 실시간 연결 여부
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState(null); // { key, dir }
 
   useEffect(() => {
     let es = null, poll = null, stopped = false;
@@ -31,12 +33,31 @@ export default function Sessions() {
 
   const active = rows.filter(s => s.step < 4).length;
   const avg = rows.length ? Math.round(rows.reduce((a, s) => a + s.elapsed, 0) / rows.length) : 0;
+
+  // prism-pms 반영: 실시간 검색 + 컬럼 정렬(한글·숫자 자연 정렬, 오름/내림/해제)
+  const val = (s, key) => key === 'status' ? s.step : s[key];
+  const view = useMemo(() => {
+    const kw = q.trim().toLowerCase();
+    let r = rows.filter(s => !kw || [s.id, s.phone, s.scenario, s.node].some(v => String(v ?? '').toLowerCase().includes(kw)));
+    if (sort) {
+      r = [...r].sort((a, b) => {
+        const av = val(a, sort.key), bv = val(b, sort.key);
+        const c = (typeof av === 'number' && typeof bv === 'number')
+          ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''), 'ko', { numeric: true });
+        return sort.dir === 'desc' ? -c : c;
+      });
+    }
+    return r;
+  }, [rows, q, sort]);
+  const sortBy = (key) => setSort(s => s && s.key === key ? (s.dir === 'asc' ? { key, dir: 'desc' } : null) : { key, dir: 'asc' });
+  const arw = (key) => !sort || sort.key !== key ? '' : (sort.dir === 'asc' ? ' ▲' : ' ▼');
+
   const exportCols = [
     { label: '세션ID', value: 'id' }, { label: '고객', value: 'phone' }, { label: '시나리오', value: 'scenario' },
     { label: '단계', value: s => journey[s.step] }, { label: '경과(초)', value: 'elapsed' }, { label: '상태', value: 'status' }];
-  const exportCsv = () => downloadCSV('sessions.csv', rows, exportCols);
-  const exportXlsx = () => downloadExcel('sessions.xls', rows, exportCols, '세션');
-  const exportPdf = () => printPDF('실시간 세션', rows, exportCols);
+  const exportCsv = () => downloadCSV('sessions.csv', view, exportCols);
+  const exportXlsx = () => downloadExcel('sessions.xls', view, exportCols, '세션');
+  const exportPdf = () => printPDF('실시간 세션', view, exportCols);
   return (
     <>
       <div className="sectionhead"><h2>실시간 보이는 ARS 세션</h2>
@@ -52,15 +73,28 @@ export default function Sessions() {
         <div className="card kpi"><div className="n">{rows.filter(s => s.node === 'CHANNEL_SWITCH').length}</div><div className="l">상담원 전환 대기</div></div>
       </div>
       <div className="card" style={{ marginTop: 16 }}><h3>세션 보드</h3>
+        <div className="toolbar">
+          <input className="input" placeholder="세션ID·고객·시나리오·노드 검색" value={q} onChange={e => setQ(e.target.value)} style={{ flex: '1 1 200px' }} />
+          <span className="muted" style={{ fontSize: 12 }}>{view.length}건</span>
+        </div>
         <div style={{ overflowX: 'auto' }}>
-          <table className="tbl"><thead><tr><th>세션ID</th><th>고객</th><th>시나리오</th><th>현재 노드</th><th>여정</th><th>경과</th><th>상태</th></tr></thead>
-            <tbody>{rows.map(s => { const nt = NODE_TYPES[s.node]; return (<tr key={s.id}>
+          <table className="tbl"><thead><tr>
+            <th className="sort" onClick={() => sortBy('id')}>세션ID{arw('id')}</th>
+            <th className="sort" onClick={() => sortBy('phone')}>고객{arw('phone')}</th>
+            <th className="sort" onClick={() => sortBy('scenario')}>시나리오{arw('scenario')}</th>
+            <th>현재 노드</th>
+            <th className="sort" onClick={() => sortBy('step')}>여정{arw('step')}</th>
+            <th className="sort" onClick={() => sortBy('elapsed')}>경과{arw('elapsed')}</th>
+            <th className="sort" onClick={() => sortBy('status')}>상태{arw('status')}</th>
+          </tr></thead>
+            <tbody>{view.map(s => { const nt = NODE_TYPES[s.node]; return (<tr key={s.id}>
               <td><b>{s.id}</b></td><td>{s.phone}</td><td>{s.scenario}</td>
               <td><span className="tag t-info">{nt ? nt.ic + ' ' + nt.name : s.node}</span></td>
               <td><div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>{journey.map((j, i) =>
                 <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i <= s.step ? '#be5535' : '#e2d5cd' }} />)}</div></td>
               <td>{fmt(s.elapsed)}</td><td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{s.step >= 4 ? '완료' : '진행'}</span></td>
-            </tr>); })}</tbody></table>
+            </tr>); })}
+            {view.length === 0 && <tr><td colSpan="7" style={{ textAlign: 'center' }} className="muted">검색 결과가 없습니다</td></tr>}</tbody></table>
         </div>
       </div>
     </>
