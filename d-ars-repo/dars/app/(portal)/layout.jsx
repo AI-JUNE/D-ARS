@@ -82,6 +82,7 @@ export default function PortalLayout({ children }) {
       </aside>
 
       <div className="main">
+        <a href="#main" className="skip-link">본문 바로가기</a>
         {/* desktop top */}
         <div className="top">
           <div><h1>{meta[0]}</h1><div className="crumb">{meta[1]}</div></div>
@@ -106,7 +107,7 @@ export default function PortalLayout({ children }) {
           </div>
         </div>
 
-        <div className="wrap">{children}</div>
+        <div className="wrap" id="main">{children}</div>
       </div>
 
       <nav className="botnav">
