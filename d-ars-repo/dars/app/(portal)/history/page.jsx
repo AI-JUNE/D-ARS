@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NODE_TYPES, fmt, pct } from '@/lib/ui';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
+import { Donut, ProgressRow } from '@/lib/charts';
 
 /* 멀티모달 이력 — 보이는 ARS 상호작용 로그(화면·음성·문자·RAG·전환)를
    한 화면에서 조회·필터·내보내기. 읽기 전용 · 모바일 우선 · 브랜드 #be5535. */
@@ -34,6 +35,13 @@ export default function History() {
   const swap = filtered.filter(r => r.result === '상담원 전환').length;
   const avg = filtered.length ? Math.round(filtered.reduce((a, r) => a + (r.duration || 0), 0) / filtered.length) : 0;
 
+  // 채널별 상호작용 분포(현재 필터 반영) — 건수 내림차순
+  const chDist = useMemo(() => {
+    const counts = {};
+    filtered.forEach(r => { counts[r.channel] = (counts[r.channel] || 0) + 1; });
+    return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  }, [filtered]);
+
   const exportCols = [
     { label: 'ID', value: 'id' },
     { label: '시각', value: 'ts' },
@@ -62,6 +70,23 @@ export default function History() {
         <div className="card kpi"><div className="n">{pct(done, filtered.length)}%</div><div className="l">완료율 · {done}건</div></div>
         <div className="card kpi"><div className="n">{drop}</div><div className="l">이탈</div></div>
         <div className="card kpi"><div className="n">{fmt(avg)}</div><div className="l">평균 소요</div></div>
+      </div>
+
+      <div className="grid g2" style={{ marginTop: 16 }}>
+        <div className="card reveal" style={{ animationDelay: '.1s' }}>
+          <h3>🎯 처리 결과 분포</h3><div className="d">완료 · 이탈 · 상담원 전환 비율 (현재 필터)</div>
+          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center', padding: '10px 0 2px' }}>
+            <Donut value={pct(done, filtered.length)} color="#2e8b57" label={`완료 ${done}건`} />
+            <Donut value={pct(drop, filtered.length)} color="#c0392b" label={`이탈 ${drop}건`} />
+            <Donut value={pct(swap, filtered.length)} color="#c9902a" label={`상담원 전환 ${swap}건`} />
+          </div>
+        </div>
+        <div className="card reveal" style={{ animationDelay: '.16s' }}>
+          <h3>📡 채널별 상호작용</h3><div className="d">건수 비중 · 상위 채널</div>
+          {chDist.length > 0
+            ? chDist.map(c => <ProgressRow key={c.name} label={c.name} value={c.count} total={filtered.length} suffix="건" color="#be5535" />)
+            : <div className="muted" style={{ padding: '18px 0', textAlign: 'center' }}>조건에 맞는 이력이 없습니다.</div>}
+        </div>
       </div>
 
       <div className="toolbar" style={{ marginTop: 16 }}>
