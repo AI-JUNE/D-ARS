@@ -21,6 +21,7 @@
 - [x] 포털 라우트 스켈레톤 로딩(콘텐츠형 · 섹션헤더/KPI/표 골격 shimmer, 레이아웃 시프트 무붕괴 · prefers-reduced-motion 존중) + 키보드 본문 바로가기(skip-link, eum-app 접근성) + sr-only 유틸 — 야간 자동 품질 개선
 - [x] 실시간 세션 보드 검색·정렬(prism-pms 반영): 세션ID·고객·시나리오·노드 실시간 검색 + 컬럼 정렬(오름/내림/해제, 한글·숫자 자연 정렬) · 내보내기(CSV·Excel·PDF) 검색·정렬 결과 반영 · SSE 실시간 갱신 유지 · 모바일 무붕괴
 - [x] 브랜드 favicon(`/icon.svg`)·**PWA manifest**(홈화면 추가·standalone·theme #be5535)·SEO/소셜 메타데이터 강화(metadataBase·title 템플릿·openGraph ko_KR·twitter·robots·appleWebApp) — 레이아웃 무영향(무붕괴) 품질 개선
+- [x] **대시보드 인포그래픽 개편**: 공통 애니메이션 차트 라이브러리 `lib/charts.jsx`(그라데이션 **영역차트**-라인 드로우·호버 툴팁, **그룹 막대**-바닥 그로우·툴팁·범례, **도넛**-원호 스윕·중앙 카운트업, **채워지는 진행바**-퍼센트 카운트업) · KPI 카드 아이콘/그라데이션 액센트/스파크라인/카운트업/등장 스태거 — 모바일 무붕괴·`prefers-reduced-motion` 존중 (통계·리포트로 확산 예정)
 
 ## 다음 스프린트 (우선순위 순 — 한 번에 1~2개씩)
 1. [x] 시나리오 **보드/타임라인/캘린더 뷰** + 상태 그룹화(prism 반영)
