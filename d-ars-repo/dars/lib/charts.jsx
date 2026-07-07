@@ -167,3 +167,18 @@ export function Donut({ value = 0, size = 96, stroke = 11, color = '#be5535', la
     </div>
   );
 }
+
+/* ── 공통 KPI 카드 (아이콘·카운트업·델타 배지·스파크라인·등장) ── */
+export function KpiCard({ icon, n, l, delta, deltaDir = 'up', spark, color = '#be5535', delay = 0 }) {
+  return (
+    <div className="card kpi2 reveal" style={{ animationDelay: `${delay}s` }}>
+      <div className="top">
+        <span className="ic">{icon}</span>
+        <div className="n"><Counter value={n} /></div>
+      </div>
+      <div className="l">{l}</div>
+      {delta && <div className={'delta ' + deltaDir}>{deltaDir === 'down' ? '▼' : '▲'} {delta}</div>}
+      {spark && spark.length > 1 && <div className="sp"><AreaChart data={spark} color={color} height={44} mini /></div>}
+    </div>
+  );
+}

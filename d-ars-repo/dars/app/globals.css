@@ -268,3 +268,9 @@ svg{max-width:100%;height:auto}
   .ac-wrap svg path,.ac-wrap svg circle,.bar2 i,.kpi2 .sp path{transition:none !important}
   .ac-wrap svg [style*="dashoffset"]{stroke-dashoffset:0 !important}
 }
+
+/* 리포트 내 차트 */
+.rp-chart{margin:8px 0 2px}
+.rp-chart svg{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rp-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#6b5a52;margin-top:2px}
+.rp-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}

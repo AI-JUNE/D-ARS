@@ -1,8 +1,14 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { pct } from '@/lib/ui';
+import { GroupedBars } from '@/lib/charts';
 
 // 운영 리포트 — 브라우저 인쇄(PDF로 저장)로 출력. 읽기 전용, 스키마 변경 없음.
+const BAR_SERIES = [
+  { key: 'multimodal', label: '멀티모달', color: '#be5535' },
+  { key: 'completed', label: '완료', color: '#2e8b57' },
+  { key: 'dropped', label: '이탈', color: '#c0392b' },
+];
 export default function Report() {
   const [stats, setStats] = useState(null);
   const [docs, setDocs] = useState([]);
@@ -45,6 +51,15 @@ export default function Report() {
           <div><b>{doneRate}%</b><span>완료율</span></div>
           <div><b>{dropRate}%</b><span>이탈률</span></div>
         </div>
+
+        {daily.length > 0 && (
+          <div className="rp-chart">
+            <GroupedBars data={daily} series={BAR_SERIES} height={200} />
+            <div className="rp-legend">
+              {BAR_SERIES.map(x => (<span key={x.key}><i style={{ background: x.color }} />{x.label}</span>))}
+            </div>
+          </div>
+        )}
 
         <h3 className="rp-h3">일별 운영 추이</h3>
         <table className="tbl rp-tbl">
