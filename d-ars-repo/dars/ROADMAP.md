@@ -20,11 +20,12 @@
 - [x] 표 검색·정렬(prism-pms 반영): 서류·UMS 화면 실시간 검색 + 컬럼 정렬(오름/내림/해제, 한글·숫자 자연 정렬) · 내보내기(CSV·Excel·PDF)는 현재 검색·정렬 결과 반영 · 모바일 무붕괴
 - [x] 포털 라우트 스켈레톤 로딩(콘텐츠형 · 섹션헤더/KPI/표 골격 shimmer, 레이아웃 시프트 무붕괴 · prefers-reduced-motion 존중) + 키보드 본문 바로가기(skip-link, eum-app 접근성) + sr-only 유틸 — 야간 자동 품질 개선
 - [x] 실시간 세션 보드 검색·정렬(prism-pms 반영): 세션ID·고객·시나리오·노드 실시간 검색 + 컬럼 정렬(오름/내림/해제, 한글·숫자 자연 정렬) · 내보내기(CSV·Excel·PDF) 검색·정렬 결과 반영 · SSE 실시간 갱신 유지 · 모바일 무붕괴
+- [x] 브랜드 favicon(`/icon.svg`)·**PWA manifest**(홈화면 추가·standalone·theme #be5535)·SEO/소셜 메타데이터 강화(metadataBase·title 템플릿·openGraph ko_KR·twitter·robots·appleWebApp) — 레이아웃 무영향(무붕괴) 품질 개선
 
 ## 다음 스프린트 (우선순위 순 — 한 번에 1~2개씩)
 1. [x] 시나리오 **보드/타임라인/캘린더 뷰** + 상태 그룹화(prism 반영)
 2. [x] **CSV 내보내기** 공통 유틸(시나리오·서류·세션·UMS·멀티모달 이력) + [x] **Excel(.xls) 내보내기**(의존성 없는 SpreadsheetML, 한글·전화번호 서식 보존, 5개 화면) + [x] **PDF 내보내기**(의존성 없는 브라우저 인쇄·숨김 iframe, 브랜드 리포트 서식·짝수행 음영·마스킹 표기, 5개 화면 공통 유틸 `printPDF`) + [x] **날짜 스탬프 파일명**(`stampFilename` — 일별 내보내기 덮어쓰기 방지·감사 추적, CSV·Excel 공통)
-3. **로그인 · RBAC**: /login, 세션 쿠키, 역할별 접근 미들웨어 — ⏳ **야간 컨펌 대기**(인증/권한 = 위험 변경 규칙, 자동 실행 보류 · 운영자 승인 후 진행)
+3. [x] **로그인 · RBAC**: `/login`(브랜드 로그인) · **HMAC 서명 세션 쿠키**(httpOnly·SameSite=Lax·Web Crypto, Edge/Node 겸용) · **역할별 접근 미들웨어**(viewer<operator<admin, 경로별 최소역할: /launcher=admin·/ums·/scenarios·/docs·/templates=operator) · `/api/auth/login|logout|me` · 사용자 메뉴 실연동(이름·역할·로그아웃) — 운영자 승인 반영(2026-07-07). **안전장치: 기본은 데모 통과(페일오픈), 운영자가 `AUTH_ENFORCE=1` + `AUTH_SECRET`/`AUTH_USERS` 설정 시 실제 접근 차단 활성화** → 라이브 데모 무붕괴
 4. [x] **세션 실시간 동기** (SSE 스트림 `/api/sessions/stream`, 콜봇 이벤트 스키마) + **세션 write API** POST `/api/sessions`(launch/progress/complete/drop → Neon upsert, 데모 폴백) — 세션 페이지 EventSource+폴링 폴백·실시간 연결 표시. 서버리스 수명 한계로 WebSocket 대신 SSE 채택
 5. [x] **알림 센터 · 연동 상태 · FAQ/도움말** 페이지 — FAQ·도움말(/help, 연동 상태 카드) · 알림 센터(/notifications: 서류 완료율·UMS 실패·장기 세션·이탈률 자동 도출, 심각도 정렬, 헤더 벨 배지, 읽음 관리)
 6. [x] 대시보드 고도화: [x] 일별 운영추이 막대차트(멀티모달·완료·이탈) · [x] KPI 카운트업 애니메이션(대시보드·통계, prefers-reduced-motion 존중) · [x] PDF 리포트(/report: 일별추이·서비스완료율·세션 스냅샷, 브라우저 인쇄로 PDF 저장, 인쇄 전용 CSS)

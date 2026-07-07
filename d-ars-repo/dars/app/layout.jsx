@@ -1,8 +1,30 @@
 import './globals.css';
 
+const DESC = '보이는 ARS(Visual ARS) · 콜봇 연계 운영 포털 — 시나리오·실시간 세션·멀티모달 이력·UMS·리포트를 한 곳에서 관리합니다.';
+
 export const metadata = {
-  title: 'D-ARS · 보이는 ARS 관리자',
-  description: '보이는 ARS (Visual ARS) · 콜봇 연계 풀스택',
+  metadataBase: new URL('https://d-ars.vercel.app'),
+  applicationName: 'D-ARS',
+  title: { default: 'D-ARS · 보이는 ARS 관리자', template: '%s · D-ARS' },
+  description: DESC,
+  keywords: ['보이는 ARS', 'Visual ARS', '콜봇', 'ARS', '옴니채널', '상담', 'GOWON', 'D-ARS'],
+  authors: [{ name: 'GOWON' }],
+  creator: 'GOWON',
+  publisher: 'GOWON',
+  formatDetection: { telephone: false },
+  icons: {
+    icon: [{ url: '/icon.svg', type: 'image/svg+xml' }],
+    shortcut: '/favicon.svg',
+    apple: '/icon.svg',
+  },
+  appleWebApp: { capable: true, title: 'D-ARS', statusBarStyle: 'default' },
+  openGraph: {
+    type: 'website', locale: 'ko_KR', siteName: 'D-ARS',
+    url: 'https://d-ars.vercel.app',
+    title: 'D-ARS · 보이는 ARS 관리자', description: DESC,
+  },
+  twitter: { card: 'summary', title: 'D-ARS · 보이는 ARS 관리자', description: DESC },
+  robots: { index: true, follow: true },
 };
 
 export const viewport = {

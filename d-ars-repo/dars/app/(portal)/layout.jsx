@@ -27,6 +27,7 @@ export default function PortalLayout({ children }) {
   const [big, setBig] = useState(false);
   const [live, setLive] = useState(0);
   const [noti, setNoti] = useState(0);
+  const [me, setMe] = useState(null);
   const meta = TITLES[path] || ['D-ARS',''];
 
   useEffect(() => { setOpen(false); setMenu(false); }, [path]);
@@ -43,14 +44,20 @@ export default function PortalLayout({ children }) {
     pn(); t = setInterval(pn, 30000); return () => clearInterval(t);
   }, []);
 
+  useEffect(() => { fetch('/api/auth/me').then(r=>r.json()).then(setMe).catch(()=>{}); }, [path]);
+  const logout = async () => { try { await fetch('/api/auth/logout',{method:'POST'}); } catch {} window.location.href='/login'; };
+  const roleLabel = { admin:'관리자', operator:'상담 운영자', viewer:'뷰어' };
+
   const UserMenu = () => (
     <div className="usermenu">
-      <div className="um-head"><div className="um-av">👤</div><div><b>운영 관리자</b><br/><span className="muted" style={{fontSize:11}}>admin@d-ars</span></div></div>
+      <div className="um-head"><div className="um-av">👤</div><div><b>{me?.user?.name || '운영 관리자'}</b><br/><span className="muted" style={{fontSize:11}}>{me?.user ? (roleLabel[me.user.role]||me.user.role)+' · '+me.user.u : 'admin@d-ars'}</span></div></div>
       <Link href="/dashboard" className="um-item">📊 대시보드</Link>
       <Link href="/" className="um-item">🏢 서비스 홈</Link>
       <Link href="/visual" className="um-item">📱 보이는 ARS 데모</Link>
       <button className="um-item" onClick={()=>{setBig(v=>!v);setMenu(false);}}>🔠 {big?'큰글씨 끄기':'큰글씨 켜기'}</button>
-      <button className="um-item" onClick={()=>{alert('데모: 로그아웃');setMenu(false);}}>↻ 로그아웃</button>
+      {me?.user
+        ? <button className="um-item" onClick={logout}>↻ 로그아웃</button>
+        : <Link href="/login" className="um-item">↝ 로그인</Link>}
     </div>
   );
 
