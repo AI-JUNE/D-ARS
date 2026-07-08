@@ -26,6 +26,8 @@
 
 - [x] **커맨드 팔레트 · 빠른 이동**(prism-pms 빠른 이동 UX): 전역 단축키 `Ctrl/Cmd+K`·상단 검색 버튼(데스크톱/모바일)으로 열기 · 전 포털 화면 통합 검색(한글 라벨·경로·영문 키워드) · 키보드 완전지원(↑↓ 이동·Enter 열기·Esc 닫기·스크롤 추적) · 모바일 무붕괴·`prefers-reduced-motion` 존중·인쇄 숨김 — 야간 자동 품질 개선
 
+- [x] **테스트 하네스 도입(상용화 품질)**: 의존성 0 · Node 내장 러너(`node:test`)로 순수 로직 회귀 테스트 19종 — 내보내기(`stampFilename` 날짜스탬프·`toCSV` 따옴표/쉼표/개행/null 이스케이프·`toExcelHTML` HTML 이스케이프+전화번호 서식), UI 헬퍼(`pct` 0분모 방지·`fmt` mm:ss·`tagClass`), RBAC(`roleAtLeast`·`minRoleFor` 하위경로·`findUser` 비밀번호 누출 방지), `jsonCached` 캐시 헤더 · `npm test`로 실행 · `package.json type:module`(전 소스 이미 ESM, 빌드 무영향) — 야간 자동 품질 개선
+
 ## 다음 스프린트 (우선순위 순 — 한 번에 1~2개씩)
 1. [x] 시나리오 **보드/타임라인/캘린더 뷰** + 상태 그룹화(prism 반영)
 2. [x] **CSV 내보내기** 공통 유틸(시나리오·서류·세션·UMS·멀티모달 이력) + [x] **Excel(.xls) 내보내기**(의존성 없는 SpreadsheetML, 한글·전화번호 서식 보존, 5개 화면) + [x] **PDF 내보내기**(의존성 없는 브라우저 인쇄·숨김 iframe, 브랜드 리포트 서식·짝수행 음영·마스킹 표기, 5개 화면 공통 유틸 `printPDF`) + [x] **날짜 스탬프 파일명**(`stampFilename` — 일별 내보내기 덮어쓰기 방지·감사 추적, CSV·Excel 공통)
