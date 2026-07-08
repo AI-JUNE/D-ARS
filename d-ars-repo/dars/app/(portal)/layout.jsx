@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import CommandPalette from './CommandPalette';
 
 const NAV = [
   ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/history','🗂️','멀티모달 이력'],['/stats','📈','이용 통계'],['/report','📄','운영 리포트'],['/notifications','🔔','알림 센터']]],
@@ -47,6 +48,7 @@ export default function PortalLayout({ children }) {
   useEffect(() => { fetch('/api/auth/me').then(r=>r.json()).then(setMe).catch(()=>{}); }, [path]);
   const logout = async () => { try { await fetch('/api/auth/logout',{method:'POST'}); } catch {} window.location.href='/login'; };
   const roleLabel = { admin:'관리자', operator:'상담 운영자', viewer:'뷰어' };
+  const openCmdk = () => window.dispatchEvent(new Event('dars:cmdk'));
 
   const UserMenu = () => (
     <div className="usermenu">
@@ -84,7 +86,7 @@ export default function PortalLayout({ children }) {
         <div className="side-foot">
           <div className="gw-logo">GOWON</div>
           <div className="gw-stat"><span className="d" />연결됨 · Neon</div>
-          <div className="gw-build">D-ARS · 콜봇 연계 · v3</div>
+          <div className="gw-build">D-ARS · 콜봇 연계 · v4</div>
         </div>
       </aside>
 
@@ -94,6 +96,7 @@ export default function PortalLayout({ children }) {
         <div className="top">
           <div><h1>{meta[0]}</h1><div className="crumb">{meta[1]}</div></div>
           <div className="sp" />
+          <button className="cmdk-btn" onClick={openCmdk} aria-label="빠른 이동 (Ctrl+K)" title="빠른 이동 (Ctrl+K)"><span aria-hidden>🔍</span><span className="cmdk-btn-t">빠른 이동</span><kbd>Ctrl K</kbd></button>
           <button className="btn sm" onClick={() => setBig(v => !v)} aria-pressed={big}>가 {big ? '작게' : '큰글씨'}</button>
           <span className="chip"><i />콜봇 연동 정상</span>
           <Link href="/notifications" className="bell" aria-label="알림 센터">🔔{noti>0 && <span className="bell-badge">{noti>9?'9+':noti}</span>}</Link>
@@ -107,6 +110,7 @@ export default function PortalLayout({ children }) {
           <button className="hamb" onClick={() => setOpen(true)} aria-label="메뉴 열기"><span>☰</span></button>
           <div><h1>{meta[0]}</h1><div className="crumb">{meta[1]}</div></div>
           <div className="sp" />
+          <button className="bell" onClick={openCmdk} aria-label="빠른 이동">🔍</button>
           <Link href="/notifications" className="bell" aria-label="알림 센터">🔔{noti>0 && <span className="bell-badge">{noti>9?'9+':noti}</span>}</Link>
           <div style={{position:'relative'}}>
             <button className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴">👤</button>
@@ -123,6 +127,7 @@ export default function PortalLayout({ children }) {
         ))}
         <a onClick={() => setOpen(true)}><span className="e">☰</span>메뉴</a>
       </nav>
+      <CommandPalette />
     </div>
   );
 }

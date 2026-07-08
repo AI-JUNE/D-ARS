@@ -274,3 +274,45 @@ svg{max-width:100%;height:auto}
 .rp-chart svg{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .rp-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:#6b5a52;margin-top:2px}
 .rp-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+
+/* ===== 커맨드 팔레트 · 빠른 이동 (prism-pms 빠른 이동 UX · night auto) ===== */
+.cmdk-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;
+  border-radius:9px;padding:7px 10px;font-size:12.5px;font-weight:700;color:var(--muted);cursor:pointer;white-space:nowrap}
+.cmdk-btn:hover{background:var(--brand-xl);color:var(--brand-d);border-color:var(--brand-l)}
+.cmdk-btn kbd,.cmdk kbd{font-family:inherit;font-size:10.5px;font-weight:800;color:var(--muted);
+  background:var(--brand-xl);border:1px solid var(--line);border-radius:5px;padding:1px 5px;line-height:1.5}
+.cmdk-btn-t{color:var(--ink)}
+.cmdk-scrim{position:fixed;inset:0;z-index:120;background:rgba(20,12,8,.42);
+  display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 16px;
+  animation:cmdk-fade .14s ease}
+.cmdk{width:100%;max-width:560px;background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 24px 60px rgba(40,20,10,.32);overflow:hidden;animation:cmdk-pop .16s cubic-bezier(.2,.7,.3,1)}
+.cmdk-in{display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.cmdk-ic{font-size:16px;flex:0 0 auto}
+.cmdk-input{flex:1;border:0;outline:0;font-size:16px;font-family:inherit;background:transparent;color:var(--ink);min-width:0;padding:0}
+.cmdk-esc{flex:0 0 auto}
+.cmdk-list{max-height:min(52vh,420px);overflow-y:auto;padding:7px;-webkit-overflow-scrolling:touch}
+.cmdk-empty{padding:22px 14px;text-align:center;color:var(--muted);font-size:13px}
+.cmdk-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;background:transparent;
+  border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink)}
+.cmdk-item.on{background:var(--brand-xl)}
+.cmdk-item .cmdk-e{width:24px;text-align:center;font-size:17px;flex:0 0 auto}
+.cmdk-t{flex:1;min-width:0}
+.cmdk-t b{display:block;font-size:13.5px;font-weight:700;overflow-wrap:anywhere}
+.cmdk-t span{display:block;font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.cmdk-go{flex:0 0 auto;color:var(--muted);font-size:13px;opacity:0}
+.cmdk-item.on .cmdk-go{opacity:1;color:var(--brand-d)}
+.cmdk-foot{display:flex;align-items:center;gap:12px;padding:9px 14px;border-top:1px solid var(--line);
+  font-size:11px;color:var(--muted);flex-wrap:wrap}
+.cmdk-foot .sp{flex:1}
+@keyframes cmdk-fade{from{opacity:0}to{opacity:1}}
+@keyframes cmdk-pop{from{opacity:0;transform:translateY(-8px) scale(.985)}to{opacity:1;transform:none}}
+@media(max-width:900px){
+  .cmdk-scrim{padding:8vh 12px 12px}
+  .cmdk-btn-t,.cmdk-btn kbd{display:none}
+  .cmdk-foot{gap:9px}
+}
+@media(prefers-reduced-motion:reduce){
+  .cmdk-scrim,.cmdk{animation:none}
+}
+@media print{ .cmdk-scrim,.cmdk-btn{display:none !important} }
