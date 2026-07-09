@@ -322,3 +322,25 @@ svg{max-width:100%;height:auto}
 /* typography polish (Pretendard) */
 h1,h2,h3,h4{letter-spacing:-0.02em;font-weight:700}
 b,strong{font-weight:700}
+
+/* quality polish v2 (Pretendard-era refinement) */
+:root{
+  --shadow:0 1px 2px rgba(70,35,22,.05), 0 10px 28px rgba(70,35,22,.09);
+  --shadow-sm:0 1px 3px rgba(70,35,22,.08);
+  --ring:0 0 0 3px rgba(190,85,53,.22);
+}
+*{scrollbar-width:thin;scrollbar-color:#d8c8bd transparent}
+*::-webkit-scrollbar{width:9px;height:9px}
+*::-webkit-scrollbar-thumb{background:#d8c8bd;border-radius:8px;border:2px solid transparent;background-clip:content-box}
+*::-webkit-scrollbar-thumb:hover{background:#c3ae9f;background-clip:content-box}
+::selection{background:rgba(190,85,53,.18)}
+a,button{transition:background .15s ease,color .15s ease,box-shadow .15s ease,transform .1s ease,border-color .15s ease}
+.btn:active{transform:translateY(1px)}
+.btn.primary{box-shadow:0 2px 8px rgba(190,85,53,.28)}
+.btn.primary:hover{box-shadow:0 5px 15px rgba(190,85,53,.36)}
+.card{transition:box-shadow .22s ease,border-color .22s ease,transform .22s ease}
+.nav{transition:background .15s ease,color .15s ease}
+.tag{letter-spacing:-.01em}
+:focus-visible{outline:none;box-shadow:var(--ring);border-radius:8px}
+.input:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{box-shadow:var(--ring);border-color:var(--brand)}
+h1,h2,h3{text-wrap:balance}
