@@ -1,3 +1,5 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+
 :root{
   --brand:#be5535;--brand-d:#9c4025;--brand-l:#f0d9cf;--brand-xl:#fbf3ef;
   --bg:#f5f2ef;--panel:#fff;--ink:#241a16;--muted:#8a7a72;--line:#e8ddd6;
@@ -7,7 +9,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;overflow-x:hidden;-webkit-text-size-adjust:100%}
-body{font-family:"Segoe UI","Malgun Gothic","맑은 고딕",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+body{font-family:Pretendard,"Pretendard Variable",-apple-system,"Segoe UI",Roboto,"Malgun Gothic",system-ui,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;letter-spacing:-0.01em;line-height:1.5}
 a{color:inherit;text-decoration:none}
 button{font-family:inherit}
 
@@ -316,3 +318,7 @@ svg{max-width:100%;height:auto}
   .cmdk-scrim,.cmdk{animation:none}
 }
 @media print{ .cmdk-scrim,.cmdk-btn{display:none !important} }
+
+/* typography polish (Pretendard) */
+h1,h2,h3,h4{letter-spacing:-0.02em;font-weight:700}
+b,strong{font-weight:700}
