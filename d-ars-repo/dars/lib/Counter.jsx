@@ -16,32 +16,43 @@ export default function Counter({ value, dur = 900 }) {
 
   const [n, setN] = useState(0);
   const ref = useRef(null);
-  const started = useRef(false);
+  const started = useRef(false); // 화면 진입(IntersectionObserver) 1회 트리거 여부
+  const cur = useRef(0);         // 현재 표시값 — 값이 갱신되면 여기서 새 목표로 이어서 애니메이션
+  const raf = useRef(0);
 
+  // 값이 서버 데이터로 나중에 갱신되어도(KPI 하드코딩 → 서버 집계 전환) 반드시 새 목표로 다시 움직인다.
+  // (기존 구현은 최초 1회만 실행돼, 데이터 도착 후 값이 갱신되지 않는 버그가 있었다.)
   useEffect(() => {
-    if (typeof window === 'undefined') { setN(target); return; }
+    const set = (v) => { cur.current = v; setN(v); };
+    if (typeof window === 'undefined') { set(target); return; }
     const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) { setN(target); return; }
+    if (reduce) { set(target); return; }
+
     const run = () => {
-      if (started.current) return; started.current = true;
+      const from = cur.current;
+      if (from === target) { set(target); return; }
       const t0 = performance.now();
       const tick = (t) => {
         const p = Math.min(1, (t - t0) / dur);
         const e = 1 - Math.pow(1 - p, 3); // easeOutCubic
-        setN(target * e);
-        if (p < 1) requestAnimationFrame(tick); else setN(target);
+        set(from + (target - from) * e);
+        if (p < 1) raf.current = requestAnimationFrame(tick); else set(target);
       };
-      requestAnimationFrame(tick);
+      cancelAnimationFrame(raf.current);
+      raf.current = requestAnimationFrame(tick);
     };
+
     const el = ref.current;
-    if (el && 'IntersectionObserver' in window) {
+    if (!started.current && el && 'IntersectionObserver' in window) {
       const io = new IntersectionObserver((es) => {
-        es.forEach(x => { if (x.isIntersecting) { run(); io.disconnect(); } });
+        es.forEach(x => { if (x.isIntersecting) { started.current = true; run(); io.disconnect(); } });
       }, { threshold: 0.3 });
       io.observe(el);
-      return () => io.disconnect();
+      return () => { io.disconnect(); cancelAnimationFrame(raf.current); };
     }
+    started.current = true;
     run();
+    return () => cancelAnimationFrame(raf.current);
   }, [target, dur]);
 
   const shown = decimals > 0 ? n.toFixed(decimals) : Math.round(n);

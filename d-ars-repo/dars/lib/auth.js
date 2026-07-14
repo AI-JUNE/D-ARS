@@ -86,3 +86,59 @@ export async function verifyToken(token) {
   if (!payload || !payload.exp || Date.now() > payload.exp) return null;
   return { u: payload.u, role: payload.role, name: payload.name, exp: payload.exp };
 }
+
+// ── 쓰기 API 인가 가드 (라우트 핸들러용) ──────────────
+// Cookie 헤더에서 세션 토큰만 직접 파싱 (Edge/Node 겸용, next/headers 비의존).
+export function parseCookie(header, name) {
+  if (!header || typeof header !== 'string') return null;
+  for (const part of header.split(';')) {
+    const i = part.indexOf('=');
+    if (i < 0) continue;
+    if (part.slice(0, i).trim() === name) {
+      try { return decodeURIComponent(part.slice(i + 1).trim()); } catch { return part.slice(i + 1).trim(); }
+    }
+  }
+  return null;
+}
+
+// 쓰기 API 가드. 기본(비강제) 모드에서는 통과(null 반환)하여 라이브 데모 무붕괴.
+// 운영자가 AUTH_ENFORCE=1 을 켰을 때만 실제 인증/역할 검사를 수행하고,
+// 미인증 → 401, 역할 부족 → 403 Response 를 반환한다(호출측은 값이 있으면 즉시 return).
+// 반환: 통과 시 null, 차단 시 Response.
+export async function guardWrite(req, need = 'operator') {
+  if (!isEnforced()) return null;                        // 데모/기본: 통과
+  let token = null;
+  try { token = parseCookie(req?.headers?.get?.('cookie'), COOKIE); } catch { token = null; }
+  const user = token ? await verifyToken(token) : null;
+  if (!user) return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  if (!roleAtLeast(user.role, need)) return Response.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  return null;                                           // 통과
+}
+
+// 머신-투-머신 수집(ingest) 엔드포인트용 가드 (콜봇 이벤트 등, 쿠키 세션 없는 서버 호출).
+// API 키(Authorization: Bearer <INGEST_KEY> 또는 x-ingest-key 헤더)를 우선 지원하고,
+// 포털에서의 직접 호출을 위해 operator+ 세션 쿠키 폴백도 허용한다.
+// 안전장치(라이브 무붕괴·하위호환): 비강제(AUTH_ENFORCE!=1)이거나 INGEST_KEY 미설정이면 통과(null).
+// 강제 + INGEST_KEY 설정 시에만 실제 검사 → 유효 키/세션 없으면 401.
+// 반환: 통과 시 null, 차단 시 Response(호출측은 값이 있으면 즉시 return).
+export async function guardIngest(req, need = 'operator') {
+  if (!isEnforced()) return null;                        // 데모/기본: 통과
+  const key = process.env.INGEST_KEY;
+  // 1) API 키 확인 (설정된 경우) — 상수시간 비교
+  if (key) {
+    let presented = null;
+    try {
+      const auth = req?.headers?.get?.('authorization') || '';
+      const m = /^Bearer\s+(.+)$/i.exec(auth);
+      presented = m ? m[1].trim() : (req?.headers?.get?.('x-ingest-key') || null);
+    } catch { presented = null; }
+    if (presented && timingSafeEqual(presented, key)) return null;   // 유효 키 → 통과
+  }
+  // 2) 세션 쿠키(operator+) 폴백 — 로그인한 운영자의 포털 직접 호출 지원
+  let token = null;
+  try { token = parseCookie(req?.headers?.get?.('cookie'), COOKIE); } catch { token = null; }
+  const user = token ? await verifyToken(token) : null;
+  if (user && roleAtLeast(user.role, need)) return null;             // 유효 세션 → 통과
+  if (!key) return null;                                             // 키 미설정: 하위호환 통과
+  return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+}

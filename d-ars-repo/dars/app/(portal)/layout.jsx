@@ -3,6 +3,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import CommandPalette from './CommandPalette';
+import { OfflineBanner } from '@/lib/ErrorBanner';
+import { getJSON } from '@/lib/fetchJson';
+import { aggUrl } from '@/lib/aggregate';
+import { readSessionAgg } from '@/lib/sessionsAgg';
+import { activeSessions } from '@/lib/kpi';
+import { notifyUrl, loadThresholds, CHANGE_EVENT } from '@/lib/notifyRules';
 
 const NAV = [
   ['운영', [['/dashboard','📊','대시보드'],['/sessions','📡','실시간 세션'],['/history','🗂️','멀티모달 이력'],['/stats','📈','이용 통계'],['/report','📄','운영 리포트'],['/notifications','🔔','알림 센터']]],
@@ -33,16 +39,33 @@ export default function PortalLayout({ children }) {
 
   useEffect(() => { setOpen(false); setMenu(false); }, [path]);
   useEffect(() => { document.documentElement.style.fontSize = big ? '18px' : ''; }, [big]);
+  // 사이드바 세션 카운터: 기존엔 목록 배열 길이(최대 20건 상한)라 세션이 쌓이면 실제보다 적게 표시됐다.
+  // → 서버 집계(/api/sessions?agg=1) 총계로 전환(진행 중 세션 전체). 실패해도 조용히 유지(배지만 미갱신).
   useEffect(() => {
-    let t;
-    const poll = () => fetch('/api/sessions').then(r=>r.json()).then(d=>setLive((d||[]).filter(s=>s.step<4).length)).catch(()=>{});
-    poll(); t = setInterval(poll, 6000); return () => clearInterval(t);
+    let stopped = false;
+    const poll = async () => {
+      const { data, error } = await getJSON(aggUrl('/api/sessions'), { retries: 0 });
+      if (stopped || error) return;
+      setLive(activeSessions(readSessionAgg(data)));
+    };
+    poll();
+    const t = setInterval(poll, 6000);
+    return () => { stopped = true; clearInterval(t); };
   }, []);
+  // 헤더 벨 배지: 알림 센터에서 운영자가 조정한 **임계값과 같은 기준**으로 센다(설정과 배지가 어긋나지 않게).
+  // 원시 fetch → getJSON 으로 교체(타임아웃·재시도 정책 일원화). 실패 시 조용히 유지(30초 후 재조회가 곧 재시도).
   useEffect(() => {
-    let t;
-    const pn = () => fetch('/api/notifications').then(r=>r.json())
-      .then(d=>setNoti(((d&&d.summary)?(d.summary.bad||0)+(d.summary.warn||0):0))).catch(()=>{});
-    pn(); t = setInterval(pn, 30000); return () => clearInterval(t);
+    let stopped = false;
+    const pn = async () => {
+      const { data, error } = await getJSON(notifyUrl('/api/notifications', loadThresholds()), { retries: 0 });
+      if (stopped || error) return;
+      const s = data && data.summary;
+      setNoti(s ? (s.bad || 0) + (s.warn || 0) : 0);
+    };
+    pn();
+    const t = setInterval(pn, 30000);
+    window.addEventListener(CHANGE_EVENT, pn); // 기준 변경 즉시 배지 동기화
+    return () => { stopped = true; clearInterval(t); window.removeEventListener(CHANGE_EVENT, pn); };
   }, []);
 
   useEffect(() => { fetch('/api/auth/me').then(r=>r.json()).then(setMe).catch(()=>{}); }, [path]);
@@ -118,7 +141,7 @@ export default function PortalLayout({ children }) {
           </div>
         </div>
 
-        <div className="wrap" id="main">{children}</div>
+        <div className="wrap" id="main"><OfflineBanner />{children}</div>
       </div>
 
       <nav className="botnav">

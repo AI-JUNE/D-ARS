@@ -10,12 +10,19 @@ export function stampFilename(filename) {
     : `${filename.slice(0, dot)}_${tag}${filename.slice(dot)}`;
 }
 
+// CSV 수식 인젝션 방지: 스프레드시트 앱(Excel·Sheets·LibreOffice)에서 =,+,-,@,tab,CR 로
+// 시작하는 셀은 수식으로 실행될 수 있다. 위험 문자로 시작하면 작은따옴표(')를 앞에 붙여 텍스트로 강제.
+// 전화번호(010-…)·한글·숫자·날짜(2026-…)는 위험 문자로 시작하지 않으므로 불변 → 전화번호 처리 무영향.
+export function sanitizeCell(v) {
+  const s = String(v ?? '');
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
 export function toCSV(rows, columns) {
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const head = columns.map(c => esc(c.label)).join(',');
   const body = rows.map(r => columns.map(c => {
     const v = typeof c.value === 'function' ? c.value(r) : r[c.value];
-    return esc(v);
+    return esc(sanitizeCell(v));
   }).join(',')).join('\n');
   return head + '\n' + body;
 }

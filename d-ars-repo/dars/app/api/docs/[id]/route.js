@@ -1,6 +1,9 @@
 import { hasDB, sql, safe } from '@/lib/db';
+import { guardWrite } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 export async function PUT(req, { params }) {
+  const denied = await guardWrite(req, 'operator');
+  if (denied) return denied;
   const b = await req.json();
   if (!hasDB) return Response.json({ id: params.id, ...b, updated: true });
   const row = await safe(async () => (await sql`update docs set

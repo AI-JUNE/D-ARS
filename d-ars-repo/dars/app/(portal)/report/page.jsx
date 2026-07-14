@@ -1,9 +1,16 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { pct } from '@/lib/ui';
 import { GroupedBars } from '@/lib/charts';
+import { getJSON, asArray } from '@/lib/fetchJson';
+import ErrorBanner from '@/lib/ErrorBanner';
+import { readServices } from '@/lib/services';
+import { RANGE_PRESETS, statsUrl, rangeLabel, readRange } from '@/lib/statsRange';
+import { useRangeParam } from '@/lib/useRangeParam';
 
 // 운영 리포트 — 브라우저 인쇄(PDF로 저장)로 출력. 읽기 전용, 스키마 변경 없음.
+// 기간 선택(2026-07-13 야간): 7·30·90일/전체를 골라 인쇄할 수 있다. 선택 컨트롤은 인쇄에서 숨기고(noprint),
+// 리포트 머리말에는 **서버가 실제로 적용한 구간**을 찍는다(라벨-숫자 불일치 방지). 기본값 '전체' = 기존 동작.
 const BAR_SERIES = [
   { key: 'multimodal', label: '멀티모달', color: '#be5535' },
   { key: 'completed', label: '완료', color: '#2e8b57' },
@@ -14,15 +21,33 @@ export default function Report() {
   const [docs, setDocs] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [now, setNow] = useState('');
+  // URL 쿼리(?range=)에 보존 → **인쇄용 리포트 링크를 그대로 공유**하면 같은 구간이 열린다(2026-07-14).
+  const [range, setRange] = useRangeParam();
+  const [err, setErr] = useState(null); // 리포트 로드 실패 안내(배너 + 다시 시도) — 조용한 빈 리포트 방지
+
+  // 에러처리 하드닝: 인쇄 직전 데이터가 조용히 비어 잘못된 리포트가 출력되지 않도록 실패를 알린다.
+  const load = useCallback(async () => {
+    const [s, d, v] = await Promise.all([
+      getJSON(statsUrl('/api/stats', range)),
+      getJSON('/api/docs'),
+      getJSON('/api/sessions'),
+    ]);
+    const e = s.error || d.error || v.error;
+    setErr(e);
+    if (!s.error) setStats(s.data);
+    if (!d.error) setDocs(asArray(d.data));
+    if (!v.error) setSessions(asArray(v.data));
+  }, [range]);
 
   useEffect(() => {
-    fetch('/api/stats').then(r=>r.json()).then(setStats).catch(()=>{});
-    fetch('/api/docs').then(r=>r.json()).then(d=>setDocs(d||[])).catch(()=>{});
-    fetch('/api/sessions').then(r=>r.json()).then(s=>setSessions(s||[])).catch(()=>{});
+    load();
     setNow(new Date().toLocaleString('ko-KR', { dateStyle:'long', timeStyle:'short' }));
-  }, []);
+  }, [load]);
 
   const daily = stats?.daily || [];
+  // 서비스별 집계는 서버 실측(멀티모달·UMS group by service).
+  const services = readServices(stats?.services);
+  const period = rangeLabel(readRange(stats?.range), daily.length) || `전체 ${daily.length}일 집계`;
   const sum = (k) => daily.reduce((a,d)=>a+(Number(d[k])||0), 0);
   const totalMulti = sum('multimodal'), totalDone = sum('completed'), totalDrop = sum('dropped'), totalIn = sum('inbound');
   const doneRate = pct(totalDone, totalMulti);
@@ -35,14 +60,22 @@ export default function Report() {
         <h2>운영 리포트</h2>
         <span className="d">일별 운영 지표 요약 · 인쇄하여 PDF로 저장</span>
         <div className="sp" />
+        <div className="seg" role="group" aria-label="조회 기간">
+          {RANGE_PRESETS.map(r => (
+            <button key={r.key} className={range === r.key ? 'on' : ''} aria-pressed={range === r.key}
+              onClick={() => setRange(r.key)}>{r.label}</button>
+          ))}
+        </div>
         <button className="btn sm primary" onClick={()=>window.print()}>🖨️ PDF 저장 / 인쇄</button>
       </div>
+
+      <div className="noprint"><ErrorBanner message={err} onRetry={load} /></div>
 
       <div className="report card">
         <div className="rp-head">
           <div className="rp-brand"><span className="dot" /> D-ARS · 보이는 ARS</div>
           <h1 className="rp-title">운영 리포트</h1>
-          <div className="rp-meta">생성 {now || '…'} · 운영 GOWON · 최근 {daily.length}일 집계</div>
+          <div className="rp-meta">생성 {now || '…'} · 운영 GOWON · {period}</div>
         </div>
 
         <div className="rp-kpis">
@@ -80,7 +113,18 @@ export default function Report() {
 
         <h3 className="rp-h3">서비스별 완료율</h3>
         <table className="tbl rp-tbl">
-          <thead><tr><th>서류/서비스</th><th>요청</th><th>완료</th><th>완료율</th></tr></thead>
+          <thead><tr><th>서비스</th><th>발송</th><th>자동런칭</th><th>문자발송</th><th>이탈</th><th>완료</th><th>완료율</th></tr></thead>
+          <tbody>
+            {services.map(r=>(
+              <tr key={r.name}><td>{r.name}</td><td>{r.sent}</td><td>{r.launch}</td><td>{r.sms}</td><td>{r.drop}</td><td>{r.done}</td><td>{pct(r.done,r.sent)}%</td></tr>
+            ))}
+            {services.length===0 && <tr><td colSpan={7} className="muted">집계된 서비스 이용 내역이 없습니다.</td></tr>}
+          </tbody>
+        </table>
+
+        <h3 className="rp-h3">서류별 완료율</h3>
+        <table className="tbl rp-tbl">
+          <thead><tr><th>서류</th><th>요청</th><th>완료</th><th>완료율</th></tr></thead>
           <tbody>
             {usedDocs.map(d=>(
               <tr key={d.id}><td>{d.name}</td><td>{d.req}</td><td>{d.done}</td><td>{pct(d.done,d.req)}%</td></tr>

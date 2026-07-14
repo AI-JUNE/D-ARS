@@ -6,3 +6,5 @@ out
 .vercel
 npm-debug.log*
 .DS_Store
+.verify
+.sync-probe.txt

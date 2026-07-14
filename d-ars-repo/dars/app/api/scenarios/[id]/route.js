@@ -1,5 +1,6 @@
 import { hasDB, sql, safe } from '@/lib/db';
 import { demoScenarios } from '@/lib/demo';
+import { guardWrite } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 export async function GET(_req, { params }) {
@@ -7,6 +8,8 @@ export async function GET(_req, { params }) {
   return Response.json(row || {});
 }
 export async function PUT(req, { params }) {
+  const denied = await guardWrite(req, 'operator');
+  if (denied) return denied;
   const b = await req.json();
   if (!hasDB) return Response.json({ id: params.id, ...b, updated: true });
   const row = await safe(async () => (await sql`update scenarios set
@@ -16,7 +19,9 @@ export async function PUT(req, { params }) {
     where id=${params.id} returning *`)[0], { id: params.id, ...b, updated: true });
   return Response.json(row || {});
 }
-export async function DELETE(_req, { params }) {
+export async function DELETE(req, { params }) {
+  const denied = await guardWrite(req, 'admin');   // 삭제는 admin 이상
+  if (denied) return denied;
   await safe(() => sql`delete from scenarios where id=${params.id}`, null);
   return Response.json({ ok: true });
 }
