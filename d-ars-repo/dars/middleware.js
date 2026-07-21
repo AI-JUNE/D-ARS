@@ -33,7 +33,7 @@ export const config = {
     '/dashboard/:path*', '/sessions/:path*', '/scenarios/:path*', '/docs/:path*',
     '/ums/:path*', '/stats/:path*', '/notifications/:path*', '/history/:path*',
     '/report/:path*', '/templates/:path*', '/launcher/:path*', '/help/:path*',
-    // API 보호: 로그인(/api/auth/*)·헬스(/api/health)만 공개, 나머지는 인증 필요
-    '/api/((?!auth|health).*)',
+    // API 보호: auth·health·cpaas·visual·dev 는 공개(각자 인증 보유), 나머지 포털 API는 로그인 필요
+    '/api/((?!auth|health|cpaas|visual|dev).*)',  // 머신/토큰/데모: 자체 인증(webhook-secret·서명토큰·DEMO_MODE)
   ],
 };
