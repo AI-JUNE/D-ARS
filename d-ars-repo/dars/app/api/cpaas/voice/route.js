@@ -12,6 +12,7 @@ export async function POST(req) {
   const from = b.from || b.From || b.phone || b.caller || '01000000000';
   const callId = b.callId || b.CallSid || b.call_id || ('C' + Date.now());
   const scenario = b.scenario || '복지 상담';
+  const gen = ['senior', 'youth', 'family'].includes(b.gen) ? b.gen : null;   // 회선 고정 세대 톤
   const id = sessionIdFor(callId);
 
   // 세션 생성 — 이미 있으면 do nothing. returning으로 신규 여부 판별(멱등).
@@ -21,8 +22,9 @@ export async function POST(req) {
     on conflict (id) do nothing returning id`, null);
   const isExisting = Array.isArray(inserted) ? inserted.length === 0 : false;
 
+  if (gen) await safe(() => sql`update visual_sessions set gen = ${gen} where id = ${id}`, null);
   const token = signLink(id);
-  const link = `${baseUrl()}/visual?s=${token}`;
+  const link = `${baseUrl()}/visual?s=${token}${gen ? `&gen=${gen}` : ''}`;
 
   // 기존 세션(콜봇 재시도)이면 SMS 재발송 안 함 → 중복 문자·과금 방지
   let sms;

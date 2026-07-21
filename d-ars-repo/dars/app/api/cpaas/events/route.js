@@ -15,10 +15,12 @@ export async function POST(req) {
   const node = b.node || null;
   const step = Number.isFinite(b.step) ? b.step : null;
   const status = b.type === 'end' ? '완료' : '진행';
+  const gen = ['senior', 'youth', 'family'].includes(b.gen) ? b.gen : null;   // 통화 중 세대 톤 전환
   await safe(() => sql`update visual_sessions set
     node = coalesce(${node}, node),
     step = coalesce(${step}, step),
     status = ${status}
     where id = ${sessionId}`, null);
-  return Response.json({ ok: true, sessionId, applied: { node, step, status } });
+  if (gen) await safe(() => sql`update visual_sessions set gen = ${gen} where id = ${sessionId}`, null);
+  return Response.json({ ok: true, sessionId, applied: { node, step, status, gen } });
 }

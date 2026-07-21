@@ -27,6 +27,7 @@ create table if not exists visual_sessions (
   scenario   text,
   step       int not null default 0,     -- 0 런칭 ~ 4 완료
   node       text,
+  gen        text,               -- 세대 톤(senior|youth|family)
   elapsed    int not null default 0,
   status     text not null default '진행',
   started_at timestamptz not null default now(),
@@ -50,5 +51,6 @@ create table if not exists daily_stats (
   dropped    int default 0
 );
 
+alter table visual_sessions add column if not exists gen text;
 create index if not exists idx_sessions_status on visual_sessions(status);
 create index if not exists idx_ums_status on ums_log(status);

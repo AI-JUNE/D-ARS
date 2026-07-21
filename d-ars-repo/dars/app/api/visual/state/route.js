@@ -13,8 +13,11 @@ export async function GET(req) {
   if (v.expired) return Response.json({ ok: false, error: 'expired' }, { status: 410 });
   const rows = await safe(() => sql`select node, step, status, scenario from visual_sessions where id = ${v.sessionId}`, null);
   const r = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  // gen 컬럼은 분리 조회(미마이그레이션 시에도 node 조회가 깨지지 않도록)
+  const g = await safe(() => sql`select gen from visual_sessions where id = ${v.sessionId}`, null);
+  const gen = Array.isArray(g) && g[0] ? g[0].gen ?? null : null;
   return Response.json({
     ok: true, sessionId: v.sessionId,
-    node: r?.node ?? null, step: r?.step ?? null, status: r?.status ?? null, scenario: r?.scenario ?? null,
+    node: r?.node ?? null, step: r?.step ?? null, status: r?.status ?? null, scenario: r?.scenario ?? null, gen,
   });
 }

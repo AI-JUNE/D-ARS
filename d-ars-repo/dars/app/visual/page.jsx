@@ -55,6 +55,9 @@ export default function Visual() {
     let alive = true;
     let params;
     try { params = new URLSearchParams(window.location.search); } catch { return; }
+    const GK = ['senior', 'youth', 'family'];
+    const g0 = params.get('gen');
+    if (GK.includes(g0)) setGen(g0);                 // 회선 고정 초기 톤
     const node = params.get('node');
     if (node && MENU.some((m) => m[0] === node)) { setStep(2); push({ who: 'bot', text: '요청하신 안내 화면이에요.', node }); return; }
     const s = params.get('s');
@@ -72,6 +75,7 @@ export default function Visual() {
           if (NODE_STEP[d.node] != null) setStep(NODE_STEP[d.node]);
           push({ who: 'bot', text: '통화 진행에 맞춰 화면으로 안내해 드릴게요.', node: d.node });
         }
+        if (d.gen && GK.includes(d.gen)) setGen((cur) => (cur === d.gen ? cur : d.gen));  // 통화 중 톤 전환
         if (d.status === '완료') setStep(4);
       } catch { /* 네트워크 오류 무시(다음 폴링) */ }
     };
