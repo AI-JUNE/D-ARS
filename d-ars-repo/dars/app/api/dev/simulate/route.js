@@ -25,8 +25,8 @@ export async function GET(req) {
   steps.push({ step: '② SMS 발송', to: phone, link, smsResult: sms });
 
   // 3) 이벤트 릴레이(예: STT→노드 이동)
-  await safe(() => sql`update visual_sessions set node='SHOW_CARD', step=2 where id=${id}`, null);
-  steps.push({ step: '③ 이벤트 릴레이', node: 'SHOW_CARD', note: 'STT 인식 → 정보 카드 표출(화면 SSE로 반영)' });
+  await safe(() => sql`update visual_sessions set node='SHOW_WELFARE_FORM', step=2 where id=${id}`, null);
+  steps.push({ step: '③ 이벤트 릴레이', node: 'SHOW_WELFARE_FORM', note: 'STT 인식 → 복지신청 화면 표출(SSE 반영)' });
 
   // 4) 고객 화면 액션 → 콜봇 콜백
   const relay = await notifyCallbot({ sessionId: id, action: 'request_doc', value: '기초연금 신청서', at: new Date().toISOString() });
