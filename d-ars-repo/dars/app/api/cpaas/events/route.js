@@ -1,11 +1,14 @@
 // 이벤트 릴레이 — 콜봇/CPaaS가 STT·TTS·시나리오 노드 이벤트를 push
 // body: { sessionId, type:'stt'|'tts'|'node'|'end', node?, step?, text? }
 // visual_sessions에 진행 상태를 upsert → 기존 SSE(/api/sessions/stream)가 화면에 반영
+// 보안(v1.1): voice와 동일하게 x-webhook-secret 검증 → 가짜 이벤트 주입 차단
 import { sql, safe } from '@/lib/db';
+import { verifyWebhook } from '@/lib/cpaas';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req) {
+  if (!verifyWebhook(req)) return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   let b = {}; try { b = await req.json(); } catch { return Response.json({ ok: false, error: 'invalid json' }, { status: 400 }); }
   const sessionId = b.sessionId || b.id;
   if (!sessionId) return Response.json({ ok: false, error: 'sessionId 필요' }, { status: 400 });

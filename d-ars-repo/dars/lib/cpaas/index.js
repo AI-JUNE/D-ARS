@@ -18,6 +18,11 @@ export function maskPhone(p) {
   const d = String(p || '').replace(/[^0-9]/g, '');
   return d.length >= 8 ? `${d.slice(0, 3)}-****-${d.slice(-4)}` : '010-****-0000';
 }
+// callId 기준 결정적 세션 ID → 콜봇 재시도 시 동일 세션(멱등성). callId 없으면 타임스탬프 폴백.
+export function sessionIdFor(callId) {
+  if (!callId) return 'VS-' + Date.now().toString().slice(-7);
+  return 'VS-' + crypto.createHash('sha256').update(String(callId)).digest('hex').slice(0, 10);
+}
 export function signLink(sessionId, ttlMin = 15) {
   const exp = Date.now() + ttlMin * 60000;
   const payload = `${sessionId}.${exp}`;
@@ -34,7 +39,7 @@ export function verifyLink(token) {
   if (Date.now() > Number(exp)) return { sessionId, expired: true };
   return { sessionId, expired: false };
 }
-// 인입 웹훅 공유시크릿 검증(설정된 경우에만)
+// 인입 웹훅 공유시크릿 검증(설정된 경우에만). voice·events 양쪽에 적용(v1.1).
 export function verifyWebhook(req) {
   const need = process.env.CPAAS_WEBHOOK_SECRET;
   if (!need) return true;
@@ -54,11 +59,18 @@ export async function sendSms(to, text) {
   } catch (e) { return { ok: false, error: String(e?.message || e) }; }
 }
 // 고객 화면 액션(메뉴 선택·서류 신청·상담원 전환)을 콜봇/CTI로 되돌림
+// 실패 시 지수 백오프로 최대 3회 재시도(v1.1) — 서버리스 10초 한도 내(0.2s,0.4s).
 export async function notifyCallbot(payload) {
   const url = process.env.CALLBOT_CALLBACK_URL;
   if (!url) { console.log('[cpaas:mock] callback →', JSON.stringify(payload)); return { ok: true, provider: 'mock' }; }
-  try {
-    const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeader() }, body: JSON.stringify(payload) });
-    return { ok: r.ok, status: r.status };
-  } catch (e) { return { ok: false, error: String(e?.message || e) }; }
+  const max = 3; let last = { ok: false };
+  for (let i = 0; i < max; i++) {
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json', ...authHeader() }, body: JSON.stringify(payload) });
+      if (r.ok) return { ok: true, status: r.status, attempts: i + 1 };
+      last = { ok: false, status: r.status };
+    } catch (e) { last = { ok: false, error: String(e?.message || e) }; }
+    if (i < max - 1) await new Promise((res) => setTimeout(res, 200 * (1 << i)));
+  }
+  return { ...last, attempts: max, failed: true };
 }

@@ -24,7 +24,7 @@ GET https://d-ars.vercel.app/api/dev/simulate?phone=01012345678
 
 ## 콜봇/통신사 연결 절차
 1. 콜봇/CPaaS의 **인입콜 웹훅**을 `https://d-ars.vercel.app/api/cpaas/voice` 로 지정, 헤더 `x-webhook-secret` 설정.
-2. 콜봇의 **STT/시나리오 이벤트**를 `POST /api/cpaas/events` 로 전송(sessionId·node·step).
+2. 콜봇의 **STT/시나리오 이벤트**를 `POST /api/cpaas/events` 로 전송(sessionId·node·step). `/api/cpaas/events` 도 x-webhook-secret 헤더 필요(v1.1 보안 보강). `/api/cpaas/voice` 는 같은 callId 재호출 시 중복 SMS를 보내지 않음(멱등).
 3. D-ARS의 **화면 액션**을 받을 콜봇 콜백 URL을 `CALLBOT_CALLBACK_URL` 에 등록.
 4. SMS는 `SMS_GATEWAY_URL`(국내: 솔라피/알리고). **발신번호 사전등록 필수(수일~2주)**.
 5. Twilio 테스트콜: 번호 Voice 웹훅(POST)에 위 URL 지정.
