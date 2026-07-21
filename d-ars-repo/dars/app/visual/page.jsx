@@ -22,16 +22,32 @@ export default function Visual() {
   const [msgs, setMsgs] = useState([{ who: 'bot', text: '통화가 연결되면 음성과 함께 이 화면으로 안내해 드려요. 아래 메뉴로 바로 시작할 수도 있어요.' }]);
   const [step, setStep] = useState(0);
   const [listening, setListening] = useState(false);
+  const [typing, setTyping] = useState(false);
   const [gen, setGen] = useState('senior');
+  const [playing, setPlaying] = useState(false);
+  const runId = useRef(0);
   const boxRef = useRef(null);
   const scale = (GENS.find((g) => g.k === gen) || GENS[0]).scale;
   const S = (n) => Math.round(n * scale * 10) / 10;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-  const push = (m) => setMsgs((prev) => { const n = [...prev, m]; setTimeout(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, 30); return n; });
-  async function bot(text, node) { setListening(false); push({ who: 'bot', text, node }); await wait(500); }
-  async function cust(text) { setListening(true); await wait(700); setListening(false); push({ who: 'cust', text }); await wait(300); }
+  const scrollDown = () => setTimeout(() => { if (boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight; }, 30);
+  const push = (m) => setMsgs((prev) => { const n = [...prev, m]; scrollDown(); return n; });
 
-  // 콜봇 events / 시뮬레이터가 ?node= 로 특정 화면을 미리보기할 수 있게
+  // 봇 발화: "입력 중" 잠깐 → 말풍선. 사람이 읽을 수 있게 천천히.
+  async function bot(text, node, id) {
+    setListening(false); setTyping(true); scrollDown();
+    await wait(1100); if (id !== runId.current) return;
+    setTyping(false); push({ who: 'bot', text, node });
+    await wait(node ? 1900 : 1300);
+  }
+  // 고객 발화(STT): 듣는 중 표시 후 말풍선
+  async function cust(text, id) {
+    setTyping(false); setListening(true); scrollDown();
+    await wait(1300); if (id !== runId.current) return;
+    setListening(false); push({ who: 'cust', text });
+    await wait(700);
+  }
+
   useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search);
@@ -41,29 +57,40 @@ export default function Visual() {
   }, []);
 
   const play = async () => {
-    setMsgs([]); setStep(0);
-    await bot('안녕하세요, 이음 복지상담입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.');
-    setStep(1); await cust('김순자입니다. 기초연금을 신청하고 싶어요');
-    await bot('본인확인 되었어요. 말씀만 하시면 신청서를 대신 채워드릴게요.', 'SHOW_WELFARE_FORM');
-    setStep(2); await cust('가끔 손주도 봐주고 말동무해줄 사람이 있으면 좋겠어');
-    await bot('가까운 청년·아동과 3세대로 이어드릴 수 있어요.', 'SHOW_TRIO_MATCH');
-    setStep(3); await bot('매칭 전에 4단계 안전검증을 거쳐 안심하셔도 돼요.', 'SHOW_SAFETY_CHECK');
-    await bot('접수에 필요한 서류예요. 문자로도 보내드릴게요.', 'SHOW_DOCS');
-    setStep(4);
+    const id = ++runId.current;
+    setPlaying(true); setMsgs([]); setStep(0); setTyping(false); setListening(false);
+    await wait(400);
+    await bot('안녕하세요, 이음 복지상담입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.', null, id);
+    if (id !== runId.current) return;
+    setStep(1); await cust('김순자입니다. 기초연금을 신청하고 싶어요', id);
+    await bot('네, 본인확인 되었어요. 말씀만 하시면 신청서를 대신 채워드릴게요.', 'SHOW_WELFARE_FORM', id);
+    if (id !== runId.current) return;
+    setStep(2); await bot('기초연금부터 접수해 드릴게요. 필요하시면 노인맞춤돌봄도 함께 신청할 수 있어요.', null, id);
+    await cust('가끔 손주도 봐주고 말동무해줄 사람이 있으면 좋겠어', id);
+    await bot('그러시군요. 가까운 청년·아동과 3세대로 이어드릴 수 있어요.', 'SHOW_TRIO_MATCH', id);
+    if (id !== runId.current) return;
+    setStep(3); await bot('매칭 전에는 4단계 안전검증을 꼭 거치니 안심하셔도 돼요.', 'SHOW_SAFETY_CHECK', id);
+    await bot('그동안 쌓으신 봉사시간과 상생카드도 확인해 보세요.', 'SHOW_CARD_POINTS', id);
+    if (id !== runId.current) return;
+    await bot('접수에 필요한 서류예요. 문자로도 보내드릴게요.', 'SHOW_DOCS', id);
+    setStep(4); await bot('신청이 접수되었어요. 담당 코디네이터가 곧 연락드릴게요. 편하게 기다려 주세요.', null, id);
+    if (id === runId.current) setPlaying(false);
   };
+
   const pick = async (node) => {
-    if (node === 'SHOW_WELFARE_FORM') { setStep(2); await cust('복지 신청하고 싶어요'); await bot('말씀만 하시면 신청서를 채워드릴게요.', node); }
-    if (node === 'SHOW_TRIO_MATCH') { setStep(3); await cust('3세대 매칭 신청할래요'); await bot('청년·어르신·아동 트리오로 이어드려요.', node); }
-    if (node === 'SHOW_SAFETY_CHECK') { setStep(3); await cust('안전한지 걱정돼요'); await bot('4단계 안전검증으로 안심하셔도 돼요.', node); }
-    if (node === 'SHOW_CARD_POINTS') { setStep(2); await cust('내 봉사시간이랑 상생카드 얼마예요?'); await bot('적립 내역이에요.', node); }
-    if (node === 'TRANSFER_COORDINATOR') { setStep(3); await cust('사람이랑 얘기하고 싶어요'); await bot('지역 코디네이터로 연결해 드릴게요.', node); }
+    const id = ++runId.current; setPlaying(false);
+    if (node === 'SHOW_WELFARE_FORM') { setStep(2); await cust('복지 신청하고 싶어요', id); await bot('말씀만 하시면 신청서를 채워드릴게요.', node, id); }
+    if (node === 'SHOW_TRIO_MATCH') { setStep(3); await cust('3세대 매칭 신청할래요', id); await bot('청년·어르신·아동 트리오로 이어드려요.', node, id); }
+    if (node === 'SHOW_SAFETY_CHECK') { setStep(3); await cust('안전한지 걱정돼요', id); await bot('4단계 안전검증으로 안심하셔도 돼요.', node, id); }
+    if (node === 'SHOW_CARD_POINTS') { setStep(2); await cust('내 봉사시간이랑 상생카드 얼마예요?', id); await bot('적립 내역이에요.', node, id); }
+    if (node === 'TRANSFER_COORDINATOR') { setStep(3); await cust('사람이랑 얘기하고 싶어요', id); await bot('지역 코디네이터로 연결해 드릴게요.', node, id); }
   };
 
   return (
     <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'radial-gradient(1200px 600px at 50% -10%, #f7ece6, #e7ddd5)', padding: '20px 12px' }}>
+      <style>{`@keyframes eumdot{0%,60%,100%{opacity:.25}30%{opacity:1}}@keyframes eumpulse{0%,100%{opacity:.5}50%{opacity:1}}`}</style>
       <div style={{ width: 'min(390px,100%)', background: '#0d0b0a', borderRadius: 44, padding: 12, boxShadow: '0 8px 30px rgba(60,30,20,.2)' }}>
         <div style={{ background: '#f4f1ee', borderRadius: 34, overflow: 'hidden', height: 'min(760px,84vh)', minHeight: 540, display: 'flex', flexDirection: 'column' }}>
-          {/* 헤더 */}
           <div style={{ background: 'linear-gradient(135deg,#be5535,#9c4025)', color: '#fff', padding: '20px 18px 13px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <b style={{ fontSize: 15.5 }}>이음 · 세대를 잇다</b>
@@ -71,10 +98,8 @@ export default function Visual() {
             </div>
             <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>광주 광산구 3세대 상생 품앗이 · 보이는 ARS</div>
           </div>
-          {/* AI 고지 */}
           <div style={{ background: '#fff7f3', borderBottom: '1px solid #e6ddd7', color: '#8a5a44', fontSize: 11, padding: '7px 16px' }}>
             ℹ️ 본 상담은 생성형 AI가 함께 응대합니다 (AI 기본법 제31조 고지).</div>
-          {/* 세대별 맞춤 */}
           <div style={{ display: 'flex', gap: 6, padding: '9px 14px 4px', alignItems: 'center' }}>
             <span style={{ fontSize: 10.5, color: '#8a7a72', fontWeight: 700 }}>세대별 화면</span>
             {GENS.map((g) => (
@@ -84,24 +109,22 @@ export default function Visual() {
               }}>{g.label}</button>
             ))}
           </div>
-          {/* 진행 단계 */}
           <div style={{ display: 'flex', padding: '6px 14px 4px' }}>
             {journey.map((j, i) => (
               <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: i <= step ? '#9c4025' : '#8a7a72', fontWeight: 600 }}>
-                <div style={{ width: 16, height: 16, borderRadius: '50%', margin: '0 auto 4px', background: i <= step ? '#be5535' : '#e2d5cd' }} />{j}</div>))}
+                <div style={{ width: 16, height: 16, borderRadius: '50%', margin: '0 auto 4px', background: i <= step ? '#be5535' : '#e2d5cd', transition: 'background .4s' }} />{j}</div>))}
           </div>
-          {/* 대화 */}
-          <div ref={boxRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {msgs.map((m, i) => (<Bubble key={i} m={m} S={S} senior={gen === 'senior'} />))}
+          <div ref={boxRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, scrollBehavior: 'smooth' }}>
+            {msgs.map((m, i) => (<Bubble key={i} m={m} S={S} />))}
+            {typing && <Typing S={S} />}
           </div>
-          {/* 상태 */}
           <div style={{ padding: '8px 14px', minHeight: 34, fontSize: S(12), color: listening ? '#9c4025' : '#8a7a72', fontWeight: 600 }}>
-            {listening ? '🎙️ 고객님 말씀을 듣고 있어요…' : '메뉴를 누르거나 통화를 시작하세요'}</div>
-          {/* 메뉴 */}
+            {listening ? '🎙️ 고객님 말씀을 듣고 있어요…' : (typing ? '💬 안내를 준비하고 있어요…' : '메뉴를 누르거나 통화를 시작하세요')}</div>
           <div style={{ padding: '6px 12px 10px', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {MENU.map(([node, label]) => (
               <button key={node} onClick={() => pick(node)} style={{ ...btnStyle, fontSize: S(12.5) }}>{label}</button>))}
-            <button onClick={play} style={{ ...btnStyle, background: '#be5535', color: '#fff', flex: '1 1 100%', fontSize: S(13) }}>▶ 자동 시연</button>
+            <button onClick={play} disabled={playing} style={{ ...btnStyle, background: playing ? '#d8a493' : '#be5535', color: '#fff', flex: '1 1 100%', fontSize: S(13), cursor: playing ? 'default' : 'pointer' }}>
+              {playing ? '● 시연 진행 중…' : '▶ 자동 시연'}</button>
           </div>
         </div>
       </div>
@@ -111,7 +134,15 @@ export default function Visual() {
 
 const btnStyle = { flex: '1 1 30%', border: '1px solid #e6ddd7', background: '#fff', borderRadius: 11, padding: '11px 6px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: '#3a2b24' };
 
-function Bubble({ m, S, senior }) {
+function Typing({ S }) {
+  return (
+    <div style={{ maxWidth: '60%', alignSelf: 'flex-start', background: '#fff', border: '1px solid #e6ddd7', borderRadius: 16, padding: '11px 14px', display: 'flex', gap: 4, alignItems: 'center' }}>
+      {[0, 1, 2].map((i) => (<span key={i} style={{ width: S(7), height: S(7), borderRadius: '50%', background: '#be5535', display: 'inline-block', animation: `eumdot 1.2s ${i * 0.2}s infinite` }} />))}
+    </div>
+  );
+}
+
+function Bubble({ m, S }) {
   const bot = m.who === 'bot';
   return (
     <div style={{
@@ -120,12 +151,12 @@ function Bubble({ m, S, senior }) {
     }}>
       <div style={{ fontSize: S(10), fontWeight: 800, marginBottom: 3, color: bot ? '#be5535' : '#a06a4e' }}>{bot ? '보이는 ARS · AI' : '고객 발화 (STT)'}</div>
       {m.text}
-      {m.node && <NodeCard node={m.node} S={S} senior={senior} />}
+      {m.node && <NodeCard node={m.node} S={S} />}
     </div>
   );
 }
 
-function NodeCard({ node, S, senior }) {
+function NodeCard({ node, S }) {
   const box = { background: '#fff', border: '1px solid #e6ddd7', borderRadius: 12, padding: 11, marginTop: 8, fontSize: S(12.5) };
   const title = (t) => <b style={{ fontSize: S(13), color: '#9c4025' }}>{t}</b>;
   const kv = (k, v) => (<div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed #eee' }}><span style={{ color: '#9c8b80' }}>{k}</span><b>{v}</b></div>);
