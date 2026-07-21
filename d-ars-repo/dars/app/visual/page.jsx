@@ -25,6 +25,7 @@ export default function Visual() {
   const [typing, setTyping] = useState(false);
   const [gen, setGen] = useState('senior');
   const [playing, setPlaying] = useState(false);
+  const [live, setLive] = useState(false);
   const runId = useRef(0);
   const boxRef = useRef(null);
   const scale = (GENS.find((g) => g.k === gen) || GENS[0]).scale;
@@ -48,12 +49,35 @@ export default function Visual() {
     await wait(700);
   }
 
+  // 노드→스텝 인디케이터 매핑
+  const NODE_STEP = { SHOW_WELFARE_FORM: 2, SHOW_TRIO_MATCH: 2, SHOW_SAFETY_CHECK: 3, SHOW_CARD_POINTS: 3, TRANSFER_COORDINATOR: 3, SHOW_DOCS: 4 };
   useEffect(() => {
-    try {
-      const q = new URLSearchParams(window.location.search);
-      const node = q.get('node');
-      if (node && MENU.some((m) => m[0] === node)) { setStep(2); push({ who: 'bot', text: '요청하신 안내 화면이에요.', node }); }
-    } catch { /* noop */ }
+    let alive = true;
+    let params;
+    try { params = new URLSearchParams(window.location.search); } catch { return; }
+    const node = params.get('node');
+    if (node && MENU.some((m) => m[0] === node)) { setStep(2); push({ who: 'bot', text: '요청하신 안내 화면이에요.', node }); return; }
+    const s = params.get('s');
+    if (!s) return;               // 세션 토큰 없으면 데모 모드
+    setLive(true);
+    let lastNode = null;
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/visual/state?s=${encodeURIComponent(s)}`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!alive || !d.ok) return;
+        if (d.node && d.node !== lastNode) {   // 콜봇이 새 노드를 push하면 화면 전환
+          lastNode = d.node;
+          if (NODE_STEP[d.node] != null) setStep(NODE_STEP[d.node]);
+          push({ who: 'bot', text: '통화 진행에 맞춰 화면으로 안내해 드릴게요.', node: d.node });
+        }
+        if (d.status === '완료') setStep(4);
+      } catch { /* 네트워크 오류 무시(다음 폴링) */ }
+    };
+    poll();
+    const timer = setInterval(poll, 2500);
+    return () => { alive = false; clearInterval(timer); };
   }, []);
 
   const play = async () => {
@@ -94,7 +118,7 @@ export default function Visual() {
           <div style={{ background: 'linear-gradient(135deg,#be5535,#9c4025)', color: '#fff', padding: '20px 18px 13px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <b style={{ fontSize: 15.5 }}>이음 · 세대를 잇다</b>
-              <span style={{ fontSize: 11, background: 'rgba(255,255,255,.18)', padding: '4px 9px', borderRadius: 999 }}>● 통화 연결됨</span>
+              <span style={{ fontSize: 11, background: 'rgba(255,255,255,.18)', padding: '4px 9px', borderRadius: 999 }}>{live ? '● 실시간 연동' : '● 통화 연결됨'}</span>
             </div>
             <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>광주 광산구 3세대 상생 품앗이 · 보이는 ARS</div>
           </div>
