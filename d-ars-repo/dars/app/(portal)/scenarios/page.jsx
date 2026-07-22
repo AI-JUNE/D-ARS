@@ -19,6 +19,9 @@ import { useSortState } from '@/lib/useSortState';
 import { SCENARIO_SORTS } from '@/lib/listSorts';
 import SavedViews from '@/lib/SavedViews';
 import EmptyRow, { EmptyBox } from '@/lib/EmptyRows';
+import { useRowSelection } from '@/lib/useRowSelection';
+import { exportRunner } from '@/lib/selection';
+import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 
 /* 표 뷰 + 서버 전체 기준 정렬(2026-07-13 야간 · 14회차).
    기존: 시나리오는 빌더 사이드 목록·보드 뷰뿐이라 **정렬이 불가능**했고(다른 4개 목록 화면은 정렬 헤더 보유),
@@ -46,13 +49,23 @@ const URL_SPEC = { q: { qs: 'q', def: '' }, view: { qs: 'view', def: 'builder', 
    지우면 사용자가 보고 있던 표/보드에서 튕겨 나간다. 모듈 상수로 두어 참조 아이덴티티를 안정시킨다. */
 const SCN_KEEP = ['view'];
 
+/* 표 뷰 기본 정렬(22회차 · 백로그 (m)) — 수정일 내림차순 = '최근 수정 순'.
+   모듈 상수로 두어 참조 아이덴티티를 안정시킨다(훅 의존성 안정). URL 에는 쓰지 않는다(하위호환). */
+const DEFAULT_SORT = { key: 'updated_at', dir: 'desc' };
+
+/* 표 뷰가 아닐 때 선택 훅에 넘길 빈 목록 — 모듈 상수로 두어 렌더마다 새 배열이 생기지 않게 한다(참조 안정). */
+const NO_ROWS = [];
+
 export default function Scenarios() {
   const [cur, setCur] = useState(null);
   const [uq, setUq] = useUrlState(URL_SPEC);
   const view = uq.view;                        // builder | board | table
   const setView = (v) => setUq({ view: v });
   // 정렬도 URL(?sort=&dir=)에 보존한다(19회차) → 표 뷰의 '노드 많은 순' 링크를 그대로 공유할 수 있다.
-  const [sort, setSort] = useSortState(SCENARIO_SORTS); // { key, dir } — 서버 정렬 파라미터로 전달
+  // 기본 정렬 = **수정일 내림차순(최근 수정 순)**(22회차 · 백로그 (m)): 시나리오는 변경 이력 감사 대상이라
+  // "방금 누가 무엇을 고쳤나"가 첫 화면에 보여야 한다(이전 기본은 id 순 → 최근 변경분이 맨 아래에 묻혔다).
+  // 기본 정렬은 URL 에 쓰지 않으므로 주소·공유 링크는 그대로다(하위호환). API 기본 동작도 불변.
+  const [sort, setSort] = useSortState(SCENARIO_SORTS, DEFAULT_SORT); // { key, dir } — 서버 정렬 파라미터로 전달
   const [saveErr, setSaveErr] = useState(null); // 저장·생성 실패(목록 오류는 L.error)
   const [counts, setCounts] = useState({ 운영: 0, 미운영: 0 });
   // 기간 필터(2026-07-14): 시나리오 **수정일(updated_at)** 기준 7·30·90일/전체.
@@ -102,13 +115,22 @@ export default function Scenarios() {
     return m;
   }, [L.rows]);
 
+  // 행 선택(26회차 · 25회차에서 위험 최소화를 위해 분리해 둔 항목): 표 뷰에서 체크한 행이 있으면
+  // 내보내기는 **그 행만** 담는다(선택 0건이면 기존대로 서버 전체 → 하위호환 100%).
+  // 뷰(builder·board·table)를 **scope 에 포함**한 이유: 내보내기 버튼은 세 뷰 모두에서 보이는데
+  // 표에서 3건을 고른 뒤 보드로 넘어가면 체크박스도 안내줄도 보이지 않는다 → 그 상태로 내보내면
+  // 사용자는 자신이 무엇을 내보내는지 알 수 없다(가장 위험한 종류의 침묵). 뷰를 바꾸면 선택을 비운다.
+  // 검색어·기간·정렬이 바뀔 때 비우는 것은 훅의 기본 동작이다.
+  const S = useRowSelection(view === 'table' ? L.rows : NO_ROWS, { scope: JSON.stringify({ q: L.dq, view, ...listParams }) });
+  const R = exportRunner(S, X);
+
   const exportCols = [
     {label:'ID',value:'id'},{label:'시나리오',value:'name'},{label:'유형',value:'type'},
     {label:'상태',value:'status'},{label:'버전',value:'version'},{label:'노드수',value:s=>(s.nodes||[]).length},{label:'수정일',value:'updated_at'}];
-  // 내보내기: 현재 검색 조건의 **서버 전체 행**(로드된 50건이 아니라)을 수집한다.
-  const exportCsv = () => X.run((all) => downloadCSV('scenarios.csv', all, exportCols));
-  const exportXlsx = () => X.run((all) => downloadExcel('scenarios.xls', all, exportCols, '시나리오'));
-  const exportPdf = () => X.run((all) => printPDF('시나리오 목록', all, exportCols));
+  // 내보내기: 선택 0건이면 현재 검색 조건의 **서버 전체 행**(로드된 50건이 아니라)을 수집한다.
+  const exportCsv = () => R.run((rows, opts) => downloadCSV('scenarios.csv', rows, exportCols, opts));
+  const exportXlsx = () => R.run((rows, opts) => downloadExcel('scenarios.xls', rows, exportCols, '시나리오', opts));
+  const exportPdf = () => R.run((rows, opts) => printPDF('시나리오 목록', rows, exportCols, opts));
 
   if (!cur) return <div className="card">불러오는 중…</div>;
 
@@ -185,9 +207,11 @@ export default function Scenarios() {
         /* 표 뷰: 서버 전체 기준 정렬(SCENARIO_SORTS 화이트리스트) · 행 클릭 시 빌더로 이동.
            모바일에서는 card 안에서 가로 스크롤(디자인 원칙: 표는 카드 내 스크롤 — 무붕괴·무오버랩). */
         <div className="card">
+          <SelectionNote S={S} />
           <div style={{overflowX:'auto'}}>
             <table className="tbl">
               <thead><tr>
+                <SelectAllTh S={S} label="표시된 시나리오 전체 선택" />
                 <SortTh sort={sort} onSort={setSort} k="id">ID</SortTh>
                 <SortTh sort={sort} onSort={setSort} k="name">시나리오</SortTh>
                 <SortTh sort={sort} onSort={setSort} k="type">유형</SortTh>
@@ -199,6 +223,7 @@ export default function Scenarios() {
               </tr></thead>
               <tbody>{L.rows.map(s=>(
                 <tr key={s.id}>
+                  <SelectTd S={S} row={s} label={`${s.name} 선택`} />
                   <td>{s.id}</td>
                   <td><b style={{wordBreak:'break-word'}}>{s.name}</b></td>
                   <td>{s.type}</td>
@@ -210,7 +235,8 @@ export default function Scenarios() {
                   <td><button className="btn sm" onClick={()=>{select(s);setView('builder');}}>열기</button></td>
                 </tr>))}
                 {/* keep=['view']: 표 뷰에서 조건을 지울 때 뷰(`?view=table`)까지 지우면 보드로 튕겨 나간다 → 뷰는 보존한다 */}
-                {L.rows.length===0 && <EmptyRow colSpan={9} loading={L.loading} error={L.error} keep={SCN_KEEP} empty="등록된 시나리오가 없습니다" />}
+                {/* colSpan 9 → 10: 선택 열이 앞에 붙었다(빈 상태 안내가 표 너비를 다 채워야 붕괴가 없다) */}
+                {L.rows.length===0 && <EmptyRow colSpan={10} loading={L.loading} error={L.error} keep={SCN_KEEP} empty="등록된 시나리오가 없습니다" />}
               </tbody>
             </table>
           </div>

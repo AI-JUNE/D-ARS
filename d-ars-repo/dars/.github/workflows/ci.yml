@@ -10,5 +10,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
+      # 테스트를 게이트에 포함한다(26회차): 여태 CI 는 build 만 돌려 유닛 테스트(43종)가 회귀를 잡지 못했다.
+      # 러너(scripts/run-tests.mjs)는 셸 글롭에 의존하지 않아 Windows(deploy.bat)에서도 같은 목록을 실행한다.
+      - run: npm test
       - run: npm run build
     # 실제 배포는 Vercel의 GitHub 연동이 main push 시 자동 수행합니다.

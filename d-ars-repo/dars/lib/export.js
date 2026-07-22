@@ -1,13 +1,35 @@
 // 공통 CSV 내보내기 (Excel 한글 호환: UTF-8 BOM)
 // 파일명 날짜 스탬프(일별 다운로드 덮어쓰기 방지·감사 추적): name.ext → name_YYYY-MM-DD.ext
-export function stampFilename(filename) {
+//
+// 조회 조건 기록(2026-07-14, 22회차 · 감사·정산 신뢰성):
+//   내보내기는 이미 **서버 전체 기준**(현재 조건의 모든 행)인데, 정작 **파일에는 그 조건이 남지 않았다**
+//   → "UMS 12건" 파일이 전체인지 '최근 7일·실패'인지 구분할 수 없었다. 이제 PDF·Excel 은 현재 주소의
+//   조회 조건(기간·검색어·필터·정렬)을 **문서 머리말에 자동 기록**한다(`lib/conditionSummary.js`).
+//   **CSV 는 기계 파싱 대상**이라 데이터 무결성을 우선해 본문을 그대로 둔다(머리말 미삽입).
+// (상대 경로 임포트 — 이 파일은 node:test 러너가 별칭 해석 없이 직접 임포트한다)
+import { currentSearch, exportSubtitle, conditionSlug } from './conditionSummary.js';
+
+// 파일명 = 이름[_조건슬러그]_YYYY-MM-DD.확장자
+//   조건 슬러그(2026-07-14, 23회차): 같은 날 조건만 바꿔 두 번 내보내면 파일명이 충돌하고(브라우저가 `(1)`),
+//   폴더에 쌓인 파일을 **열기 전에는 구분할 수 없었다**. 특히 CSV 는 본문에 머리말을 넣지 않으므로
+//   파일명이 유일한 구분 수단이다. → `ums_7d_실패_2026-07-14.csv`
+//   `slug` 미지정 시 기존 출력과 **바이트 동일**(하위호환 — 기존 호출부·테스트 무영향).
+export function stampFilename(filename, opts = {}) {
   const d = new Date();
   const z = (n) => String(n).padStart(2, '0');
   const tag = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+  const slug = typeof opts.slug === 'string' && opts.slug ? `_${opts.slug}` : '';
   const dot = String(filename).lastIndexOf('.');
   return dot === -1
-    ? `${filename}_${tag}`
-    : `${filename.slice(0, dot)}_${tag}${filename.slice(dot)}`;
+    ? `${filename}${slug}_${tag}`
+    : `${filename.slice(0, dot)}${slug}_${tag}${filename.slice(dot)}`;
+}
+
+// 현재 주소의 조회 조건을 파일명에 자동 반영(호출부 변경 0 · opts.slug=false 면 생략).
+export function exportFilename(filename, opts = {}) {
+  if (opts.slug === false) return stampFilename(filename);
+  const slug = typeof opts.slug === 'string' ? opts.slug : conditionSlug(currentSearch());
+  return stampFilename(filename, { slug });
 }
 
 // CSV 수식 인젝션 방지: 스프레드시트 앱(Excel·Sheets·LibreOffice)에서 =,+,-,@,tab,CR 로
@@ -26,21 +48,27 @@ export function toCSV(rows, columns) {
   }).join(',')).join('\n');
   return head + '\n' + body;
 }
-export function downloadCSV(filename, rows, columns) {
+// CSV 본문은 **기계 파싱 대상이라 불변**(머리말 미삽입) — 대신 **파일명**에 조건을 남긴다(23회차).
+export function downloadCSV(filename, rows, columns, opts = {}) {
   if (typeof window === 'undefined') return;
   const csv = '﻿' + toCSV(rows, columns);
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = stampFilename(filename); a.click();
+  a.href = url; a.download = exportFilename(filename, opts); a.click();
   URL.revokeObjectURL(url);
 }
 
 // 공통 Excel 내보내기 — 의존성 없이 Excel이 여는 SpreadsheetML/HTML(.xls)
 // 한글: UTF-8 BOM + meta charset. 전화번호 등 앞자리 0 보존: 셀 텍스트 서식(mso-number-format).
-export function toExcelHTML(rows, columns, sheetName = 'Sheet1') {
+// opts.subtitle 이 있으면 표 위에 **조회 조건 머리말**(병합 셀 1줄)을 넣는다 — 미지정 시 기존 출력과 100% 동일(하위호환).
+export function toExcelHTML(rows, columns, sheetName = 'Sheet1', opts = {}) {
   const esc = (v) => String(v ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const cap = opts.subtitle
+    ? `<tr><td colspan="${columns.length}" style="background:#faf5f2;color:#8a7970;border:1px solid #e6dcd6;`
+      + `padding:6px 10px;font-size:12px">${esc(opts.subtitle)}</td></tr>`
+    : '';
   const th = columns.map(c =>
     `<th style="background:#be5535;color:#fff;border:1px solid #d8c7bf;padding:6px 10px;font-weight:700">${esc(c.label)}</th>`
   ).join('');
@@ -54,15 +82,17 @@ export function toExcelHTML(rows, columns, sheetName = 'Sheet1') {
     + `<x:Name>${esc(sheetName)}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>`
     + `</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->`
     + `</head><body><table style="border-collapse:collapse;font-family:'Malgun Gothic',sans-serif;font-size:13px">`
-    + `<thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+    + `<thead>${cap}<tr>${th}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
-export function downloadExcel(filename, rows, columns, sheetName) {
+// 현재 주소의 조회 조건을 머리말로 자동 기록(호출부 변경 0 · 명시 opts 로 덮어쓰기 가능, false 면 생략).
+export function downloadExcel(filename, rows, columns, sheetName, opts = {}) {
   if (typeof window === 'undefined') return;
-  const html = '﻿' + toExcelHTML(rows, columns, sheetName || 'D-ARS');
+  const subtitle = opts.subtitle === false ? '' : (opts.subtitle || exportSubtitle(currentSearch()));
+  const html = '﻿' + toExcelHTML(rows, columns, sheetName || 'D-ARS', { subtitle });
   const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = stampFilename(filename); a.click();
+  a.href = url; a.download = exportFilename(filename, opts); a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -81,7 +111,9 @@ export function printPDF(title, rows, columns, opts = {}) {
       }).join('') + '</tr>').join('')
     : `<tr><td class="empty" colspan="${columns.length}">데이터가 없습니다.</td></tr>`;
   const now = new Date().toLocaleString('ko-KR', { dateStyle: 'long', timeStyle: 'short' });
-  const sub = opts.subtitle ? `<div class="sub">${esc(opts.subtitle)}</div>` : '';
+  // 조회 조건은 **자동 기록**(호출부 변경 0). 명시 subtitle 이 있으면 그것을 쓰고, false 면 생략한다.
+  const subtitle = opts.subtitle === false ? '' : (opts.subtitle || exportSubtitle(currentSearch()));
+  const sub = subtitle ? `<div class="sub">${esc(subtitle)}</div>` : '';
   const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
 *{box-sizing:border-box}
 body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#2b201c;margin:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}

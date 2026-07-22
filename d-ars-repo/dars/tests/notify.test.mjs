@@ -56,6 +56,14 @@ test('세션: 경과 180초 이상만 장기 진행 알림', () => {
   assert.match(sNotes[0].body, /3분 20초/);
 });
 
+test('세션: 1시간 넘는 장기 세션은 "N시간" 표기로 혼동 해소', () => {
+  const sessions = [{ id: 'S9', scenario: '장기상담', elapsed: 7530 }]; // 2시간 5분 30초
+  const { notes } = deriveNotifications({ sessions }, FIXED);
+  const sNote = notes.find(n => n.cat === '세션');
+  assert.ok(sNote);
+  assert.match(sNote.body, /2시간 5분 30초/); // 이전엔 "125분 30초"
+});
+
 test('통계: 이탈률 8% 이상만 알림(최근일 기준)', () => {
   const hi = deriveNotifications({ daily: [{ day: '07-01', inbound: 1000, dropped: 50 }, { day: '07-02', inbound: 1000, dropped: 100 }] }, FIXED);
   assert.ok(hi.notes.find(n => n.cat === '통계'));

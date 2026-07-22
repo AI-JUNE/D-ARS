@@ -24,7 +24,13 @@ export const metadata = {
     title: 'D-ARS · 보이는 ARS 관리자', description: DESC,
   },
   twitter: { card: 'summary', title: 'D-ARS · 보이는 ARS 관리자', description: DESC },
-  robots: { index: true, follow: true },
+  // 내부 운영 포털: 검색 색인 차단(robots.js 의 전면 disallow 와 일관 · 개인정보/운영정보 노출 방지).
+  // meta robots 태그도 noindex/nofollow 로 명시해 robots.txt 를 무시하는 크롤러까지 차단.
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: { index: false, follow: false },
+  },
 };
 
 export const viewport = {

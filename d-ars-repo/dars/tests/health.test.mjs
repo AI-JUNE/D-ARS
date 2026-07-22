@@ -43,3 +43,35 @@ test('latencyMs=0 도 포함(falsy 값 누락 방지)', () => {
   const { body } = buildHealth({ dbStatus: 'connected', latencyMs: 0, now: FIXED });
   assert.equal(body.dbLatencyMs, 0);
 });
+
+test('빠른 응답: slow 플래그 없음(하위호환 — 임계값 미만이면 필드 미포함)', () => {
+  const { body } = buildHealth({ dbStatus: 'connected', latencyMs: 12, now: FIXED });
+  assert.equal('slow' in body, false);
+});
+
+test('느린 DB: 임계값 이상이면 slow=true, 그러나 ok=true·200 유지(느림 ≠ 다운)', () => {
+  const { body, status } = buildHealth({ dbStatus: 'connected', latencyMs: 1800, now: FIXED });
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.slow, true);
+  assert.equal(body.dbLatencyMs, 1800);
+});
+
+test('느린 DB: 임계값 경계(정확히 임계값)면 slow=true', () => {
+  const { body } = buildHealth({ dbStatus: 'connected', latencyMs: 1500, now: FIXED });
+  assert.equal(body.slow, true);
+});
+
+test('사용자 지정 임계값 반영(slowThresholdMs)', () => {
+  const fast = buildHealth({ dbStatus: 'connected', latencyMs: 300, slowThresholdMs: 200, now: FIXED });
+  assert.equal(fast.body.slow, true);
+  const relaxed = buildHealth({ dbStatus: 'connected', latencyMs: 1800, slowThresholdMs: 5000, now: FIXED });
+  assert.equal('slow' in relaxed.body, false);
+});
+
+test('demo-fallback/error 는 지연이 없어 slow 판정 대상 아님', () => {
+  const demo = buildHealth({ dbStatus: 'demo-fallback', now: FIXED });
+  assert.equal('slow' in demo.body, false);
+  const err = buildHealth({ dbStatus: 'error', latencyMs: 9999, now: FIXED });
+  assert.equal('slow' in err.body, false); // connected 가 아니면 slow 미판정
+});

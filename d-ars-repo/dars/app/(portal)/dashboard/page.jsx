@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { pct } from '@/lib/ui';
+import { pct, fmt, fmtDur, stepLabel } from '@/lib/ui';
 import Counter from '@/lib/Counter';
 import { AreaChart, GroupedBars, ProgressRow, Donut } from '@/lib/charts';
 import { getJSON, asArray } from '@/lib/fetchJson';
@@ -167,8 +167,8 @@ export default function Dashboard() {
         <div className="d">개인정보 자동 마스킹 · 5초 갱신</div>
         <table className="tbl"><thead><tr><th>세션</th><th>고객</th><th>시나리오</th><th>단계</th><th>경과</th></tr></thead>
           <tbody>{sessions.slice(0, 6).map(s => (<tr key={s.id}><td><b>{s.id}</b></td><td>{s.phone}</td><td>{s.scenario}</td>
-            <td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{['런칭', '본인확인', '상담', '안내·발송', '완료'][s.step]}</span></td>
-            <td>{Math.floor(s.elapsed / 60)}:{String(s.elapsed % 60).padStart(2, '0')}</td></tr>))}</tbody></table>
+            <td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{stepLabel(s.step)}</span></td>
+            <td title={fmtDur(s.elapsed)} aria-label={fmtDur(s.elapsed)}>{fmt(s.elapsed)}</td></tr>))}</tbody></table>
       </div>
     </>
   );

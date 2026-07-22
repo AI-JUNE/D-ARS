@@ -15,6 +15,9 @@ import { useSortState } from '@/lib/useSortState';
 import { DOC_SORTS } from '@/lib/listSorts';
 import SavedViews from '@/lib/SavedViews';
 import EmptyRow from '@/lib/EmptyRows';
+import { useRowSelection } from '@/lib/useRowSelection';
+import { exportRunner } from '@/lib/selection';
+import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 
 /* 검색어 URL 보존(2026-07-14): 검색 조건을 URL(?q=)에 남겨 새로고침·링크 공유·뒤로가기에도 유지된다. */
 const URL_SPEC = { q: { qs: 'q', def: '' } };
@@ -49,13 +52,17 @@ export default function Docs() {
 
   const view = L.rows; // 서버가 이미 현재 정렬로 내려준다(페이지 누적 순서 = 전체 정렬 순서)
 
+  // 행 선택(25회차): 체크한 행이 있으면 내보내기는 **그 행만** 담는다(선택 0건이면 기존대로 서버 전체 수집).
+  const S = useRowSelection(view, { scope: JSON.stringify({ q: L.dq, ...sortQuery(sort) }) });
+  const R = exportRunner(S, X);
+
   const exportCols = [
     {label:'업무',value:'biz'},{label:'서류명',value:'name'},{label:'요청',value:'req'},
     {label:'발송',value:'sent'},{label:'완료',value:'done'},{label:'완료율%',value:d=>pct(d.done,d.req)},{label:'사용',value:d=>d.in_use?'Y':'N'}];
-  // 내보내기: 현재 검색·정렬 조건의 **서버 전체 행**을 수집한다(정렬도 서버가 적용).
-  const exportCsv = () => X.run((all) => downloadCSV('docs.csv', all, exportCols));
-  const exportXlsx = () => X.run((all) => downloadExcel('docs.xls', all, exportCols, '서류'));
-  const exportPdf = () => X.run((all) => printPDF('필요서류 현황', all, exportCols));
+  // 내보내기: 선택이 없으면 현재 검색·정렬 조건의 **서버 전체 행**, 선택이 있으면 **선택 행만**(문서·파일명에 표기).
+  const exportCsv = () => R.run((rows, opts) => downloadCSV('docs.csv', rows, exportCols, opts));
+  const exportXlsx = () => R.run((rows, opts) => downloadExcel('docs.xls', rows, exportCols, '서류', opts));
+  const exportPdf = () => R.run((rows, opts) => printPDF('필요서류 현황', rows, exportCols, opts));
   return (
     <>
       <div className="sectionhead"><h2>필요서류 관리</h2><span className="d">보이는 ARS·UMS 안내·발송 서류</span>
@@ -67,8 +74,10 @@ export default function Docs() {
         <span className="muted" style={{fontSize:12}}>{L.searching || L.loading ? '검색 중…' : `${L.total.toLocaleString()}건`}</span>
       </div>
       <SavedViews screen="docs" />
+      <SelectionNote S={S} />
       <div className="card"><table className="tbl">
         <thead><tr>
+          <SelectAllTh S={S} label="표시된 서류 전체 선택" />
           <th>순위</th>
           <SortTh sort={sort} onSort={setSort} k="biz">업무</SortTh>
           <SortTh sort={sort} onSort={setSort} k="name">서류명</SortTh>
@@ -79,12 +88,13 @@ export default function Docs() {
           <th>사용</th><th>조치</th>
         </tr></thead>
         <tbody>{view.map((d,i)=>{const p=pct(d.done,d.req);return (<tr key={d.id}>
+          <SelectTd S={S} row={d} label={`${d.name} 선택`} />
           <td>{i+1}</td><td>{d.biz}</td><td><b>{d.name}</b></td><td>{d.req}</td><td>{d.sent}</td><td><b>{d.done}</b></td>
           <td style={{minWidth:120}}><div className="bar"><i style={{width:p+'%'}}/></div><span className="muted" style={{fontSize:11}}>{p}%</span></td>
           <td><span className={'tag '+(d.in_use?'t-ok':'t-mut')}>{d.in_use?'사용':'미사용'}</span></td>
           <td><button className="btn sm" onClick={()=>toggle(d)}>{d.in_use?'미사용':'사용'}</button></td>
         </tr>);})}
-        {view.length===0 && <EmptyRow colSpan={9} loading={L.loading} error={L.error} empty="등록된 서류가 없습니다" />}</tbody></table>
+        {view.length===0 && <EmptyRow colSpan={10} loading={L.loading} error={L.error} empty="등록된 서류가 없습니다" />}</tbody></table>
         <ListMore shown={view.length} total={L.total} hasMore={L.hasMore} loading={L.loadingMore} onMore={L.loadMore} />
       </div>
     </>

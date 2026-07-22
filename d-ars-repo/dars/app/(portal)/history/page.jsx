@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { NODE_TYPES, fmt, pct } from '@/lib/ui';
+import { NODE_TYPES, fmt, fmtDur, pct } from '@/lib/ui';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 import { Donut, ProgressRow } from '@/lib/charts';
 import { getJSON } from '@/lib/fetchJson';
@@ -20,6 +20,9 @@ import { useSortState } from '@/lib/useSortState';
 import { MM_SORTS } from '@/lib/listSorts';
 import SavedViews from '@/lib/SavedViews';
 import EmptyRow from '@/lib/EmptyRows';
+import { useRowSelection } from '@/lib/useRowSelection';
+import { exportRunner } from '@/lib/selection';
+import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 
 /* 멀티모달 이력 — 보이는 ARS 상호작용 로그(화면·음성·문자·RAG·전환)를
    한 화면에서 조회·필터·내보내기. 읽기 전용 · 모바일 우선 · 브랜드 #be5535.
@@ -93,10 +96,15 @@ export default function History() {
     { label: '결과', value: 'result' },
     { label: '소요(초)', value: 'duration' },
   ];
-  // 내보내기: 현재 채널 필터·검색 조건의 **서버 전체 행**을 수집해 담는다(2026-07-13).
-  const exportCsv = () => X.run((all) => downloadCSV('multimodal-history.csv', all, exportCols));
-  const exportXlsx = () => X.run((all) => downloadExcel('multimodal-history.xls', all, exportCols, '멀티모달이력'));
-  const exportPdf = () => X.run((all) => printPDF('멀티모달 이력', all, exportCols));
+  // 행 선택(25회차): 체크한 행이 있으면 내보내기는 **그 행만** 담는다(선택 0건이면 기존대로 서버 전체 수집).
+  // 이 화면은 15초마다 자동 갱신되므로, 사라진 행의 선택은 훅이 정리한다(유령 선택 방지).
+  const S = useRowSelection(rows, { scope: JSON.stringify({ q: L.dq, ...listParams }) });
+  const R = exportRunner(S, X);
+
+  // 내보내기: 선택이 없으면 현재 채널·검색·기간 조건의 **서버 전체 행**, 선택이 있으면 **선택 행만**.
+  const exportCsv = () => R.run((rs, opts) => downloadCSV('multimodal-history.csv', rs, exportCols, opts));
+  const exportXlsx = () => R.run((rs, opts) => downloadExcel('multimodal-history.xls', rs, exportCols, '멀티모달이력', opts));
+  const exportPdf = () => R.run((rs, opts) => printPDF('멀티모달 이력', rs, exportCols, opts));
 
   return (
     <>
@@ -114,7 +122,7 @@ export default function History() {
         <div className="card kpi"><div className="n">{total}</div><div className="l">전체 상호작용</div></div>
         <div className="card kpi"><div className="n">{pct(done, total)}%</div><div className="l">완료율 · {done}건</div></div>
         <div className="card kpi"><div className="n">{drop}</div><div className="l">이탈</div></div>
-        <div className="card kpi"><div className="n">{fmt(avg)}</div><div className="l">평균 소요</div></div>
+        <div className="card kpi"><div className="n" title={fmtDur(avg)} aria-label={'평균 소요 ' + fmtDur(avg)}>{fmt(avg)}</div><div className="l">평균 소요</div></div>
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
@@ -152,6 +160,7 @@ export default function History() {
       </div>
 
       <SavedViews screen="history" />
+      <SelectionNote S={S} />
 
       <div className="card" style={{ marginTop: 4 }}>
         <h3>상호작용 로그 <span className="muted" style={{ fontWeight: 600, fontSize: 12.5, wordBreak: 'break-word' }}>· {total}건{srvRange ? ` · ${rangeLabel(srvRange)}` : ''}</span>
@@ -159,6 +168,7 @@ export default function History() {
         </h3>
         <table className="tbl">
           <thead><tr>
+            <SelectAllTh S={S} label="표시된 이력 전체 선택" />
             <SortTh sort={sort} onSort={setSort} k="id">ID</SortTh>
             <SortTh sort={sort} onSort={setSort} k="ts">시각</SortTh>
             <SortTh sort={sort} onSort={setSort} k="phone">고객</SortTh>
@@ -175,18 +185,19 @@ export default function History() {
               const mm = String(d.getMinutes()).padStart(2, '0');
               return (
                 <tr key={r.id}>
+                  <SelectTd S={S} row={r} label={`이력 ${r.id} 선택`} />
                   <td><b>{r.id}</b></td>
                   <td className="muted">{hh}:{mm}</td>
                   <td>{r.phone}</td>
                   <td>{r.scenario}</td>
                   <td><span className="tag t-info">{nt ? nt.ic + ' ' : ''}{r.channel}</span></td>
                   <td><span className={'tag ' + (RESULT_TAG[r.result] || 't-mut')}>{r.result}</span></td>
-                  <td>{fmt(r.duration || 0)}</td>
+                  <td title={fmtDur(r.duration || 0)} aria-label={'소요 ' + fmtDur(r.duration || 0)}>{fmt(r.duration || 0)}</td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
-              <EmptyRow colSpan={7} loading={L.loading} error={L.error} empty="이력이 없습니다" filtered="조건에 맞는 이력이 없습니다" />
+              <EmptyRow colSpan={8} loading={L.loading} error={L.error} empty="이력이 없습니다" filtered="조건에 맞는 이력이 없습니다" />
             )}
           </tbody>
         </table>

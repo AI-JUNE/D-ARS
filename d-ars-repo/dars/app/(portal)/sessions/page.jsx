@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { NODE_TYPES, journey, fmt } from '@/lib/ui';
+import { NODE_TYPES, journey, stepLabel, fmt, fmtDur } from '@/lib/ui';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 import { getJSON, asArray } from '@/lib/fetchJson';
 import ErrorBanner from '@/lib/ErrorBanner';
@@ -18,6 +18,9 @@ import { useSortState } from '@/lib/useSortState';
 import { SESSION_SORTS } from '@/lib/listSorts';
 import SavedViews from '@/lib/SavedViews';
 import EmptyRow from '@/lib/EmptyRows';
+import { useRowSelection } from '@/lib/useRowSelection';
+import { exportRunner } from '@/lib/selection';
+import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 
 /* 검색어 URL 보존(2026-07-14): 세션 보드의 검색 조건(?q=)을 URL 에 남긴다 → 새로고침·링크 공유·뒤로가기 유지.
    (기간 필터는 없다 — status='진행' 실시간 보드라 날짜 구간이 의미가 없다. 16회차 결론 유지) */
@@ -117,12 +120,23 @@ export default function Sessions() {
 
   const view = rows; // 정렬은 서버가 전체 기준으로 적용한다(클라이언트 재정렬 없음)
 
+  // 행 선택(26회차 · 백로그 (v2) — /scenarios 에 이어 실시간 세션 보드로 확대):
+  // 체크한 행이 있으면 내보내기는 **그 행만** 담는다(선택 0건이면 기존대로 서버 전체 → 하위호환 100%).
+  // 이 화면은 SSE 실시간 보드라 다른 목록과 다르게 행이 계속 변한다 — useRowSelection 이 이를 안전하게 흡수한다:
+  //   · 실시간 '갱신'(경과·노드 변화)은 id 집합이 그대로라 선택을 유지한다.
+  //   · 새 세션이 맨 앞에 '삽입'되면 그 행만 미선택으로 합류하고 기존 선택은 보존된다(전체 선택은 정직하게 부분표시로).
+  //   · 선택한 세션이 종료돼 보드에서 사라지면 그 선택은 자동 정리되고 count 는 화면 실재 수만 센다(유령 선택 방지).
+  // scope=검색어+정렬: 조건이 바뀌면 선택을 비운다(무엇을 내보내는지 사용자가 항상 알 수 있게).
+  const S = useRowSelection(view, { scope: JSON.stringify({ q: dq, ...sortQuery(sort) }) });
+  const R = exportRunner(S, X);
+
   const exportCols = [
     { label: '세션ID', value: 'id' }, { label: '고객', value: 'phone' }, { label: '시나리오', value: 'scenario' },
-    { label: '단계', value: s => journey[s.step] }, { label: '경과(초)', value: 'elapsed' }, { label: '상태', value: 'status' }];
-  const exportCsv = () => X.run((all) => downloadCSV('sessions.csv', all, exportCols));
-  const exportXlsx = () => X.run((all) => downloadExcel('sessions.xls', all, exportCols, '세션'));
-  const exportPdf = () => X.run((all) => printPDF('실시간 세션', all, exportCols));
+    { label: '단계', value: s => stepLabel(s.step) }, { label: '경과(초)', value: 'elapsed' }, { label: '상태', value: 'status' }];
+  // 선택 0건: 서버 전체 수집(기존). 선택 N건: 이미 로드된 선택 행만 즉시 내보낸다(서버 요청 0회) + 문서·파일명에 선택 표기.
+  const exportCsv = () => R.run((rows, opts) => downloadCSV('sessions.csv', rows, exportCols, opts));
+  const exportXlsx = () => R.run((rows, opts) => downloadExcel('sessions.xls', rows, exportCols, '세션', opts));
+  const exportPdf = () => R.run((rows, opts) => printPDF('실시간 세션', rows, exportCols, opts));
 
   return (
     <>
@@ -136,7 +150,7 @@ export default function Sessions() {
       {(X.busy || X.truncated) && <div className="muted noprint" style={{ fontSize: 12, margin: '0 0 8px', wordBreak: 'break-word' }}>{X.busy ? '전체 내보내기 준비 중…' : truncationNote(X.truncated, X.maxRows)}</div>}
       <div className="grid g4">
         <div className="card kpi"><div className="n">{total}</div><div className="l">진행 세션</div></div>
-        <div className="card kpi"><div className="n">{fmt(avg)}</div><div className="l">평균 경과</div></div>
+        <div className="card kpi"><div className="n" title={fmtDur(avg)} aria-label={'평균 경과 ' + fmtDur(avg)}>{fmt(avg)}</div><div className="l">평균 경과</div></div>
         <div className="card kpi"><div className="n">{guide}</div><div className="l">안내·발송 단계</div></div>
         <div className="card kpi"><div className="n">{swap}</div><div className="l">상담원 전환 대기</div></div>
       </div>
@@ -146,8 +160,10 @@ export default function Sessions() {
           <span className="muted" style={{ fontSize: 12 }}>{total.toLocaleString()}건</span>
         </div>
         <SavedViews screen="sessions" />
+        <SelectionNote S={S} />
         <div style={{ overflowX: 'auto' }}>
           <table className="tbl"><thead><tr>
+            <SelectAllTh S={S} label="표시된 세션 전체 선택" />
             <SortTh sort={sort} onSort={setSort} k="id">세션ID</SortTh>
             <SortTh sort={sort} onSort={setSort} k="phone">고객</SortTh>
             <SortTh sort={sort} onSort={setSort} k="scenario">시나리오</SortTh>
@@ -157,14 +173,15 @@ export default function Sessions() {
             <SortTh sort={sort} onSort={setSort} k="status">상태</SortTh>
           </tr></thead>
             <tbody>{view.map(s => { const nt = NODE_TYPES[s.node]; return (<tr key={s.id}>
+              <SelectTd S={S} row={s} label={`세션 ${s.id} 선택`} />
               <td><b>{s.id}</b></td><td>{s.phone}</td><td>{s.scenario}</td>
               <td><span className="tag t-info">{nt ? nt.ic + ' ' + nt.name : s.node}</span></td>
               <td><div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>{journey.map((j, i) =>
                 <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i <= s.step ? '#be5535' : '#e2d5cd' }} />)}</div></td>
-              <td>{fmt(s.elapsed)}</td><td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{s.step >= 4 ? '완료' : '진행'}</span></td>
+              <td title={fmtDur(s.elapsed)} aria-label={'경과 ' + fmtDur(s.elapsed)}>{fmt(s.elapsed)}</td><td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{s.step >= 4 ? '완료' : '진행'}</span></td>
             </tr>); })}
             {view.length === 0 && (
-              <EmptyRow colSpan={7} loading={L.loading} error={L.error || liveErr} empty="진행 중인 세션이 없습니다" />
+              <EmptyRow colSpan={8} loading={L.loading} error={L.error || liveErr} empty="진행 중인 세션이 없습니다" />
             )}</tbody></table>
         </div>
         <ListMore shown={view.length} total={Math.max(total, view.length)} hasMore={L.hasMore} loading={L.loadingMore} onMore={L.loadMore} />

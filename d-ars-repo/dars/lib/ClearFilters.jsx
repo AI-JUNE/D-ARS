@@ -15,11 +15,14 @@
 
 import { useCallback } from 'react';
 import { clearHref, countConditions } from '@/lib/clearParams';
+import { conditionText } from '@/lib/conditionSummary';
 import useQueryString from '@/lib/useQueryString';
 
 export default function ClearFilters({ keep, label = '조건 지우기', style }) {
   const cur = useQueryString();
   const n = countConditions(cur, keep);
+  // 22회차: 배지의 숫자(N)만으로는 **무엇이** 지워질지 알 수 없었다 → 툴팁에 조건을 그대로 나열한다.
+  const summary = conditionText(cur);
 
   const clear = useCallback(() => {
     if (countConditions(window.location.search, keep) === 0) return; // 지울 것이 없으면 히스토리 오염 금지
@@ -35,7 +38,11 @@ export default function ClearFilters({ keep, label = '조건 지우기', style }
       className="btn sm noprint"
       disabled={n === 0}
       aria-disabled={n === 0}
-      title={n === 0 ? '적용된 조회 조건이 없습니다' : '기간·검색어·필터·정렬 조건을 모두 지우고 기본 화면으로 되돌립니다(뒤로가기로 복구 가능)'}
+      title={
+        n === 0
+          ? '적용된 조회 조건이 없습니다'
+          : `지울 조건 — ${summary}\n모두 지우고 기본 화면으로 되돌립니다(뒤로가기로 복구 가능)`
+      }
       onClick={clear}
       style={{ flex: '0 0 auto', ...style }}
     >

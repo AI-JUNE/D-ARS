@@ -20,6 +20,9 @@ import { useSortState } from '@/lib/useSortState';
 import { UMS_SORTS } from '@/lib/listSorts';
 import SavedViews from '@/lib/SavedViews';
 import EmptyRow from '@/lib/EmptyRows';
+import { useRowSelection } from '@/lib/useRowSelection';
+import { exportRunner } from '@/lib/selection';
+import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 
 /* 검색어·상태 필터 URL 보존(2026-07-14): 기간(?range=)에 이어 검색어(?q=)·상태(?status=)도 URL 에 남긴다
    → "'실패' 발송만" 링크를 공유하면 상대도 같은 화면을 본다. 기본값(전체·빈 검색어)이면 파라미터가 붙지 않는다. */
@@ -79,12 +82,17 @@ export default function Ums() {
 
   const view = L.rows; // 서버가 이미 현재 정렬로 내려준다
 
+  // 행 선택(25회차): 체크한 행이 있으면 내보내기는 **그 행만** 담는다(선택 0건이면 기존대로 서버 전체).
+  // 조회 조건이 바뀌면 선택은 자동 해제된다(무엇을 내보내는지 항상 화면과 일치).
+  const S = useRowSelection(view, { scope: JSON.stringify({ q: L.dq, ...listParams }) });
+  const R = exportRunner(S, X);
+
   const exportCols = [
     {label:'시각',value:r=>time(r.sent_at)},{label:'휴대폰',value:'phone'},{label:'서비스',value:'service'},
     {label:'서류',value:'doc'},{label:'상태',value:'status'}];
-  const exportCsv = () => X.run((all) => downloadCSV('ums.csv', all, exportCols));
-  const exportXlsx = () => X.run((all) => downloadExcel('ums.xls', all, exportCols, 'UMS'));
-  const exportPdf = () => X.run((all) => printPDF('UMS 발송 내역', all, exportCols));
+  const exportCsv = () => R.run((rows, opts) => downloadCSV('ums.csv', rows, exportCols, opts));
+  const exportXlsx = () => R.run((rows, opts) => downloadExcel('ums.xls', rows, exportCols, 'UMS', opts));
+  const exportPdf = () => R.run((rows, opts) => printPDF('UMS 발송 내역', rows, exportCols, opts));
   return (
     <>
       <div className="sectionhead"><h2>UMS 문자발송</h2><span className="d">보이는 ARS 서류·영수증 링크 발송 로그</span></div>
@@ -106,16 +114,18 @@ export default function Ums() {
         <button className="btn primary sm" onClick={test}>✉️ 테스트 발송</button>
       </div>
       <SavedViews screen="ums" />
+      <SelectionNote S={S} />
       <div className="card"><table className="tbl"><thead><tr>
+        <SelectAllTh S={S} label="표시된 발송 전체 선택" />
         <SortTh sort={sort} onSort={setSort} k="sent_at">시각</SortTh>
         <SortTh sort={sort} onSort={setSort} k="phone">휴대폰</SortTh>
         <SortTh sort={sort} onSort={setSort} k="service">서비스</SortTh>
         <SortTh sort={sort} onSort={setSort} k="doc">서류</SortTh>
         <SortTh sort={sort} onSort={setSort} k="status">상태</SortTh>
       </tr></thead>
-        <tbody>{view.map(r=>(<tr key={r.id}><td>{time(r.sent_at)}</td><td>{r.phone}</td><td>{r.service}</td><td>{r.doc}</td>
+        <tbody>{view.map(r=>(<tr key={r.id}><SelectTd S={S} row={r} label={`${r.doc} 발송 선택`} /><td>{time(r.sent_at)}</td><td>{r.phone}</td><td>{r.service}</td><td>{r.doc}</td>
           <td><span className={'tag '+tagClass(r.status)}>{r.status}</span></td></tr>))}
-          {view.length===0 && <EmptyRow colSpan={5} loading={L.loading} error={L.error} empty="발송 이력이 없습니다" filtered="조건에 맞는 발송이 없습니다" />}</tbody></table>
+          {view.length===0 && <EmptyRow colSpan={6} loading={L.loading} error={L.error} empty="발송 이력이 없습니다" filtered="조건에 맞는 발송이 없습니다" />}</tbody></table>
         <ListMore shown={view.length} total={L.total} hasMore={L.hasMore} loading={L.loadingMore} onMore={L.loadMore} />
       </div>
     </>

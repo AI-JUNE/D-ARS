@@ -1,0 +1,21 @@
+# 모든 텍스트 파일 줄바꿈을 저장소에서는 LF로 통일 (Windows CRLF 노이즈 방지)
+* text=auto eol=lf
+
+# Windows 배치 파일은 CRLF 유지
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 바이너리(줄바꿈 정규화 제외)
+*.zip binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary

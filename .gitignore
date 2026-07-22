@@ -1,0 +1,32 @@
+# 보관용 정리 폴더(구버전 소스·zip 스냅샷·임시 파일) — 저장소에 커밋하지 않는다.
+old/
+
+# --- 의존성 / 빌드 산출물 ---
+node_modules/
+.next/
+.next-verify/
+out/
+.vercel/
+
+# --- 스냅샷 / 압축본 ---
+*.zip
+
+# --- 로컬 개발 노트(내부에 node_modules 포함) ---
+개발자료/
+
+# --- 백업 / 임시 파일 ---
+*.bak
+*.broken.bak
+.sync-probe.txt
+.verify/
+
+# --- 루트 문서·리포트 스냅샷(코드 저장소에 커밋하지 않음) ---
+/*.docx
+/*.html
+
+# --- 환경변수 / 비밀값 ---
+.env
+.env*.local
+
+# --- OS ---
+.DS_Store

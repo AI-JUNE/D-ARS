@@ -2,7 +2,7 @@
 // 운영 지표(서류 완료율·UMS 실패/대기·장기 세션·이탈률)에서 규칙 기반 알림을 생성한다.
 // 라우트(app/api/notifications)는 DB 로드 후 이 함수만 호출 → 네트워크/DB 비의존, 로직 회귀 테스트 용이.
 // 개인정보(전화번호 등)는 알림 본문에 포함하지 않는다(세션ID·서류명·통계 수치만 노출).
-import { pct } from './ui.js';
+import { pct, fmtDur } from './ui.js';
 import { normalizeThresholds } from './notifyRules.js';
 
 // 심각도 우선순위(bad > warn > info > ok)
@@ -39,7 +39,7 @@ export function deriveNotifications(data = {}, now = Date.now(), thr = undefined
 
   // 3) 장기 진행 세션(경과 sessionSec 초 이상)
   sessions.filter(s => s.elapsed >= T.sessionSec).forEach(s => push('warn', '세션', '📡', `장기 진행 세션 ${s.id}`,
-    `${s.scenario} · 경과 ${Math.floor(s.elapsed / 60)}분 ${s.elapsed % 60}초. 상담원 전환 필요 여부를 확인하세요.`, '/sessions'));
+    `${s.scenario} · 경과 ${fmtDur(s.elapsed)}. 상담원 전환 필요 여부를 확인하세요.`, '/sessions'));
 
   // 4) 이탈률 상승(최근일 이탈/인입 비율 dropPct% 이상)
   const last = daily[daily.length - 1];

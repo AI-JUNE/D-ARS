@@ -16,25 +16,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { coerceSort, parseSortState, sortStateHref } from '@/lib/sortUrl';
 
-export function useSortState(spec) {
+// 두 번째 인자 `fallback`(선택) = **URL 에 정렬이 없을 때의 기본 정렬**(22회차 · 백로그 (m)).
+//   useSortState(SCENARIO_SORTS, { key: 'updated_at', dir: 'desc' })  → 첫 화면이 '최근 수정 순'
+//   - 미지정 시 기존 동작과 100% 동일(정렬 없음 = 서버 기본 정렬) → 기존 4개 화면 변경 0.
+//   - 기본 정렬은 **URL 에 쓰지 않는다** → 주소·공유 링크는 여전히 파라미터 없이 깔끔하고(하위호환),
+//     '조건 지우기'·정렬 해제(3단계 토글의 마지막)는 이 기본 정렬로 되돌아간다.
+//   - SSR 안전: 서버·첫 클라이언트 렌더 모두 같은 fallback 으로 시작한다(window 를 읽지 않는다).
+export function useSortState(spec, fallback = null) {
   const specRef = useRef(spec);
   specRef.current = spec;
   const specKey = Object.keys(spec || {}).join(','); // 스펙은 모듈 상수라 사실상 불변 — 키 목록으로 안정된 의존성
 
-  const [sort, setSort] = useState(null); // 첫 렌더는 항상 기본 정렬(SSR 안전)
+  const def = coerceSort(fallback, spec);            // 화이트리스트 밖이면 조용히 null(= 기존 동작)
+  const defRef = useRef(def);
+  defRef.current = def;
+  const defKey = def ? `${def.key}:${def.dir}` : '';
+
+  const [sort, setSort] = useState(def); // 첫 렌더는 기본 정렬(SSR 안전 · 미지정이면 null)
 
   useEffect(() => {
-    const sync = () => setSort(parseSortState(window.location.search, specRef.current));
+    const sync = () => setSort(parseSortState(window.location.search, specRef.current) || defRef.current);
     sync();                                    // 최초 진입·새로고침·공유 링크 → URL 의 정렬 복원
-    window.addEventListener('popstate', sync); // 뒤로/앞으로
+    window.addEventListener('popstate', sync); // 뒤로/앞으로 · 조건 지우기 · 저장된 뷰 복원
     return () => window.removeEventListener('popstate', sync);
-  }, [specKey]);
+  }, [specKey, defKey]);
 
   // next: { key, dir } · null · 또는 (prev) => next  (SortTh 는 함수형으로 호출한다)
   const set = useCallback((next) => {
     setSort((prev) => {
       const raw = typeof next === 'function' ? next(prev) : next;
-      const norm = coerceSort(raw, specRef.current); // 화이트리스트 밖·해제 → null(기본 정렬)
+      const norm = coerceSort(raw, specRef.current); // 화이트리스트 밖·해제 → null(기본 정렬로 복귀)
       if (typeof window !== 'undefined') {
         try {
           window.history.replaceState(window.history.state, '', sortStateHref(window.location, norm, specRef.current));
@@ -42,7 +53,7 @@ export function useSortState(spec) {
           /* 히스토리 접근 실패(샌드박스 iframe 등)는 무시 — 화면 상태는 이미 갱신됐다 */
         }
       }
-      return norm;
+      return norm || defRef.current; // 정렬을 해제하면 화면은 기본 정렬로(주소에는 파라미터 없음)
     });
   }, []);
 
