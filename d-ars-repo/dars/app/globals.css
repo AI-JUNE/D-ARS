@@ -376,3 +376,22 @@ img,svg{vertical-align:middle}
 /* 모바일: 하단 탭(.botnav) 위로 띄운다 — 겹침 방지 */
 @media(max-width:900px){.toasthost{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 14px)}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}}
+
+/* ── 마이크로 인터랙션 통일(114회차) — 이음 디자인 시스템과 동일 문법(토스/에어비앤비 촉감).
+   transform 기반 호버 리프트라 리플로우 없음 · 레이아웃/크기 무변경 · 순수 표현.
+   hover:hover 가드로 터치 기기에선 리프트 미적용(고스트 호버 방지). */
+.btn{transition:background .15s ease,border-color .15s ease,color .15s ease,transform .13s ease,box-shadow .15s ease}
+@media(hover:hover){
+  .btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(70,35,22,.10)}
+  .btn.primary:hover{box-shadow:0 6px 16px rgba(190,85,53,.32)}
+}
+.btn:active{transform:translateY(0) scale(.98);box-shadow:none}
+.btn[disabled],.btn:disabled{opacity:.55;cursor:not-allowed;pointer-events:none}
+.nav{transition:background .15s ease,color .15s ease}
+.seg button{transition:background .14s ease,color .14s ease}
+.chip{transition:background .15s ease,color .15s ease}
+/* 모션 민감 사용자 — 전환·리프트 전부 생략(디자인 원칙 7) */
+@media (prefers-reduced-motion:reduce){
+  .btn,.nav,.seg button,.chip{transition:none}
+  .btn:hover,.btn:active{transform:none;box-shadow:none}
+}
