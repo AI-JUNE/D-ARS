@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, unnamedIconButtons, dialogMissingRequirements } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -104,6 +104,33 @@ test('dialogMissingRequirements: aria-modal·이름 둘 다 있어야 통과한�
   assert.deepEqual(dialogMissingRequirements(null), []);
 });
 
+// ---- 114회차: 이미지·SVG 접근성 · 새 창 링크 보안 불변식 ----
+
+test('missingImgAlt: alt 없는 <img> 를 행 번호로 보고, alt=""·표현식·여러 줄은 통과한다', () => {
+  assert.deepEqual(missingImgAlt('a\n<img src="/x.png"/>'), [2]);
+  assert.deepEqual(missingImgAlt('<img src="/x.png" alt=""/>'), []);
+  assert.deepEqual(missingImgAlt('<img\n  src="/x.png"\n  alt={t}\n/>'), []);
+  assert.deepEqual(missingImgAlt(null), []);
+});
+
+test('unlabeledSvgs: aria-hidden(장식) 또는 aria-label(ledby)(정보성) 둘 중 하나는 필수다', () => {
+  assert.deepEqual(unlabeledSvgs('<svg viewBox="0 0 24 24">'), [1]);
+  assert.deepEqual(unlabeledSvgs('<svg aria-hidden="true" focusable="false">'), []);
+  assert.deepEqual(unlabeledSvgs('<svg role="img" aria-label={trendLabel(D, unit)}>'), []);
+  assert.deepEqual(unlabeledSvgs('<svg\n  role="img"\n  aria-labelledby="t"\n>'), []);
+  assert.deepEqual(unlabeledSvgs(null), []);
+});
+
+test('blankTargetMissingRel: rel 없는 target="_blank" 를 보고하고, noopener/noreferrer·표현식은 통과한다', () => {
+  assert.deepEqual(blankTargetMissingRel('a\n<a href="https://x.y" target="_blank">외부</a>'), [2]);
+  assert.deepEqual(blankTargetMissingRel('<a href="/x" target="_blank" rel="nofollow">x</a>'), [1]);
+  assert.deepEqual(blankTargetMissingRel('<a href="/x" target="_blank" rel="noopener">x</a>'), []);
+  assert.deepEqual(blankTargetMissingRel('<a href="/x"\n  target="_blank"\n  rel="noopener noreferrer"\n>x</a>'), []);
+  assert.deepEqual(blankTargetMissingRel('<a href="/x" target="_blank" rel={relValue}>x</a>'), []);
+  assert.deepEqual(blankTargetMissingRel('<a href="/x">내부</a>'), []);
+  assert.deepEqual(blankTargetMissingRel(null), []);
+});
+
 // ---- 통합: 실소스 전수 스캔(재발 고정) ----
 function walkJsx(dir, out = []) {
   for (const f of fs.readdirSync(dir)) {
@@ -155,4 +182,21 @@ test('app/·lib/ 전 JSX: 무명 기호 버튼 0건 · 요건 미달 dialog 0건
     if (dlg.length) bad.push(`${path.relative(root, f)} dialog:${dlg.join(',')}`);
   }
   assert.deepEqual(bad, [], `기호 버튼/다이얼로그 불변식 위반: ${bad.join(' · ')}`);
+});
+
+test('app/·lib/ 전 JSX: alt 없는 <img> 0건 · 방침 없는 <svg> 0건 · rel 없는 _blank 링크 0건(114회차 불변식)', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const files = [...walkJsx(path.join(root, 'app')), ...walkJsx(path.join(root, 'lib'))];
+  assert.ok(files.length >= 20, `JSX 파일 수집 이상(${files.length}개) — 경로 확인`);
+  const bad = [];
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    const img = missingImgAlt(src);
+    const svg = unlabeledSvgs(src);
+    const a = blankTargetMissingRel(src);
+    if (img.length) bad.push(`${path.relative(root, f)} img:${img.join(',')}`);
+    if (svg.length) bad.push(`${path.relative(root, f)} svg:${svg.join(',')}`);
+    if (a.length) bad.push(`${path.relative(root, f)} a:${a.join(',')}`);
+  }
+  assert.deepEqual(bad, [], `이미지/SVG/새 창 링크 불변식 위반: ${bad.join(' · ')}`);
 });

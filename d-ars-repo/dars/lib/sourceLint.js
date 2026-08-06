@@ -124,3 +124,39 @@ export function dialogMissingRequirements(src) {
   }
   return bad;
 }
+
+// ---- 114회차: 이미지·SVG 접근성 · 새 창 링크 보안 불변식 ----
+// 배경(113회차 예고 항목): (1) <img> alt 부재·<svg> 스크린리더 방침 부재는 빌드·런타임 오류 없이
+// 조용히 깨지는 접근성 회귀(WCAG 1.1.1 Non-text Content). 현재 <img> 0건 · <svg> 5곳(charts 3=
+// role="img"+aria-label 정보성 · page 2=aria-hidden 장식) 전부 준수라 지금 불변식으로 고정한다.
+// (2) target="_blank" 링크의 rel=noopener 부재는 reverse tabnabbing(새 창이 window.opener 로
+// 원 페이지를 바꿔치기) 보안 결함 — 현재 0건이므로 앞으로 추가될 외부 링크를 소스 스캔으로 고정한다.
+
+// alt= 명시가 없는 <img> 태그의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
+// (alt="" 장식 이미지도 명시적 선언이므로 통과 — 속성 존재만 강제, 값은 강제하지 않는다.)
+export function missingImgAlt(src) {
+  return missingAttr(src, 'img', /\balt\s*=/);
+}
+
+// 스크린리더 처리 방침이 없는 <svg> 태그의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
+// 장식이면 aria-hidden, 정보성이면 접근 가능한 이름(aria-label/aria-labelledby) — 둘 중 하나는
+// 반드시 선언해야 한다(무선언 = 스크린리더가 도형 좌표를 낭독하거나 침묵 — 둘 다 회귀).
+export function unlabeledSvgs(src) {
+  return missingAttr(src, 'svg', /\baria-hidden\s*=|\baria-label(?:ledby)?\s*=/);
+}
+
+// target="_blank" 인데 rel 에 noopener/noreferrer 가 없는 <a> 태그의 시작 행 번호 목록.
+// **항상 빈 배열이어야 한다.** rel 이 JSX 표현식({…})이면 정적 판정 불가 → 보류(통과 · 보수적,
+// unnamedIconButtons 의 표현식 보류와 동일 계약). target 이 표현식인 것은 판정 대상 아님.
+export function blankTargetMissingRel(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const bad = [];
+  for (const t of openTags(src, 'a')) {
+    if (!/\btarget\s*=\s*"_blank"/.test(t.tag)) continue;
+    if (/\brel\s*=\s*\{/.test(t.tag)) continue; // 표현식 — 판정 보류
+    const m = t.tag.match(/\brel\s*=\s*"([^"]*)"/);
+    if (m && /\bno(?:opener|referrer)\b/.test(m[1])) continue;
+    bad.push(t.line);
+  }
+  return bad;
+}
