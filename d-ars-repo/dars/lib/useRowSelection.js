@@ -25,7 +25,7 @@ export function useRowSelection(rows, { scope = '', getId = DEFAULT_GET_ID } = {
   // (react-hooks/exhaustive-deps 경고) → list 자체를 메모해 참조를 안정화한다. 결과는 동일.
   const list = useMemo(() => (Array.isArray(rows) ? rows : []), [rows]);
   const ids = useMemo(() => rowIds(list, getId), [list, getId]);
-  const idKey = useMemo(() => ids.map(String).join(''), [ids]); // 행 집합 변화 감지(참조 무관)
+  const idKey = useMemo(() => ids.map(String).join('\x01'), [ids]); // 행 집합 변화 감지(참조 무관)
 
   const idsRef = useRef(ids);
   idsRef.current = ids;

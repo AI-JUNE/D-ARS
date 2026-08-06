@@ -66,7 +66,7 @@ export default function Templates() {
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span className="tag t-info">{nt ? nt.ic + ' ' + nt.name : t.node}</span>
                 <span className="sp" />
-                <button className="btn sm" onClick={() => setActive(active === t.id ? null : t.id)}>
+                <button type="button" className="btn sm" onClick={() => setActive(active === t.id ? null : t.id)}>
                   {active === t.id ? '닫기' : '연결 정보'}
                 </button>
               </div>

@@ -6,10 +6,25 @@
 // 사용: 라우트가 parseSortParams(url, SPEC) / orderBySql(sort, SPEC) / sortRowsBy(rows, sort, SPEC) 에 그대로 넘긴다.
 // 개인정보 정책: 전화번호는 **표시·정렬 대상**이지만 **서버 검색 대상은 아니다**(기존 API 정책 유지).
 
+// 날짜 컬럼(ts·sent_at·updated_at) 정렬용 비교값 추출자.
+// 유효한 날짜는 epoch ms(number)로 반환해 **시각 순**으로 비교하고(기존과 100% 동일),
+// null/undefined/''/Invalid Date 는 **null**을 반환해 sortRowsBy 의 NULL-last 정책("빈 값은 방향과
+// 무관하게 항상 뒤")이 일관되게 적용되게 한다.
+// 배경: 기존엔 `new Date(x).getTime()` 를 직접 써, 데모 폴백 정렬에서
+//   - r.ts 가 null 이면 `new Date(null).getTime()===0`(1970) → 빈 값인데도 **최하단이 아니라 최상단 근처**로 정렬,
+//   - 형식오류면 getTime()===NaN → compareVals 가 `NaN` 을 반환해 **비교자가 비결정적**(정렬 순서 불안정).
+// DB 경로는 이미 `nulls last` 로 올바르게 처리하므로, 이 헬퍼는 데모 폴백 경로를 DB 경로와 **동일 의미**로 맞춘다.
+// (순수 함수 · 인증/개인정보/스키마 무관 · 유효 날짜 출력 불변 → 하위호환.)
+const dateVal = (v) => {
+  if (v === null || v === undefined || v === '') return null;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : null;
+};
+
 // 멀티모달 이력(/api/multimodal · /history 표 헤더와 1:1)
 export const MM_SORTS = {
   id: { sql: 'id' },
-  ts: { sql: 'ts', val: (r) => new Date(r?.ts).getTime() },
+  ts: { sql: 'ts', val: (r) => dateVal(r?.ts) },
   phone: { sql: 'phone' },
   scenario: { sql: 'scenario' },
   channel: { sql: 'channel' },
@@ -46,7 +61,7 @@ export const DOC_SORTS = {
 // UMS 발송 이력(/api/ums · /ums 표 헤더와 1:1)
 // phone 은 화면 표시 컬럼이라 **정렬 대상**에는 포함하되 **서버 검색 대상에는 넣지 않는다**(PII 정책 유지).
 export const UMS_SORTS = {
-  sent_at: { sql: 'sent_at', val: (r) => new Date(r?.sent_at).getTime() },
+  sent_at: { sql: 'sent_at', val: (r) => dateVal(r?.sent_at) },
   phone: { sql: 'phone' },
   service: { sql: 'service' },
   doc: { sql: 'doc' },
@@ -61,7 +76,7 @@ export const SCENARIO_SORTS = {
   type: { sql: 'type' },
   status: { sql: 'status' },
   version: { sql: 'version' },
-  updated_at: { sql: 'updated_at', val: (r) => new Date(r?.updated_at).getTime() },
+  updated_at: { sql: 'updated_at', val: (r) => dateVal(r?.updated_at) },
   nodes: { sql: 'jsonb_array_length(nodes)', val: (r) => (Array.isArray(r?.nodes) ? r.nodes.length : 0) },
 };
 

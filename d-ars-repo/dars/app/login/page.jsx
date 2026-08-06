@@ -33,8 +33,9 @@ export default function LoginPage() {
 
   const fill = (u) => { setUsername(u); setPassword('dars2026!'); setErr(''); };
 
+  // 109회차: 루트 div → main 랜드마크(WCAG 1.3.1). .auth-wrap 클래스 셀렉터라 표시 불변
   return (
-    <div className="auth-wrap">
+    <main className="auth-wrap">
       <form className="auth-card" onSubmit={submit}>
         <div className="auth-brand"><span className="auth-dot" /><b>D-ARS</b><small>보이는 ARS 관리자</small></div>
         <h1 className="auth-h1">로그인</h1>
@@ -42,12 +43,12 @@ export default function LoginPage() {
 
         {err && <div className="auth-err" role="alert">{err}</div>}
 
-        <label className="auth-lbl">아이디</label>
-        <input className="input auth-inp" value={username} onChange={e => setUsername(e.target.value)}
+        <label className="auth-lbl" htmlFor="login-username">아이디</label>
+        <input id="login-username" className="input auth-inp" value={username} onChange={e => setUsername(e.target.value)}
           autoComplete="username" autoFocus placeholder="admin / operator / viewer" />
 
-        <label className="auth-lbl">비밀번호</label>
-        <input className="input auth-inp" type="password" value={password} onChange={e => setPassword(e.target.value)}
+        <label className="auth-lbl" htmlFor="login-password">비밀번호</label>
+        <input id="login-password" className="input auth-inp" type="password" value={password} onChange={e => setPassword(e.target.value)}
           autoComplete="current-password" placeholder="비밀번호" />
 
         <button className="btn primary auth-btn" type="submit" disabled={busy}>
@@ -91,6 +92,6 @@ export default function LoginPage() {
         .auth-foot a{color:#9c4025;font-weight:600;text-decoration:none}
         .auth-foot a:hover{text-decoration:underline}
       `}</style>
-    </div>
+    </main>
   );
 }

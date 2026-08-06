@@ -34,9 +34,9 @@ function Row({ label, hint, children }) {
   );
 }
 
-function Toggle({ on, onClick }) {
+function Toggle({ on, onClick, label }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on}
+    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label}
       style={{
         width: 46, height: 26, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3,
         background: on ? 'var(--brand)' : '#cfc3bc', transition: 'background .15s', flex: '0 0 auto',
@@ -70,7 +70,7 @@ export default function Launcher() {
               {TRIGGERS.map(([id, ic, name, desc]) => {
                 const on = cfg.trigger === id;
                 return (
-                  <button key={id} type="button" onClick={() => set('trigger', id)}
+                  <button key={id} type="button" onClick={() => set('trigger', id)} aria-pressed={on}
                     style={{
                       textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
                       padding: 11, borderRadius: 11, background: on ? 'var(--brand-xl)' : '#fff',
@@ -97,20 +97,20 @@ export default function Launcher() {
             <b style={{ fontSize: 14 }}>초대 · 브랜딩</b>
             <div style={{ marginTop: 6 }}>
               <Row label="문자(SMS) 초대" hint="미지원 단말/미응답 시 초대 링크를 문자로 발송">
-                <Toggle on={cfg.invite} onClick={() => set('invite', !cfg.invite)} />
+                <Toggle on={cfg.invite} onClick={() => set('invite', !cfg.invite)} label="문자(SMS) 초대" />
               </Row>
               <div style={{ padding: '12px 0', borderBottom: '1px dashed var(--line)', opacity: cfg.invite ? 1 : .45 }}>
                 <b style={{ fontSize: 13 }}>초대 문구</b>
                 <div className="muted" style={{ fontSize: 11.5, margin: '2px 0 8px' }}>{'{code}'}는 세션 코드로 자동 치환됩니다.</div>
-                <textarea className="input" rows={3} value={cfg.inviteText} disabled={!cfg.invite}
+                <textarea className="input" rows={3} value={cfg.inviteText} disabled={!cfg.invite} aria-label="초대 문구"
                   onChange={e => set('inviteText', e.target.value)}
                   style={{ width: '100%', resize: 'vertical', fontSize: 12.5, lineHeight: 1.5, fontFamily: 'inherit' }} />
               </div>
               <Row label="상단 헤더 문구" hint="런처 화면 최상단에 표시">
-                <input className="input" value={cfg.header} onChange={e => set('header', e.target.value)} style={{ width: '100%', maxWidth: 240 }} />
+                <input className="input" value={cfg.header} onChange={e => set('header', e.target.value)} aria-label="상단 헤더 문구" style={{ width: '100%', maxWidth: 240 }} />
               </Row>
               <Row label="브랜드 표기" hint="발신 주체 · 로고 텍스트">
-                <input className="input" value={cfg.brandName} onChange={e => set('brandName', e.target.value)} style={{ width: '100%', maxWidth: 240 }} />
+                <input className="input" value={cfg.brandName} onChange={e => set('brandName', e.target.value)} aria-label="브랜드 표기" style={{ width: '100%', maxWidth: 240 }} />
               </Row>
               <Row label="브랜드 컬러" hint="전 화면 공통(고정)">
                 <span className="tag" style={{ background: 'var(--brand)', color: '#fff' }}>#be5535</span>
@@ -122,23 +122,23 @@ export default function Launcher() {
             <b style={{ fontSize: 14 }}>세션 · 폴백 정책</b>
             <div style={{ marginTop: 6 }}>
               <Row label="음성 ARS 유지" hint="화면 미지원/미응답 시 기존 음성 흐름 계속">
-                <Toggle on={cfg.fallbackVoice} onClick={() => set('fallbackVoice', !cfg.fallbackVoice)} />
+                <Toggle on={cfg.fallbackVoice} onClick={() => set('fallbackVoice', !cfg.fallbackVoice)} label="음성 ARS 유지" />
               </Row>
               <Row label="세션 타임아웃" hint="무응답 시 런처 자동 종료(분)">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input type="range" min={1} max={15} value={cfg.timeout} onChange={e => set('timeout', +e.target.value)} style={{ accentColor: 'var(--brand)' }} />
+                  <input type="range" min={1} max={15} value={cfg.timeout} onChange={e => set('timeout', +e.target.value)} aria-label="세션 타임아웃(분)" style={{ accentColor: 'var(--brand)' }} />
                   <b style={{ fontSize: 13, minWidth: 42, textAlign: 'right' }}>{cfg.timeout}분</b>
                 </div>
               </Row>
               <Row label="완료 시 자동 종료" hint="시나리오 종료 노드 도달 시 런처 닫기">
-                <Toggle on={cfg.autoClose} onClick={() => set('autoClose', !cfg.autoClose)} />
+                <Toggle on={cfg.autoClose} onClick={() => set('autoClose', !cfg.autoClose)} label="완료 시 자동 종료" />
               </Row>
             </div>
           </div>
 
           <div className="toolbar" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button className="btn primary" onClick={() => setSaved(true)}>설정 저장</button>
-            <button className="btn sm" onClick={() => { setCfg(DEFAULTS); setSaved(false); }} disabled={!dirty}>기본값 복원</button>
+            <button type="button" className="btn primary" onClick={() => setSaved(true)}>설정 저장</button>
+            <button type="button" className="btn sm" onClick={() => { setCfg(DEFAULTS); setSaved(false); }} disabled={!dirty}>기본값 복원</button>
             <span className="sp" />
             {saved && <span className="tag t-ok">✓ 저장됨(데모)</span>}
             {!saved && dirty && <span className="tag t-warn">저장되지 않은 변경</span>}
@@ -181,7 +181,7 @@ export default function Launcher() {
                       </div>
                     ))}
                   </div>
-                  <button style={{ background: 'var(--brand)', color: '#fff', border: 0, borderRadius: 10, padding: '10px', fontSize: 12.5, fontWeight: 700 }}>필요서류 안내받기</button>
+                  <button type="button" style={{ background: 'var(--brand)', color: '#fff', border: 0, borderRadius: 10, padding: '10px', fontSize: 12.5, fontWeight: 700 }}>필요서류 안내받기</button>
                   <div style={{ display: 'flex', justifyContent: 'center', gap: 5, fontSize: 10, color: '#9a8a82', marginTop: 2 }}>
                     <span>⏱ {cfg.timeout}분 무응답 시 종료</span>
                     {cfg.fallbackVoice && <span>· 🎧 음성 유지</span>}

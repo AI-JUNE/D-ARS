@@ -20,7 +20,7 @@ export function SelectAllTh({ S, label = '전체 선택' }) {
     if (ref.current) ref.current.indeterminate = !!S.indeterminate;
   }, [S.indeterminate, S.checked]);
   return (
-    <th className="noprint" style={{ width: 34, textAlign: 'center' }}>
+    <th className="noprint" scope="col" style={{ width: 34, textAlign: 'center' }}>
       <input
         ref={ref}
         type="checkbox"

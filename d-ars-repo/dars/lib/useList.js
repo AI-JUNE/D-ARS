@@ -105,11 +105,15 @@ export function useList(base, { pageSize = PAGE_SIZE, params = {}, debounce = SE
     });
   }, []);
 
+  // flush(): 디바운스를 기다리지 않고 현재 검색어로 즉시 조회한다
+  // (Enter/모바일 "검색" 키 — lib/searchEnter.js 와 함께 사용). dq 가 이미 같으면 no-op.
+  const flush = useCallback(() => { setDq(q); }, [q]);
+
   // dq(디바운스된 검색어)를 노출한다 — 화면이 목록과 **같은 조건**으로 서버 집계(agg)를 요청할 때 쓴다.
   return useMemo(() => ({
     rows, total, hasMore, loading, loadingMore, error,
-    q, setQ, dq, loadMore, reload, patch, searching: q !== dq,
-  }), [rows, total, hasMore, loading, loadingMore, error, q, setQ, dq, loadMore, reload, patch]);
+    q, setQ, dq, loadMore, reload, patch, flush, searching: q !== dq,
+  }), [rows, total, hasMore, loading, loadingMore, error, q, setQ, dq, loadMore, reload, patch, flush]);
 }
 
 export default useList;

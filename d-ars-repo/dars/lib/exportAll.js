@@ -7,6 +7,7 @@
 // 조회 파라미터만 다루므로 개인정보·인증·과금 로직과 무관하며, 서버 응답 스키마도 변경하지 않는다.
 
 import { buildListUrl, readPage, mergePage } from './listUrl.js';
+import { fmtNum } from './kpi.js';   // 안내 문구 숫자 ko-KR 고정·방어 표기(로케일 일관)
 
 export const EXPORT_PAGE_SIZE = 200;  // 수집 1회 요청 건수(API limit 상한 500 이내)
 export const EXPORT_MAX_ROWS = 5000;  // 안전 상한 — 브라우저 메모리·인쇄 폭주 방지
@@ -53,7 +54,7 @@ export async function fetchAllRows(base, {
 // 상한에 걸렸을 때 화면에 띄울 안내 문구(레이아웃 무붕괴용 짧은 문장).
 export function truncationNote(truncated, maxRows = EXPORT_MAX_ROWS) {
   if (!truncated) return '';
-  return `최대 ${Number(maxRows).toLocaleString()}건까지만 내보냈습니다`;
+  return `최대 ${fmtNum(maxRows)}건까지만 내보냈습니다`;
 }
 
 export default fetchAllRows;

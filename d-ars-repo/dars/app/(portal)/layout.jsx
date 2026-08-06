@@ -1,8 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommandPalette from './CommandPalette';
+import { restoreFocus } from '@/lib/focusTrap';
 import { OfflineBanner } from '@/lib/ErrorBanner';
 import { getJSON } from '@/lib/fetchJson';
 import { aggUrl } from '@/lib/aggregate';
@@ -35,9 +36,34 @@ export default function PortalLayout({ children }) {
   const [live, setLive] = useState(0);
   const [noti, setNoti] = useState(0);
   const [me, setMe] = useState(null);
+  const prevOverlay = useRef(null); // 메뉴·드로어 닫힘 시 포커스 복귀용(WCAG 2.4.3)
   const meta = TITLES[path] || ['D-ARS',''];
 
   useEffect(() => { setOpen(false); setMenu(false); }, [path]);
+  // Esc 로 사용자 메뉴·모바일 드로어 닫기(키보드 사용자 — 기존엔 스크림 클릭으로만 닫혀 키보드로는 못 닫았다)
+  useEffect(() => {
+    if (!menu && !open) return;
+    const onKey = (e) => { if (e.key === 'Escape') { setMenu(false); setOpen(false); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu, open]);
+  // 메뉴·드로어가 닫힌 뒤 포커스가 유실(body)됐으면 열었던 트리거(아바타·☰)로 복귀 —
+  // Esc/스크림 클릭 닫기에서 키보드 사용자가 문서 처음으로 튕기지 않게. 링크 이동 등
+  // 다른 요소가 포커스를 가진 정상 흐름엔 개입하지 않는다(restoreFocus 내부 방어).
+  useEffect(() => {
+    if (menu || open) {
+      if (!prevOverlay.current) prevOverlay.current = document.activeElement;
+      return;
+    }
+    if (prevOverlay.current) { restoreFocus(prevOverlay.current); prevOverlay.current = null; }
+  }, [menu, open]);
+  // 라우트별 문서 제목(WCAG 2.4.2 Page Titled): 포털 페이지는 전부 클라이언트 컴포넌트라 metadata 를 못 내보내
+  // 모든 탭·히스토리·북마크가 루트 기본 제목 하나로 고정돼 있었다 → 이동 시 root metadata 의
+  // `%s · D-ARS` 템플릿과 동일 규격으로 갱신(미등록 경로는 기본 제목 폴백). 화면 표시는 불변.
+  useEffect(() => {
+    const t = TITLES[path];
+    document.title = t ? `${t[0]} · D-ARS` : 'D-ARS · 보이는 ARS 관리자';
+  }, [path]);
   useEffect(() => { document.documentElement.style.fontSize = big ? '18px' : ''; }, [big]);
   // 사이드바 세션 카운터: 기존엔 목록 배열 길이(최대 20건 상한)라 세션이 쌓이면 실제보다 적게 표시됐다.
   // → 서버 집계(/api/sessions?agg=1) 총계로 전환(진행 중 세션 전체). 실패해도 조용히 유지(배지만 미갱신).
@@ -79,9 +105,9 @@ export default function PortalLayout({ children }) {
       <Link href="/dashboard" className="um-item">📊 대시보드</Link>
       <Link href="/" className="um-item">🏢 서비스 홈</Link>
       <Link href="/visual" className="um-item">📱 보이는 ARS 데모</Link>
-      <button className="um-item" onClick={()=>{setBig(v=>!v);setMenu(false);}}>🔠 {big?'큰글씨 끄기':'큰글씨 켜기'}</button>
+      <button type="button" className="um-item" onClick={()=>{setBig(v=>!v);setMenu(false);}}>🔠 {big?'큰글씨 끄기':'큰글씨 켜기'}</button>
       {me?.user
-        ? <button className="um-item" onClick={logout}>↻ 로그아웃</button>
+        ? <button type="button" className="um-item" onClick={logout}>↻ 로그아웃</button>
         : <Link href="/login" className="um-item">↝ 로그인</Link>}
     </div>
   );
@@ -93,19 +119,20 @@ export default function PortalLayout({ children }) {
         <Link href="/" className="brand" title="서비스 홈으로">
           <span className="dot" /><div>D-ARS<small>보이는 ARS 관리자</small></div>
         </Link>
-        <div className="side-nav">
+        {/* nav 랜드마크 + aria-current: 스크린리더가 "주요 메뉴" 영역과 현재 페이지 링크를 식별(시각 .on 강조와 동일 기준) */}
+        <nav className="side-nav" aria-label="주요 메뉴">
           {NAV.map(([grp, items]) => (
             <div key={grp}>
               <div className="navgrp">{grp}</div>
               {items.map(([href, e, label]) => (
-                <Link key={href+label} href={href} className={'nav' + (path === href ? ' on' : '')}>
+                <Link key={href+label} href={href} className={'nav' + (path === href ? ' on' : '')} aria-current={path === href ? 'page' : undefined}>
                   <span className="e">{e}</span>{label}
                   {href === '/sessions' && <span className="cnt">{live}</span>}
                 </Link>
               ))}
             </div>
           ))}
-        </div>
+        </nav>
         <div className="side-foot">
           <div className="gw-logo">GOWON</div>
           <div className="gw-stat"><span className="d" />연결됨 · Neon</div>
@@ -119,36 +146,38 @@ export default function PortalLayout({ children }) {
         <div className="top">
           <div><h1>{meta[0]}</h1><div className="crumb">{meta[1]}</div></div>
           <div className="sp" />
-          <button className="cmdk-btn" onClick={openCmdk} aria-label="빠른 이동 (Ctrl+K)" title="빠른 이동 (Ctrl+K)"><span aria-hidden>🔍</span><span className="cmdk-btn-t">빠른 이동</span><kbd>Ctrl K</kbd></button>
-          <button className="btn sm" onClick={() => setBig(v => !v)} aria-pressed={big}>가 {big ? '작게' : '큰글씨'}</button>
+          <button type="button" className="cmdk-btn" onClick={openCmdk} aria-label="빠른 이동 (Ctrl+K)" title="빠른 이동 (Ctrl+K)"><span aria-hidden>🔍</span><span className="cmdk-btn-t">빠른 이동</span><kbd>Ctrl K</kbd></button>
+          <button type="button" className="btn sm" onClick={() => setBig(v => !v)} aria-pressed={big}>가 {big ? '작게' : '큰글씨'}</button>
           <span className="chip"><i />콜봇 연동 정상</span>
           <Link href="/notifications" className="bell" aria-label="알림 센터">🔔{noti>0 && <span className="bell-badge">{noti>9?'9+':noti}</span>}</Link>
           <div className="who" style={{position:'relative'}}>
-            <button className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴" aria-expanded={menu}>👤</button>
+            <button type="button" className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴" aria-haspopup="menu" aria-expanded={menu}>👤</button>
             {menu && <><div className="um-catch" onClick={()=>setMenu(false)} /><UserMenu/></>}
           </div>
         </div>
         {/* mobile top */}
         <div className="m-top">
-          <button className="hamb" onClick={() => setOpen(true)} aria-label="메뉴 열기"><span>☰</span></button>
+          <button type="button" className="hamb" onClick={() => setOpen(true)} aria-label="메뉴 열기" aria-expanded={open}><span aria-hidden>☰</span></button>
           <div><h1>{meta[0]}</h1><div className="crumb">{meta[1]}</div></div>
           <div className="sp" />
-          <button className="bell" onClick={openCmdk} aria-label="빠른 이동">🔍</button>
+          <button type="button" className="bell" onClick={openCmdk} aria-label="빠른 이동">🔍</button>
           <Link href="/notifications" className="bell" aria-label="알림 센터">🔔{noti>0 && <span className="bell-badge">{noti>9?'9+':noti}</span>}</Link>
           <div style={{position:'relative'}}>
-            <button className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴">👤</button>
+            <button type="button" className="av-btn" onClick={() => setMenu(v=>!v)} aria-label="사용자 메뉴" aria-haspopup="menu" aria-expanded={menu}>👤</button>
             {menu && <><div className="um-catch" onClick={()=>setMenu(false)} /><UserMenu/></>}
           </div>
         </div>
 
-        <div className="wrap" id="main"><OfflineBanner />{children}</div>
+        {/* 109회차: div → main 랜드마크(WCAG 1.3.1 — 스크린리더 본문 랜드마크 탐색). .wrap 는 클래스 셀렉터라 표시 불변, skip-link(#main) 대상 유지 */}
+        <main className="wrap" id="main"><OfflineBanner />{children}</main>
       </div>
 
-      <nav className="botnav">
+      <nav className="botnav" aria-label="하단 빠른 메뉴">
         {BOTTOM.map(([href, e, label]) => (
-          <Link key={href} href={href} className={path === href ? 'on' : ''}><span className="e">{e}</span>{label}</Link>
+          <Link key={href} href={href} className={path === href ? 'on' : ''} aria-current={path === href ? 'page' : undefined}><span className="e">{e}</span>{label}</Link>
         ))}
-        <a onClick={() => setOpen(true)}><span className="e">☰</span>메뉴</a>
+        {/* href 부여로 키보드 포커스·Enter 활성화 가능(기존엔 href 없는 앵커라 탭 이동 불가) · 스타일(.botnav a)은 그대로 */}
+        <a href="#" role="button" onClick={(ev) => { ev.preventDefault(); setOpen(true); }}><span className="e">☰</span>메뉴</a>
       </nav>
       <CommandPalette />
     </div>

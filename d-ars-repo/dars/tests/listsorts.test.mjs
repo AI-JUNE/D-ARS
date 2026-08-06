@@ -4,7 +4,7 @@
 //       SSE 삽입 정책(정렬 중 삽입 보류).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MM_SORTS, SESSION_SORTS } from '../lib/listSorts.js';
+import { MM_SORTS, SESSION_SORTS, UMS_SORTS, SCENARIO_SORTS } from '../lib/listSorts.js';
 import { parseSortParams, orderBySql, sortRowsBy, isSafeExpr, sortQuery } from '../lib/sortParams.js';
 import { applyLive } from '../lib/liveMerge.js';
 
@@ -88,4 +88,41 @@ test('SSE 삽입 정책: 정렬·검색이 없으면 기존처럼 신규 세션�
   const snap = [{ id: 'S9', elapsed: 1 }];
   const out = applyLive(prev, snap, { insert: true });
   assert.deepEqual(out.map(r => r.id), ['S9', 'S1']);
+});
+
+// 날짜 컬럼 정렬 방어(dateVal): null/Invalid Date 는 NULL-last 정책으로 항상 뒤,
+// 유효 날짜는 기존과 100% 동일한 시각 순 비교(하위호환).
+test('데모 폴백 정렬: 이력 시각(ts) — null/형식오류는 방향과 무관하게 항상 뒤', () => {
+  const rows = [
+    { id: 1, ts: '2026-07-13T09:00:00Z' },
+    { id: 2, ts: null },
+    { id: 3, ts: '2026-07-13T21:00:00Z' },
+    { id: 4, ts: 'not-a-date' },
+  ];
+  const desc = sortRowsBy(rows, { key: 'ts', dir: 'desc' }, MM_SORTS);
+  // 유효 2건이 시각 내림차순으로 앞, 빈/무효 2건은 뒤(원래 순서 유지)
+  assert.deepEqual(desc.slice(0, 2).map(r => r.id), [3, 1]);
+  assert.deepEqual(desc.slice(2).map(r => r.id).sort(), [2, 4]);
+  const asc = sortRowsBy(rows, { key: 'ts', dir: 'asc' }, MM_SORTS);
+  // 오름차순에서도 빈/무효는 여전히 뒤(방향 무관)
+  assert.deepEqual(asc.slice(0, 2).map(r => r.id), [1, 3]);
+  assert.deepEqual(asc.slice(2).map(r => r.id).sort(), [2, 4]);
+});
+
+test('데모 폴백 정렬: UMS 발송시각(sent_at)·시나리오 수정일(updated_at) — 빈/무효는 항상 뒤', () => {
+  const ums = [
+    { id: 1, sent_at: '2026-07-10T10:00:00Z' },
+    { id: 2, sent_at: undefined },
+    { id: 3, sent_at: '2026-07-11T10:00:00Z' },
+  ];
+  const uOut = sortRowsBy(ums, { key: 'sent_at', dir: 'desc' }, UMS_SORTS);
+  assert.deepEqual(uOut.map(r => r.id), [3, 1, 2]); // 무효는 맨 뒤
+
+  const scn = [
+    { id: 'A', updated_at: '2026-06-20' },
+    { id: 'B', updated_at: '' },
+    { id: 'C', updated_at: '2026-06-28' },
+  ];
+  const sOut = sortRowsBy(scn, { key: 'updated_at', dir: 'desc' }, SCENARIO_SORTS);
+  assert.deepEqual(sOut.map(r => r.id), ['C', 'A', 'B']); // 빈 문자열은 맨 뒤
 });

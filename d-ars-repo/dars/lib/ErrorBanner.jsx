@@ -17,7 +17,7 @@ export default function ErrorBanner({ message, onRetry, retryLabel = '다시 시
       <span aria-hidden="true" style={{ flex: '0 0 auto' }}>⚠️</span>
       <span style={{ flex: '1 1 160px', minWidth: 0 }}>{message}</span>
       {onRetry && (
-        <button className="btn sm" style={{ flex: '0 0 auto' }} onClick={onRetry}>{retryLabel}</button>
+        <button type="button" className="btn sm" style={{ flex: '0 0 auto' }} onClick={onRetry}>{retryLabel}</button>
       )}
     </div>
   );

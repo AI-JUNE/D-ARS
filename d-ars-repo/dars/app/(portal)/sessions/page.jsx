@@ -10,6 +10,7 @@ import SortTh from '@/lib/SortTh';
 import { sortQuery } from '@/lib/sortParams';
 import { aggUrl } from '@/lib/aggregate';
 import { readSessionAgg, emptySessionAgg, stepCount, nodeCount } from '@/lib/sessionsAgg';
+import { fmtNum } from '@/lib/kpi';
 import { applyLive } from '@/lib/liveMerge';
 import { useExportAll } from '@/lib/useExportAll';
 import { truncationNote } from '@/lib/exportAll';
@@ -21,6 +22,7 @@ import EmptyRow from '@/lib/EmptyRows';
 import { useRowSelection } from '@/lib/useRowSelection';
 import { exportRunner } from '@/lib/selection';
 import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
+import { onSearchEnter } from '@/lib/searchEnter';
 
 /* 검색어 URL 보존(2026-07-14): 세션 보드의 검색 조건(?q=)을 URL 에 남긴다 → 새로고침·링크 공유·뒤로가기 유지.
    (기간 필터는 없다 — status='진행' 실시간 보드라 날짜 구간이 의미가 없다. 16회차 결론 유지) */
@@ -141,11 +143,12 @@ export default function Sessions() {
   return (
     <>
       <div className="sectionhead"><h2>실시간 보이는 ARS 세션</h2>
-        <span className="d" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: live ? '#2e9e5b' : '#c9a23a', boxShadow: live ? '0 0 0 3px rgba(46,158,91,.15)' : 'none', flex: '0 0 auto' }} />
+        {/* role="status": SSE 연결/폴백 전환을 스크린리더에도 낭독(WCAG 4.1.3) — 점은 장식이라 aria-hidden */}
+        <span className="d" role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: live ? '#2e9e5b' : '#c9a23a', boxShadow: live ? '0 0 0 3px rgba(46,158,91,.15)' : 'none', flex: '0 0 auto' }} />
           {live ? '실시간 스트림 연결됨' : '자동 갱신(4초) · 번호 마스킹'}
         </span>
-        <span className="sp" /><button className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button></div>
+        <span className="sp" /><button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button></div>
       <ErrorBanner message={L.error || liveErr || aggErr || X.error} onRetry={retry} />
       {(X.busy || X.truncated) && <div className="muted noprint" style={{ fontSize: 12, margin: '0 0 8px', wordBreak: 'break-word' }}>{X.busy ? '전체 내보내기 준비 중…' : truncationNote(X.truncated, X.maxRows)}</div>}
       <div className="grid g4">
@@ -156,18 +159,18 @@ export default function Sessions() {
       </div>
       <div className="card" style={{ marginTop: 16 }}><h3>세션 보드</h3>
         <div className="toolbar">
-          <input className="input" placeholder="세션ID·시나리오·노드 검색" value={L.q} onChange={e => L.setQ(e.target.value)} style={{ flex: '1 1 200px' }} />
-          <span className="muted" style={{ fontSize: 12 }}>{total.toLocaleString()}건</span>
+          <input className="input" placeholder="세션ID·시나리오·노드 검색" aria-label="세션ID·시나리오·노드 검색" value={L.q} onChange={e => L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e => onSearchEnter(e, L.flush)} style={{ flex: '1 1 200px' }} />
+          <span className="muted" style={{ fontSize: 12 }}>{fmtNum(total)}건</span>
         </div>
         <SavedViews screen="sessions" />
         <SelectionNote S={S} />
         <div style={{ overflowX: 'auto' }}>
-          <table className="tbl"><thead><tr>
+          <table className="tbl" aria-label="진행 중 세션 목록"><thead><tr>
             <SelectAllTh S={S} label="표시된 세션 전체 선택" />
             <SortTh sort={sort} onSort={setSort} k="id">세션ID</SortTh>
             <SortTh sort={sort} onSort={setSort} k="phone">고객</SortTh>
             <SortTh sort={sort} onSort={setSort} k="scenario">시나리오</SortTh>
-            <th>현재 노드</th>
+            <th scope="col">현재 노드</th>
             <SortTh sort={sort} onSort={setSort} k="step">여정</SortTh>
             <SortTh sort={sort} onSort={setSort} k="elapsed">경과</SortTh>
             <SortTh sort={sort} onSort={setSort} k="status">상태</SortTh>

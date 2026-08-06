@@ -21,7 +21,7 @@ export default function Error({ error, reset }) {
           잠시 후 다시 시도해 주세요. 문제가 계속되면 관리자에게 문의해 주세요.
         </p>
         <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-          <button onClick={() => reset()} style={{background:'var(--brand)',color:'#fff',
+          <button type="button" onClick={() => reset()} style={{background:'var(--brand)',color:'#fff',
             border:'1px solid var(--brand)',borderRadius:9,padding:'10px 16px',fontWeight:700,
             fontSize:14,cursor:'pointer'}}>다시 시도</button>
           <Link href="/dashboard" style={{background:'#fff',color:'var(--ink)',border:'1px solid var(--line)',

@@ -3,6 +3,7 @@
 // 라우트(app/api/notifications)는 DB 로드 후 이 함수만 호출 → 네트워크/DB 비의존, 로직 회귀 테스트 용이.
 // 개인정보(전화번호 등)는 알림 본문에 포함하지 않는다(세션ID·서류명·통계 수치만 노출).
 import { pct, fmtDur } from './ui.js';
+import { fmtNum } from './kpi.js';   // 통계 수치 ko-KR 고정·방어 표기(문자열/undefined 안전)
 import { normalizeThresholds } from './notifyRules.js';
 
 // 심각도 우선순위(bad > warn > info > ok)
@@ -46,7 +47,7 @@ export function deriveNotifications(data = {}, now = Date.now(), thr = undefined
   if (last) {
     const dropRate = pct(last.dropped, last.inbound);
     if (dropRate >= T.dropPct) push('warn', '통계', '📈', `이탈률 ${dropRate}%`,
-      `${last.day} 인입 ${last.inbound.toLocaleString()}건 중 이탈 ${last.dropped.toLocaleString()}건. 시나리오 초반 이탈 지점을 점검하세요.`, '/stats');
+      `${last.day} 인입 ${fmtNum(last.inbound)}건 중 이탈 ${fmtNum(last.dropped)}건. 시나리오 초반 이탈 지점을 점검하세요.`, '/stats');
   }
 
   // 5) 정상 운영 요약(항상 1건 · 최신 상태 안내)

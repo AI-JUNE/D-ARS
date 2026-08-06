@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { NODE_TYPES, fmt, fmtDur, pct } from '@/lib/ui';
+import { NODE_TYPES, fmt, fmtDur, pct, fmtTime } from '@/lib/ui';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 import { Donut, ProgressRow } from '@/lib/charts';
 import { getJSON } from '@/lib/fetchJson';
@@ -23,6 +23,7 @@ import EmptyRow from '@/lib/EmptyRows';
 import { useRowSelection } from '@/lib/useRowSelection';
 import { exportRunner } from '@/lib/selection';
 import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
+import { onSearchEnter } from '@/lib/searchEnter';
 
 /* 멀티모달 이력 — 보이는 ARS 상호작용 로그(화면·음성·문자·RAG·전환)를
    한 화면에서 조회·필터·내보내기. 읽기 전용 · 모바일 우선 · 브랜드 #be5535.
@@ -112,7 +113,7 @@ export default function History() {
         <h2>멀티모달 이력</h2>
         <span className="d">보이는 ARS 상호작용 로그 · 15초 자동 갱신 · 번호 마스킹</span>
         <span className="sp" />
-        <button className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
       </div>
 
       <ErrorBanner message={L.error || aggErr || X.error} onRetry={retry} />
@@ -153,8 +154,11 @@ export default function History() {
         <input
           className="input"
           placeholder="시나리오·서비스·결과 검색"
+          aria-label="시나리오·서비스·결과 검색"
           value={L.q}
           onChange={e => L.setQ(e.target.value)}
+          enterKeyHint="search"
+          onKeyDown={e => onSearchEnter(e, L.flush)}
           style={{ maxWidth: 220 }}
         />
       </div>
@@ -166,7 +170,7 @@ export default function History() {
         <h3>상호작용 로그 <span className="muted" style={{ fontWeight: 600, fontSize: 12.5, wordBreak: 'break-word' }}>· {total}건{srvRange ? ` · ${rangeLabel(srvRange)}` : ''}</span>
           {swap > 0 && <span className="tag t-warn" style={{ marginLeft: 6 }}>상담원 전환 {swap}</span>}
         </h3>
-        <table className="tbl">
+        <table className="tbl" aria-label="멀티모달 상호작용 이력">
           <thead><tr>
             <SelectAllTh S={S} label="표시된 이력 전체 선택" />
             <SortTh sort={sort} onSort={setSort} k="id">ID</SortTh>
@@ -180,14 +184,11 @@ export default function History() {
           <tbody>
             {rows.map(r => {
               const nt = NODE_TYPES[r.node];
-              const d = new Date(r.ts);
-              const hh = String(d.getHours()).padStart(2, '0');
-              const mm = String(d.getMinutes()).padStart(2, '0');
               return (
                 <tr key={r.id}>
                   <SelectTd S={S} row={r} label={`이력 ${r.id} 선택`} />
                   <td><b>{r.id}</b></td>
-                  <td className="muted">{hh}:{mm}</td>
+                  <td className="muted">{fmtTime(r.ts)}</td>
                   <td>{r.phone}</td>
                   <td>{r.scenario}</td>
                   <td><span className="tag t-info">{nt ? nt.ic + ' ' : ''}{r.channel}</span></td>

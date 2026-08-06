@@ -359,3 +359,20 @@ button:disabled,.btn:disabled{opacity:.55;cursor:not-allowed;box-shadow:none}
 .kpi .n{font-variant-numeric:tabular-nums}
 .tbl td,.tbl th{transition:background .12s ease}
 img,svg{vertical-align:middle}
+
+/* ── 비차단 토스트(108회차) — window.alert() 대체 · 하단 중앙 고정(문서 흐름 밖 → 무붕괴·무오버랩) · 인쇄 숨김(noprint) */
+.toasthost{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+  z-index:110;width:min(92vw,420px);pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:10px;pointer-events:auto;
+  padding:10px 12px;border-radius:12px;font-size:13px;line-height:1.5;font-weight:600;
+  background:#eef7f0;border:1px solid #cde5d4;color:#1f6b41;
+  box-shadow:0 10px 30px rgba(60,30,20,.16);animation:toast-in .22s ease-out}
+.toast.warn{background:#fff8e6;border-color:#eddcb0;color:#7a5a12}
+.toast .msg{flex:1 1 auto;min-width:0;word-break:break-word}
+.toast .x{flex:0 0 auto;border:0;background:transparent;color:inherit;cursor:pointer;
+  font-size:13px;line-height:1;padding:2px 4px;border-radius:6px;opacity:.7}
+.toast .x:hover{opacity:1}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* 모바일: 하단 탭(.botnav) 위로 띄운다 — 겹침 방지 */
+@media(max-width:900px){.toasthost{bottom:calc(var(--nav-h) + env(safe-area-inset-bottom,0px) + 14px)}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}}

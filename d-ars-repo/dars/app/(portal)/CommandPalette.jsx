@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { trapTabKey } from '@/lib/focusTrap';
 
 /* 전역 커맨드 팔레트 (prism-pms 빠른 이동 UX 반영)
    - Cmd/Ctrl+K 또는 상단 검색 버튼으로 열기 · 초성/영문 키워드 검색
@@ -29,6 +30,8 @@ export default function CommandPalette() {
   const [i, setI] = useState(0);
   const inputRef = useRef(null);
   const listRef = useRef(null);
+  const boxRef = useRef(null); // Tab 포커스 트랩 경계(aria-modal 규격)
+  const prevFocus = useRef(null); // 닫을 때 포커스 복귀용(WCAG 2.4.3 Focus Order)
 
   // 전역 단축키 (Cmd/Ctrl+K) + 커스텀 open 이벤트 (상단 버튼)
   useEffect(() => {
@@ -44,7 +47,15 @@ export default function CommandPalette() {
   }, []);
 
   useEffect(() => {
-    if (open) { setQ(''); setI(0); setTimeout(() => inputRef.current?.focus(), 30); }
+    if (open) {
+      // 열릴 때: 트리거 요소를 기억해 두고 입력으로 포커스 이동
+      prevFocus.current = document.activeElement;
+      setQ(''); setI(0); setTimeout(() => inputRef.current?.focus(), 30);
+    } else if (prevFocus.current) {
+      // 닫힐 때: 열었던 버튼(Ctrl+K 포함)으로 포커스 복귀 — 키보드 사용자가 문서 처음으로 튕기지 않게
+      if (typeof prevFocus.current.focus === 'function') prevFocus.current.focus();
+      prevFocus.current = null;
+    }
   }, [open]);
 
   const results = useMemo(() => {
@@ -72,9 +83,18 @@ export default function CommandPalette() {
   if (!open) return null;
   return (
     <div className="cmdk-scrim" onClick={() => setOpen(false)} role="dialog" aria-modal="true" aria-label="빠른 이동">
-      <div className="cmdk" onClick={(e) => e.stopPropagation()}>
+      {/* Esc 는 입력뿐 아니라 결과 버튼에 포커스가 있어도 닫혀야 한다(다이얼로그 어디서든) —
+          입력의 onKeyDown 과 중복 발화해도 setOpen(false) 멱등이라 무해.
+          Tab 은 다이얼로그 경계에서 순환(trapTabKey) — aria-modal 인데 배경으로 새던 것을 차단(WAI-ARIA dialog 규격) */}
+      <div
+        className="cmdk"
+        ref={boxRef}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); else if (e.key === 'Tab') trapTabKey(e, boxRef.current); }}
+      >
         <div className="cmdk-in">
           <span className="cmdk-ic" aria-hidden>🔍</span>
+          {/* combobox+listbox 시맨틱: 스크린리더가 "검색 → N개 결과 중 현재 항목"을 낭독(aria-activedescendant) */}
           <input
             ref={inputRef}
             className="cmdk-input"
@@ -82,15 +102,25 @@ export default function CommandPalette() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKeyDown}
+            enterKeyHint="go"
             aria-label="빠른 이동 검색"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="cmdk-results"
+            aria-activedescendant={results.length ? `cmdk-opt-${i}` : undefined}
+            aria-autocomplete="list"
           />
-          <kbd className="cmdk-esc">Esc</kbd>
+          <kbd className="cmdk-esc" aria-hidden>Esc</kbd>
         </div>
-        <div className="cmdk-list" ref={listRef}>
-          {results.length === 0 && <div className="cmdk-empty">결과 없음 · 다른 검색어를 입력하세요</div>}
+        <div className="cmdk-list" ref={listRef} id="cmdk-results" role="listbox" aria-label="이동할 페이지">
+          {results.length === 0 && <div className="cmdk-empty" role="status">결과 없음 · 다른 검색어를 입력하세요</div>}
           {results.map(([href, e, label, crumb], idx) => (
             <button
               key={href}
+              type="button"
+              id={`cmdk-opt-${idx}`}
+              role="option"
+              aria-selected={idx === i}
               className={'cmdk-item' + (idx === i ? ' on' : '')}
               onMouseEnter={() => setI(idx)}
               onClick={() => go(href)}

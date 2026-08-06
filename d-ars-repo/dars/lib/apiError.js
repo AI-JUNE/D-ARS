@@ -36,6 +36,10 @@ export function tooManyRequests(error = 'rate limited', extra) { return fail(err
 // 서버 오류: 내부 상세를 클라이언트에 노출하지 않음(로그로만). error 는 안전한 일반 문구.
 export function serverError(error = 'internal error', extra) { return fail(error, 500, extra); }
 
-export default {
+// 익명 객체를 그대로 default export 하지 않고 이름 붙여 내보낸다(named default) —
+// ESLint `import/no-anonymous-default-export` 경고 제거 · 디버깅 시 모듈 식별 용이.
+// 내보내는 객체 구성원은 동일 → 기존 `import apiError from '@/lib/apiError'` 사용부 100% 불변(하위호환).
+const apiError = {
   ok, fail, badRequest, unauthorized, forbidden, notFound, gone, tooManyRequests, serverError,
 };
+export default apiError;

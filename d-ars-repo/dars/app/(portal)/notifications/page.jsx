@@ -80,9 +80,9 @@ export default function Notifications() {
         <span className="d">운영 지표에서 자동 도출된 알림 · 30초 갱신</span>
         {custom && <span className="tag t-info">사용자 기준 적용 중</span>}
         <span className="sp" />
-        <button className="btn sm" aria-expanded={open} onClick={() => setOpen(v => !v)}>⚙ 알림 기준</button>
-        <button className="btn sm" onClick={load}>↻ 새로고침</button>
-        <button className="btn sm" onClick={markAll} disabled={!unread}>모두 읽음{unread ? ` (${unread})` : ''}</button>
+        <button type="button" className="btn sm" aria-expanded={open} onClick={() => setOpen(v => !v)}>⚙ 알림 기준</button>
+        <button type="button" className="btn sm" onClick={load}>↻ 새로고침</button>
+        <button type="button" className="btn sm" onClick={markAll} disabled={!unread}>모두 읽음{unread ? ` (${unread})` : ''}</button>
       </div>
 
       <ErrorBanner message={err} onRetry={load} />
@@ -105,8 +105,8 @@ export default function Notifications() {
             ))}
           </div>
           <div className="thr-act">
-            <button className="btn sm primary" onClick={apply}>적용</button>
-            <button className="btn sm" onClick={reset} disabled={!custom}>기본값 복원</button>
+            <button type="button" className="btn sm primary" onClick={apply}>적용</button>
+            <button type="button" className="btn sm" onClick={reset} disabled={!custom}>기본값 복원</button>
           </div>
         </div>
       )}
@@ -121,7 +121,7 @@ export default function Notifications() {
       <div className="card">
         <div className="seg2" style={{ marginBottom: 4 }}>
           {FILTERS.map(([k, l]) => (
-            <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{l}</button>
+            <button type="button" key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{l}</button>
           ))}
         </div>
 

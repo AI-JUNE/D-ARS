@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { pct, fmt, fmtDur, stepLabel } from '@/lib/ui';
+import { pct, fmt, fmtDur, stepLabel, fmtDay } from '@/lib/ui';
 import { GroupedBars } from '@/lib/charts';
 import { getJSON, asArray } from '@/lib/fetchJson';
 import ErrorBanner from '@/lib/ErrorBanner';
@@ -70,11 +70,11 @@ export default function Report() {
         <div className="sp" />
         <div className="seg" role="group" aria-label="조회 기간">
           {RANGE_PRESETS.map(r => (
-            <button key={r.key} className={range === r.key ? 'on' : ''} aria-pressed={range === r.key}
+            <button type="button" key={r.key} className={range === r.key ? 'on' : ''} aria-pressed={range === r.key}
               onClick={() => setRange(r.key)}>{r.label}</button>
           ))}
         </div>
-        <button className="btn sm primary" onClick={()=>window.print()}>🖨️ PDF 저장 / 인쇄</button>
+        <button type="button" className="btn sm primary" onClick={()=>window.print()}>🖨️ PDF 저장 / 인쇄</button>
       </div>
 
       <div className="noprint"><ErrorBanner message={err} onRetry={load} /></div>
@@ -104,12 +104,12 @@ export default function Report() {
         )}
 
         <h3 className="rp-h3">일별 운영 추이</h3>
-        <table className="tbl rp-tbl rp-tbl--num">
-          <thead><tr><th>일자</th><th>인입</th><th>멀티모달</th><th>완료</th><th>이탈</th><th>완료율</th></tr></thead>
+        <table className="tbl rp-tbl rp-tbl--num" aria-label="일별 운영 추이">
+          <thead><tr><th scope="col">일자</th><th scope="col">인입</th><th scope="col">멀티모달</th><th scope="col">완료</th><th scope="col">이탈</th><th scope="col">완료율</th></tr></thead>
           <tbody>
             {daily.map((d,i)=>(
               <tr key={i}>
-                <td>{String(d.day).slice(0,10)}</td>
+                <td>{fmtDay(d.day)}</td>
                 <td>{fmtNum(d.inbound)}</td><td>{fmtNum(d.multimodal)}</td><td>{fmtNum(d.completed)}</td><td>{fmtNum(d.dropped)}</td>
                 <td>{pct(d.completed, d.multimodal)}%</td>
               </tr>
@@ -121,8 +121,8 @@ export default function Report() {
         </table>
 
         <h3 className="rp-h3">서비스별 완료율</h3>
-        <table className="tbl rp-tbl rp-tbl--num">
-          <thead><tr><th>서비스</th><th>발송</th><th>자동런칭</th><th>문자발송</th><th>이탈</th><th>완료</th><th>완료율</th></tr></thead>
+        <table className="tbl rp-tbl rp-tbl--num" aria-label="서비스별 완료율">
+          <thead><tr><th scope="col">서비스</th><th scope="col">발송</th><th scope="col">자동런칭</th><th scope="col">문자발송</th><th scope="col">이탈</th><th scope="col">완료</th><th scope="col">완료율</th></tr></thead>
           <tbody>
             {services.map(r=>(
               <tr key={r.name}><td>{r.name}</td><td>{fmtNum(r.sent)}</td><td>{fmtNum(r.launch)}</td><td>{fmtNum(r.sms)}</td><td>{fmtNum(r.drop)}</td><td>{fmtNum(r.done)}</td><td>{pct(r.done,r.sent)}%</td></tr>
@@ -132,8 +132,8 @@ export default function Report() {
         </table>
 
         <h3 className="rp-h3">서류별 완료율</h3>
-        <table className="tbl rp-tbl rp-tbl--num">
-          <thead><tr><th>서류</th><th>요청</th><th>완료</th><th>완료율</th></tr></thead>
+        <table className="tbl rp-tbl rp-tbl--num" aria-label="서류별 완료율">
+          <thead><tr><th scope="col">서류</th><th scope="col">요청</th><th scope="col">완료</th><th scope="col">완료율</th></tr></thead>
           <tbody>
             {usedDocs.map(d=>(
               <tr key={d.id}><td>{d.name}</td><td>{fmtNum(d.req)}</td><td>{fmtNum(d.done)}</td><td>{pct(d.done,d.req)}%</td></tr>
@@ -143,8 +143,8 @@ export default function Report() {
         </table>
 
         <h3 className="rp-h3">진행 세션 스냅샷</h3>
-        <table className="tbl rp-tbl">
-          <thead><tr><th>세션</th><th>고객</th><th>시나리오</th><th>단계</th><th className="rp-num">경과</th></tr></thead>
+        <table className="tbl rp-tbl" aria-label="진행 세션 스냅샷">
+          <thead><tr><th scope="col">세션</th><th scope="col">고객</th><th scope="col">시나리오</th><th scope="col">단계</th><th scope="col" className="rp-num">경과</th></tr></thead>
           <tbody>
             {sessions.slice(0,8).map(s=>(
               <tr key={s.id}><td>{s.id}</td><td>{s.phone}</td><td>{s.scenario}</td>

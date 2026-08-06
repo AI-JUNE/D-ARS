@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { tagClass, pct } from '@/lib/ui';
+import { tagClass, pct, fmtTime } from '@/lib/ui';
 import { sortQuery } from '@/lib/sortParams';
 import { fmtNum } from '@/lib/kpi';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
@@ -23,6 +23,7 @@ import EmptyRow from '@/lib/EmptyRows';
 import { useRowSelection } from '@/lib/useRowSelection';
 import { exportRunner } from '@/lib/selection';
 import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
+import { onSearchEnter } from '@/lib/searchEnter';
 
 /* 검색어·상태 필터 URL 보존(2026-07-14): 기간(?range=)에 이어 검색어(?q=)·상태(?status=)도 URL 에 남긴다
    → "'실패' 발송만" 링크를 공유하면 상대도 같은 화면을 본다. 기본값(전체·빈 검색어)이면 파라미터가 붙지 않는다. */
@@ -78,7 +79,7 @@ export default function Ums() {
     setSendErr(null); L.reload(); loadCounts();
   };
   const retry = () => { L.reload(); loadCounts(); };
-  const time = (t) => new Date(t).toTimeString().slice(0,5);
+  const time = (t) => fmtTime(t);
 
   const view = L.rows; // 서버가 이미 현재 정렬로 내려준다
 
@@ -108,14 +109,14 @@ export default function Ums() {
         <RangeSeg value={range} onChange={setRange} label="조회 기간" />
         <div className="seg" role="group" aria-label="발송 상태">{STATUSES.map(f=>(
           <button key={f} type="button" className={filter===f?'on':''} aria-pressed={filter===f} onClick={()=>setFilter(f)}>{f}</button>))}</div>
-        <input className="input" placeholder="서비스·서류 검색(서버 검색)" value={L.q} onChange={e=>L.setQ(e.target.value)} style={{flex:'1 1 160px'}} />
+        <input className="input" placeholder="서비스·서류 검색(서버 검색)" aria-label="서비스·서류 검색" value={L.q} onChange={e=>L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e=>onSearchEnter(e, L.flush)} style={{flex:'1 1 160px'}} />
         <span className="sp" />
-        <button className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
-        <button className="btn primary sm" onClick={test}>✉️ 테스트 발송</button>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
+        <button type="button" className="btn primary sm" onClick={test}>✉️ 테스트 발송</button>
       </div>
       <SavedViews screen="ums" />
       <SelectionNote S={S} />
-      <div className="card"><table className="tbl"><thead><tr>
+      <div className="card"><table className="tbl" aria-label="UMS 발송 이력"><thead><tr>
         <SelectAllTh S={S} label="표시된 발송 전체 선택" />
         <SortTh sort={sort} onSort={setSort} k="sent_at">시각</SortTh>
         <SortTh sort={sort} onSort={setSort} k="phone">휴대폰</SortTh>

@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { pct } from '@/lib/ui';
+import { fmtNum } from '@/lib/kpi';
 import { sortQuery } from '@/lib/sortParams';
 import { downloadCSV, downloadExcel, printPDF } from '@/lib/export';
 import { postJSON, putJSON } from '@/lib/fetchJson';
@@ -18,6 +19,7 @@ import EmptyRow from '@/lib/EmptyRows';
 import { useRowSelection } from '@/lib/useRowSelection';
 import { exportRunner } from '@/lib/selection';
 import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
+import { onSearchEnter } from '@/lib/searchEnter';
 
 /* 검색어 URL 보존(2026-07-14): 검색 조건을 URL(?q=)에 남겨 새로고침·링크 공유·뒤로가기에도 유지된다. */
 const URL_SPEC = { q: { qs: 'q', def: '' } };
@@ -66,33 +68,33 @@ export default function Docs() {
   return (
     <>
       <div className="sectionhead"><h2>필요서류 관리</h2><span className="d">보이는 ARS·UMS 안내·발송 서류</span>
-        <span className="sp" /><button className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button><button className="btn primary sm" onClick={add}>+ 서류</button></div>
+        <span className="sp" /><button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button><button type="button" className="btn primary sm" onClick={add}>+ 서류</button></div>
       <ErrorBanner message={saveErr || X.error || L.error} onRetry={L.reload} />
       {(X.busy || X.truncated) && <div className="muted noprint" style={{fontSize:12, margin:'0 0 8px', wordBreak:'break-word'}}>{X.busy ? '전체 내보내기 준비 중…' : truncationNote(X.truncated, X.maxRows)}</div>}
       <div className="toolbar">
-        <input className="input" placeholder="업무·서류명 검색(서버 검색)" value={L.q} onChange={e=>L.setQ(e.target.value)} style={{flex:'1 1 200px'}} />
-        <span className="muted" style={{fontSize:12}}>{L.searching || L.loading ? '검색 중…' : `${L.total.toLocaleString()}건`}</span>
+        <input className="input" placeholder="업무·서류명 검색(서버 검색)" aria-label="업무·서류명 검색" value={L.q} onChange={e=>L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e=>onSearchEnter(e, L.flush)} style={{flex:'1 1 200px'}} />
+        <span className="muted" role="status" style={{fontSize:12}}>{L.searching || L.loading ? '검색 중…' : `${fmtNum(L.total)}건`}</span>
       </div>
       <SavedViews screen="docs" />
       <SelectionNote S={S} />
-      <div className="card"><table className="tbl">
+      <div className="card"><table className="tbl" aria-label="서류 자동화 목록">
         <thead><tr>
           <SelectAllTh S={S} label="표시된 서류 전체 선택" />
-          <th>순위</th>
+          <th scope="col">순위</th>
           <SortTh sort={sort} onSort={setSort} k="biz">업무</SortTh>
           <SortTh sort={sort} onSort={setSort} k="name">서류명</SortTh>
           <SortTh sort={sort} onSort={setSort} k="req">요청</SortTh>
           <SortTh sort={sort} onSort={setSort} k="sent">발송</SortTh>
           <SortTh sort={sort} onSort={setSort} k="done">완료</SortTh>
           <SortTh sort={sort} onSort={setSort} k="rate">완료율</SortTh>
-          <th>사용</th><th>조치</th>
+          <th scope="col">사용</th><th scope="col">조치</th>
         </tr></thead>
         <tbody>{view.map((d,i)=>{const p=pct(d.done,d.req);return (<tr key={d.id}>
           <SelectTd S={S} row={d} label={`${d.name} 선택`} />
           <td>{i+1}</td><td>{d.biz}</td><td><b>{d.name}</b></td><td>{d.req}</td><td>{d.sent}</td><td><b>{d.done}</b></td>
           <td style={{minWidth:120}}><div className="bar"><i style={{width:p+'%'}}/></div><span className="muted" style={{fontSize:11}}>{p}%</span></td>
           <td><span className={'tag '+(d.in_use?'t-ok':'t-mut')}>{d.in_use?'사용':'미사용'}</span></td>
-          <td><button className="btn sm" onClick={()=>toggle(d)}>{d.in_use?'미사용':'사용'}</button></td>
+          <td><button type="button" className="btn sm" onClick={()=>toggle(d)}>{d.in_use?'미사용':'사용'}</button></td>
         </tr>);})}
         {view.length===0 && <EmptyRow colSpan={10} loading={L.loading} error={L.error} empty="등록된 서류가 없습니다" />}</tbody></table>
         <ListMore shown={view.length} total={L.total} hasMore={L.hasMore} loading={L.loadingMore} onMore={L.loadMore} />

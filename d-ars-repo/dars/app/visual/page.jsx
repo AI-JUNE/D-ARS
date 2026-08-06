@@ -17,6 +17,9 @@ const MENU = [
   ['SHOW_CARD_POINTS', '상생카드·봉사'],
   ['TRANSFER_COORDINATOR', '코디네이터 연결'],
 ];
+// 노드→스텝 인디케이터 매핑(정적 상수 — 컴포넌트 밖 모듈 스코프로 올려 렌더마다 재생성되지 않게 하고
+// 폴링 useEffect 의 exhaustive-deps 경고 원인을 제거. journey·GENS·MENU 형제 상수와 동일 위치.)
+const NODE_STEP = { SHOW_WELFARE_FORM: 2, SHOW_TRIO_MATCH: 2, SHOW_SAFETY_CHECK: 3, SHOW_CARD_POINTS: 3, TRANSFER_COORDINATOR: 3, SHOW_DOCS: 4 };
 
 export default function Visual() {
   const [msgs, setMsgs] = useState([{ who: 'bot', text: '통화가 연결되면 음성과 함께 이 화면으로 안내해 드려요. 아래 메뉴로 바로 시작할 수도 있어요.' }]);
@@ -49,8 +52,6 @@ export default function Visual() {
     await wait(700);
   }
 
-  // 노드→스텝 인디케이터 매핑
-  const NODE_STEP = { SHOW_WELFARE_FORM: 2, SHOW_TRIO_MATCH: 2, SHOW_SAFETY_CHECK: 3, SHOW_CARD_POINTS: 3, TRANSFER_COORDINATOR: 3, SHOW_DOCS: 4 };
   useEffect(() => {
     let alive = true;
     let params;
@@ -82,6 +83,9 @@ export default function Visual() {
     poll();
     const timer = setInterval(poll, 2500);
     return () => { alive = false; clearInterval(timer); };
+    // 최초 마운트 시 1회만 폴링 셋업(언마운트에서 clearInterval). push 는 의도적으로 최신 클로저를
+    // 다시 구독하지 않는 run-once 이펙트 → deps 를 비워둔다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const play = async () => {
@@ -114,8 +118,13 @@ export default function Visual() {
     if (node === 'TRANSFER_COORDINATOR') { setStep(3); await cust('사람이랑 얘기하고 싶어요', id); await bot('지역 코디네이터로 연결해 드릴게요.', node, id); }
   };
 
+  // 109회차: 루트 div → main 랜드마크(WCAG 1.3.1). 인라인 스타일 그대로 — 표시 불변
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'radial-gradient(1200px 600px at 50% -10%, #f7ece6, #e7ddd5)', padding: '20px 12px' }}>
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'radial-gradient(1200px 600px at 50% -10%, #f7ece6, #e7ddd5)', padding: '20px 12px' }}>
+      {/* 시각적으로는 휴대폰 목업이 곧 화면 전부라 보이는 제목이 없지만, 문서 구조상 h1 부재는
+          전 라우트 중 이 페이지가 유일(WCAG 1.3.1 · 스크린리더 헤딩 탐색 H키 랜드마크).
+          .sr-only(globals.css)로 화면 표시 0 변경 — 103회차 메타 title(보이는 ARS 데모)과 동일 명칭. */}
+      <h1 className="sr-only">보이는 ARS 데모</h1>
       <style>{`@keyframes eumdot{0%,60%,100%{opacity:.25}30%{opacity:1}}@keyframes eumpulse{0%,100%{opacity:.5}50%{opacity:1}}`}</style>
       <div style={{ width: 'min(390px,100%)', background: '#0d0b0a', borderRadius: 44, padding: 12, boxShadow: '0 8px 30px rgba(60,30,20,.2)' }}>
         <div style={{ background: '#f4f1ee', borderRadius: 34, overflow: 'hidden', height: 'min(760px,84vh)', minHeight: 540, display: 'flex', flexDirection: 'column' }}>
@@ -131,7 +140,7 @@ export default function Visual() {
           <div style={{ display: 'flex', gap: 6, padding: '9px 14px 4px', alignItems: 'center' }}>
             <span style={{ fontSize: 10.5, color: '#8a7a72', fontWeight: 700 }}>세대별 화면</span>
             {GENS.map((g) => (
-              <button key={g.k} onClick={() => setGen(g.k)} style={{
+              <button key={g.k} type="button" aria-pressed={gen === g.k} onClick={() => setGen(g.k)} style={{
                 fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
                 border: gen === g.k ? '0' : '1px solid #e0d5cd', background: gen === g.k ? '#be5535' : '#fff', color: gen === g.k ? '#fff' : '#8a7a72',
               }}>{g.label}</button>
@@ -150,13 +159,13 @@ export default function Visual() {
             {listening ? '🎙️ 고객님 말씀을 듣고 있어요…' : (typing ? '💬 안내를 준비하고 있어요…' : '메뉴를 누르거나 통화를 시작하세요')}</div>
           <div style={{ padding: '6px 12px 10px', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {MENU.map(([node, label]) => (
-              <button key={node} onClick={() => pick(node)} style={{ ...btnStyle, fontSize: S(12.5) }}>{label}</button>))}
-            <button onClick={play} disabled={playing} style={{ ...btnStyle, background: playing ? '#d8a493' : '#be5535', color: '#fff', flex: '1 1 100%', fontSize: S(13), cursor: playing ? 'default' : 'pointer' }}>
+              <button type="button" key={node} onClick={() => pick(node)} style={{ ...btnStyle, fontSize: S(12.5) }}>{label}</button>))}
+            <button type="button" onClick={play} disabled={playing} style={{ ...btnStyle, background: playing ? '#d8a493' : '#be5535', color: '#fff', flex: '1 1 100%', fontSize: S(13), cursor: playing ? 'default' : 'pointer' }}>
               {playing ? '● 시연 진행 중…' : '▶ 자동 시연'}</button>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -218,7 +227,7 @@ function NodeCard({ node, S }) {
     <div style={box}>{title('📞 코디네이터 연결')}
       <div style={{ display: 'flex', gap: 8, marginTop: 7, alignItems: 'center' }}>
         <span style={{ flex: 1, color: '#9c8b80' }}>광산구 상생지원센터 · 예상 대기 30초</span>
-        <button onClick={(e) => { e.currentTarget.textContent = '연결 중…'; e.currentTarget.style.background = '#2e8b57'; }}
+        <button type="button" onClick={(e) => { e.currentTarget.textContent = '연결 중…'; e.currentTarget.style.background = '#2e8b57'; }}
           style={{ border: 0, background: '#be5535', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>연결</button>
       </div>
     </div>);
@@ -227,7 +236,7 @@ function NodeCard({ node, S }) {
       <div style={{ margin: '6px 0' }}>{chip('신분증')}{chip('통장 사본')}{chip('주민등록등본')}</div>
       <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
         <span style={{ flex: 1, color: '#9c8b80' }}>서류 안내를 문자로 받기</span>
-        <button onClick={(e) => { e.currentTarget.textContent = '발송완료 ✓'; e.currentTarget.style.background = '#2e8b57'; }}
+        <button type="button" onClick={(e) => { e.currentTarget.textContent = '발송완료 ✓'; e.currentTarget.style.background = '#2e8b57'; }}
           style={{ border: 0, background: '#be5535', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>문자 발송</button>
       </div>
     </div>);

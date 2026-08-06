@@ -20,12 +20,12 @@ function useCount(target,dur=1200){
 function Stat({n,suffix='',label}){
   const [v,ref]=useCount(n);
   return <div ref={ref} style={{textAlign:'center'}}>
-    <div style={{fontSize:'clamp(28px,7vw,44px)',fontWeight:800,color:TRD,lineHeight:1}}>{v.toLocaleString()}{suffix}</div>
+    <div style={{fontSize:'clamp(28px,7vw,44px)',fontWeight:800,color:TRD,lineHeight:1}}>{v.toLocaleString('ko-KR')}{suffix}</div>
     <div style={{fontSize:13.5,color:MUT,marginTop:8,fontWeight:600}}>{label}</div>
   </div>;
 }
 
-const S=(k)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={TR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{k}</svg>;
+const S=(k)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={TR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{k}</svg>;
 const IcHead=()=>S(<><path d="M5 13a7 7 0 0 1 14 0"/><rect x="3" y="12" width="4" height="7" rx="2" fill={TR} stroke="none"/><rect x="17" y="12" width="4" height="7" rx="2" fill={TR} stroke="none"/></>);
 const IcCal=()=>S(<><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></>);
 const IcHeart=()=>S(<path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5c0 5-7 9.5-7 9.5z" fill={TR} stroke="none"/>);
@@ -34,7 +34,7 @@ const IcBowl=()=>S(<><path d="M4 11a8 7 0 0 0 16 0z" fill={TR} stroke="none"/><p
 const IcCar=()=>S(<><path d="M4 13l2-5h12l2 5"/><rect x="3" y="13" width="18" height="5" rx="2" fill={TR} stroke="none"/><circle cx="7.5" cy="19" r="1.6" fill={TR}/><circle cx="16.5" cy="19" r="1.6" fill={TR}/></>);
 const IcHome=()=>S(<><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9" fill={TR} stroke="none"/></>);
 const IcPerson=()=>S(<><circle cx="12" cy="8" r="3.5" fill={TR} stroke="none"/><path d="M5 20a7 7 0 0 1 14 0z" fill={TR} stroke="none"/></>);
-const IcMic=(c)=><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={c||'#fff'} strokeWidth="2" strokeLinecap="round"><rect x="9" y="3" width="6" height="11" rx="3" fill={c||'#fff'} stroke="none"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3M9 20h6"/></svg>;
+const IcMic=(c)=><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={c||'#fff'} strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="11" rx="3" fill={c||'#fff'} stroke="none"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3M9 20h6"/></svg>;
 
 function Badge({children,bg}){return <span style={{width:44,height:44,borderRadius:'50%',background:bg||BADGE,display:'inline-grid',placeItems:'center',flex:'0 0 auto'}}>{children}</span>;}
 function Section({eyebrow,title,desc,children,style}){
@@ -61,7 +61,7 @@ function MRow({icon,title,desc}){
   return <div style={{display:'flex',alignItems:'center',gap:12,background:CARD,border:'1px solid '+LINE,borderRadius:14,padding:10,marginBottom:8}}>
     <Badge>{icon}</Badge>
     <div style={{flex:1,minWidth:0}}><div style={{fontSize:14.5,fontWeight:800,color:INK}}>{title}</div>{desc&&<div style={{fontSize:12,color:MUT,marginTop:1}}>{desc}</div>}</div>
-    <span style={{color:'#c8b8ac',fontSize:16}}>›</span>
+    <span aria-hidden="true" style={{color:'#c8b8ac',fontSize:16}}>›</span>
   </div>;
 }
 function Tile({icon,label}){
@@ -80,8 +80,8 @@ function FAQ(){
   return <div style={{maxWidth:760,margin:'0 auto'}}>
     {FAQS.map(([q,a],i)=>(
       <div key={i} style={{background:CARD,border:'1px solid '+LINE,borderRadius:14,marginBottom:10,overflow:'hidden'}}>
-        <button onClick={()=>setOpen(open===i?-1:i)} style={{width:'100%',textAlign:'left',background:'transparent',border:0,padding:'16px 18px',fontSize:15.5,fontWeight:700,color:INK,cursor:'pointer',display:'flex',justifyContent:'space-between',gap:10}}>
-          <span>{q}</span><span style={{color:TR,transform:open===i?'rotate(45deg)':'none',transition:'.2s'}}>+</span>
+        <button type="button" aria-expanded={open===i} onClick={()=>setOpen(open===i?-1:i)} style={{width:'100%',textAlign:'left',background:'transparent',border:0,padding:'16px 18px',fontSize:15.5,fontWeight:700,color:INK,cursor:'pointer',display:'flex',justifyContent:'space-between',gap:10}}>
+          <span>{q}</span><span aria-hidden="true" style={{color:TR,transform:open===i?'rotate(45deg)':'none',transition:'.2s'}}>+</span>
         </button>
         {open===i&&<div style={{padding:'0 18px 18px',fontSize:14,color:MUT,lineHeight:1.65}}>{a}</div>}
       </div>
@@ -224,7 +224,12 @@ export default function Landing(){
         </div>
       </section>
 
-      <footer style={{...wrap,padding:'28px 20px 44px',textAlign:'center',color:MUT,fontSize:12.5,lineHeight:1.8}}>D-ARS · 보이는 ARS · 콜봇 연계 모듈 · 운영 GOWON<br/><span style={{opacity:0.7}}>© 2026 · 데모 모드</span></footer>
+      <footer style={{...wrap,padding:'28px 20px 44px',textAlign:'center',color:MUT,fontSize:12.5,lineHeight:1.8}}>D-ARS · 보이는 ARS · 콜봇 연계 모듈 · 운영 GOWON<br/>
+        <span style={{display:'inline-flex',gap:14,flexWrap:'wrap',justifyContent:'center',margin:'8px 0'}}>
+          <Link href="/pricing" style={{color:TR,textDecoration:'none',fontWeight:700}}>요금제</Link>
+          <Link href="/legal/terms" style={{color:TR,textDecoration:'none',fontWeight:700}}>이용약관</Link>
+          <Link href="/legal/privacy" style={{color:TR,textDecoration:'none',fontWeight:700}}>개인정보처리방침</Link>
+        </span><br/><span style={{opacity:0.7}}>© 2026 · 데모 모드</span></footer>
     </main>
   );
 }

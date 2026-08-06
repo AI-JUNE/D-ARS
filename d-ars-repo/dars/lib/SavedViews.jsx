@@ -180,6 +180,7 @@ export default function SavedViews({ screen, label = '저장된 뷰', clearable 
             maxLength={MAX_NAME}
             value={name}
             placeholder="뷰 이름(예: 실패 발송 7일)"
+            aria-label="저장할 뷰 이름"
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') { e.preventDefault(); commit(); }

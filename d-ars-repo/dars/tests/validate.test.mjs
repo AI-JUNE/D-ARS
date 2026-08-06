@@ -8,7 +8,10 @@ test('clampStr: 양끝 공백 제거', () => {
 });
 
 test('clampStr: 제어문자 제거', () => {
-  assert.equal(clampStr('abc'), 'abc');
+  assert.equal(clampStr('a\x01b\x1fc'), 'abc');
+  assert.equal(clampStr('a\x00b\x7fc'), 'abc');
+  assert.equal(clampStr('탭\t줄바꿈\n제거'), '탭줄바꿈제거');
+  assert.equal(clampStr('가 나 다'), '가 나 다');
 });
 
 test('clampStr: 최대 길이로 절단', () => {

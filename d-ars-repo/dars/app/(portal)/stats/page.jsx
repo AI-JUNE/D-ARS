@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { pct } from '@/lib/ui';
+import { pct, fmtMD } from '@/lib/ui';
 import { AreaChart, GroupedBars, ProgressRow, KpiCard } from '@/lib/charts';
 import { getJSON } from '@/lib/fetchJson';
 import ErrorBanner from '@/lib/ErrorBanner';
@@ -34,7 +34,7 @@ export default function Stats() {
 
   const daily = s?.daily || [];
   const col = (k) => daily.map(d => Number(d[k]) || 0);
-  const labels = daily.map(d => String(d.day).slice(5));
+  const labels = daily.map(d => fmtMD(d.day));
   // 서비스별 집계는 이제 서버 실측(멀티모달·UMS group by service). 응답이 어긋나도 화면이 깨지지 않도록 정규화.
   const services = readServices(s?.services);
 
@@ -51,7 +51,7 @@ export default function Stats() {
         <span className="sp" />
         <div className="seg" role="group" aria-label="조회 기간">
           {RANGE_PRESETS.map(r => (
-            <button key={r.key} className={range === r.key ? 'on' : ''} aria-pressed={range === r.key}
+            <button type="button" key={r.key} className={range === r.key ? 'on' : ''} aria-pressed={range === r.key}
               onClick={() => setRange(r.key)}>{r.label}</button>
           ))}
         </div>
@@ -87,7 +87,7 @@ export default function Stats() {
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.18s' }}>
         <h3>🔎 서비스별 상세</h3>
-        <table className="tbl"><thead><tr><th>서비스</th><th>발송</th><th>자동런칭</th><th>문자발송</th><th>이탈</th><th>완료</th><th>완료율</th></tr></thead>
+        <table className="tbl" aria-label="서비스별 상세 통계"><thead><tr><th scope="col">서비스</th><th scope="col">발송</th><th scope="col">자동런칭</th><th scope="col">문자발송</th><th scope="col">이탈</th><th scope="col">완료</th><th scope="col">완료율</th></tr></thead>
           <tbody>{services.map(r => { const p = pct(r.done, r.sent); return (<tr key={r.name}>
             <td><b>{r.name}</b></td><td>{r.sent}</td><td>{r.launch}</td><td>{r.sms}</td><td>{r.drop}</td><td><b>{r.done}</b></td>
             <td style={{ minWidth: 120 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div className="bar2" style={{ flex: 1 }}><i style={{ width: p + '%', background: 'linear-gradient(90deg,#be5535,#be5535cc)' }} /></div><span className="muted" style={{ fontSize: 11, fontWeight: 700 }}>{p}%</span></div></td></tr>); })}</tbody></table>
