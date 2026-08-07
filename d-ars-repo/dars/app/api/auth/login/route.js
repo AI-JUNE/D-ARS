@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { findUser, signToken, COOKIE, SESSION_HOURS } from '@/lib/auth';
 import { createRateLimiter, clientIp } from '@/lib/rateLimit';
+import { audit } from '@/lib/audit';
 export const dynamic = 'force-dynamic';
 
 // 브루트포스 완화: IP당 5분 내 로그인 시도 10회 제한(인메모리 · 단일 인스턴스).
@@ -11,6 +12,7 @@ export async function POST(req) {
   const ip = clientIp(req);
   const gate = loginLimiter.check(ip);
   if (!gate.allowed) {
+    await audit('AUTH_LOGIN_RATELIMITED', { ip });                 // 감사(P0-7): 마스킹 후 기록·실패 무해화
     return NextResponse.json(
       { ok: false, error: '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.' },
       { status: 429, headers: { 'Retry-After': String(gate.retryAfterSec) } },
@@ -18,7 +20,11 @@ export async function POST(req) {
   }
   const { username, password } = await req.json().catch(() => ({}));
   const u = findUser(username, password);
-  if (!u) return NextResponse.json({ ok: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
+  if (!u) {
+    await audit('AUTH_LOGIN_FAIL', { actor: username, ip });       // 감사(P0-7)
+    return NextResponse.json({ ok: false, error: '아이디 또는 비밀번호가 올바르지 않습니다.' }, { status: 401 });
+  }
+  await audit('AUTH_LOGIN', { actor: u.u, role: u.role, ip });     // 감사(P0-7)
   const token = await signToken({ u: u.u, role: u.role, name: u.name });
   const res = NextResponse.json({ ok: true, role: u.role, name: u.name });
   res.cookies.set(COOKIE, token, {

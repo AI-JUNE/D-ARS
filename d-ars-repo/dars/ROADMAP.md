@@ -3,6 +3,15 @@
 라이브: https://d-ars.vercel.app · 저장소: github.com/AI-JUNE/D-ARS (소스: `d-ars-repo/dars/`)
 스택: Next.js(App Router) + Neon(Postgres) + Vercel. 운영: GOWON.
 
+### 2026-08-07 주간(117회차): **접근/감사 로그(P0-7) 구현 — lib/audit.js + 로그인/로그아웃 배선: `node --test` 566/566 통과(신규 10) · 클린룸 `next build` rc=0 완주(24/24)**
+- ✅ **구현("build now, activate on approval")**: `lib/audit.js` — 이벤트 화이트리스트(AUTH_LOGIN/LOGIN_FAIL/LOGIN_RATELIMITED/LOGOUT, 자유 문자열 거부), **PII 마스킹 후에만 기록**(maskActor 계정 첫·끝 글자만, 이메일 로컬파트 마스킹 · maskIp IPv4 마지막 옥텟/IPv6 뒤 절반), sanitizeDetail(키 8개 상한·원시값만·200자 절단 — 로그 폭주·PII 유입 방어), **기록 실패 무해화**(어떤 입력에도 throw 금지 — 감사가 본 요청을 실패시키지 않는다). 기본(플래그 OFF)은 `[AUDIT] JSON` 구조화 콘솔 로그만(Vercel 함수 로그 수집) → **`AUDIT_DB=1` 설정 시에만 audit_events 영속화 [승인 필요]**. 테이블 DDL 은 `db/audit.sql`(멱등) — **운영 DB 적용은 수동 [승인 필요: 스키마 변경]**.
+- ✅ **배선**: `/api/auth/login` 성공(AUTH_LOGIN)·실패(AUTH_LOGIN_FAIL)·rate limit 차단(AUTH_LOGIN_RATELIMITED), `/api/auth/logout`(AUTH_LOGOUT — 세션 쿠키에서 actor 복원, try/catch 로 응답 무영향). 응답 형태·쿠키·상태코드 불변 → 하위호환 100%.
+- ✅ **테스트 566/566 통과**(116회차 556 + 신규 10: 마스킹 왕복·화이트리스트 거부·detail 상한·auditLine JSON 파싱 계약·audit() 무throw).
+- ✅ **클린룸 `next build` rc=0 완주**: `/tmp/cr117` 소스만 rsync → `npm install`(rc=0) → `next build` rc=0 · `✓ Compiled successfully` · `✓ Generating static pages (24/24)`.
+- ✅ **정본 무결성**: 신규·편집 5파일(lib/audit.js·db/audit.sql·tests/audit.test.mjs·login/logout route) host Read 끝까지 온전 확인. 116회차 미커밋분은 테스트 재검증(556/556) 후 선커밋(ebb34d7).
+- 🔒 **[승인 필요]**: `AUDIT_DB=1` 활성화 · `db/audit.sql` 운영 DB 적용 · (기존) cpaas timing-safe · next 패치 업그레이드 · INGEST_KEY 운영 반영.
+- ➡ **다음 항목**: 감사 이벤트 열람 화면(/admin, admin 전용 — PMS /admin/security 대응) 또는 guardWrite 401/403 거부 이벤트 확장. 백로그 D 잔여: 스테이징/운영 분리 문서화.
+
 ### 2026-08-07 주간(116회차, 13:13 KST 실행): **신규 저위험 개선 구현 — sourceLint 확장(115회차 예고 항목): `<label>`-입력 연결 불변식(`unassociatedLabels`) + 비대화형 태그 마우스 전용 `onClick` 스캔(`nonInteractiveOnClick` · 허용목록 대조): `node --test` 556/556 통과(신규 6 유닛) · 클린룸 `next build` rc=0 완주(24/24)**
 - ✅ **구현(저위험·회귀 고정·테스트 전용 — 런타임 코드 0 변경)**: `lib/sourceLint.js` 에 **`elementsOf(src, name)`**(113회차 buttonElements 를 일반화 — 자기 중첩 금지 요소 전용·수집 계약 동일, buttonElements 는 위임으로 하위호환), **`unassociatedLabels`**(연결 근거 없는 `<label>` — WCAG 1.3.1/3.3.2. htmlFor 명시·컨트롤(input/select/textarea) 감싸기는 통과, 컴포넌트(`<대문자`)·JSX 표현식 내용은 판정 보류(보수적) · 순수 텍스트/빈 내용만 위반), **`nonInteractiveOnClick`**(div·span 등 17종 비대화형 태그의 마우스 전용 onClick — WCAG 2.1.1. onKeyDown 동반 통과·전개 속성(`{...pressableProps}` 류) 보류. **role+tabIndex 만으로는 통과 아님** — 포커스되는데 Enter/Space 죽은 상태도 회귀) 추가. 통합 테스트는 label 위반 0 단정 + onClick 은 **파일별 허용 건수 대조**(autoFocus 허용목록과 동일 계약 — 새 div onClick 추가 시 테스트 실패로 의도 확인 강제).
 - ✅ **실측**: app/·lib/ 전 JSX 프로브 — `<label>` 3곳(login 2=htmlFor·notifications 1=input 감싸기) **전부 준수** · 마우스 전용 onClick 5곳 전부 **정당한 포인터 전용 중복 장치**(CommandPalette 2=스크림 닫기(키보드는 Esc)+내부 전파 차단 · layout 3=모바일 오버레이 닫기(키보드는 ☰ 버튼)+사용자 메뉴 바깥클릭 캐처 2곳 — 110회차 pressableProps 마감분(scenarios)은 전개 속성이라 보고 대상 아님) **→ 소스 수정 0건으로 불변식 성립**. 허용목록: `{CommandPalette:2, layout:3}`.
