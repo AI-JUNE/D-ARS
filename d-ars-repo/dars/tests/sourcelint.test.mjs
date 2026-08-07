@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -131,12 +131,92 @@ test('blankTargetMissingRel: rel 없는 target="_blank" 를 보고하고, noopen
   assert.deepEqual(blankTargetMissingRel(null), []);
 });
 
+// ---- 115회차: 포커스 순서 불변식(tabIndex 양수 금지 · autoFocus 허용목록) ----
+
+test('positiveTabIndex: 양수 tabIndex 를 JSX 세 표기·JS 객체 표기 모두에서 행 번호로 보고한다', () => {
+  assert.deepEqual(positiveTabIndex('a\n<div tabIndex={1}>x</div>'), [2]);
+  assert.deepEqual(positiveTabIndex('<div tabIndex="2">x</div>'), [1]);
+  assert.deepEqual(positiveTabIndex('const p = {\n  tabIndex: 3,\n};'), [2]);
+  assert.deepEqual(positiveTabIndex('<a tabIndex={1}/>\n<b tabIndex={2}/>'), [1, 2]);
+});
+
+test('positiveTabIndex: 0·음수·표현식은 판정 대상이 아니고 이상 입력에 throw 하지 않는다', () => {
+  assert.deepEqual(positiveTabIndex('<div tabIndex={0}>x</div>'), []);
+  assert.deepEqual(positiveTabIndex('const p = { tabIndex: 0 };'), []);
+  assert.deepEqual(positiveTabIndex('<div tabIndex={-1}>x</div>'), []);
+  assert.deepEqual(positiveTabIndex('<div tabIndex={open ? 0 : -1}>x</div>'), []);
+  assert.deepEqual(positiveTabIndex(null), []);
+  assert.deepEqual(positiveTabIndex(''), []);
+});
+
+test('autoFocusLines: autoFocus 식별자를 행 번호로 수집하고 다른 식별자·이상 입력엔 불개입한다', () => {
+  assert.deepEqual(autoFocusLines('<input\n  autoFocus\n  type="text"\n/>'), [2]);
+  assert.deepEqual(autoFocusLines('<input autoFocus={x}/> <input autoFocus/>'), [1, 1]);
+  assert.deepEqual(autoFocusLines('const autoFocused = true; noAutoFocus();'), []);
+  assert.deepEqual(autoFocusLines(null), []);
+  assert.deepEqual(autoFocusLines(''), []);
+});
+
+// ---- 116회차: 폼 라벨 연결 · 비대화형 onClick 불변식 ----
+
+test('elementsOf: 요소 전체를 수집하고(버튼과 동일 계약) 이상 입력에 throw 하지 않는다', () => {
+  const els = elementsOf('a\n<label htmlFor="x">이름</label>\n<label/>', 'label');
+  assert.equal(els.length, 2);
+  assert.equal(els[0].line, 2);
+  assert.equal(els[0].inner, '이름');
+  assert.equal(els[1].inner, '');
+  assert.deepEqual(elementsOf(null, 'label'), []);
+  assert.deepEqual(elementsOf('<label>x</label>', 'LABEL-잘못된이름'), []);
+});
+
+test('unassociatedLabels: htmlFor 없는 텍스트 전용 label 을 보고하고, htmlFor·컨트롤 감싸기는 통과한다', () => {
+  assert.deepEqual(unassociatedLabels('a\n<label className="f">이름</label>'), [2]);
+  assert.deepEqual(unassociatedLabels('<label/>'), [1]);
+  assert.deepEqual(unassociatedLabels('<label htmlFor="in-name">이름</label>'), []);
+  assert.deepEqual(unassociatedLabels('<label className="f">\n  <span>이름</span>\n  <input type="text"/>\n</label>'), []);
+  assert.deepEqual(unassociatedLabels('<label>\n  <select><option>a</option></select>\n</label>'), []);
+});
+
+test('unassociatedLabels: 컴포넌트·표현식 내용은 정적 판정 불가 → 보류하고 이상 입력에 throw 하지 않는다', () => {
+  assert.deepEqual(unassociatedLabels('<label><Field name="x"/></label>'), []);
+  assert.deepEqual(unassociatedLabels('<label>{children}</label>'), []);
+  assert.deepEqual(unassociatedLabels(null), []);
+  assert.deepEqual(unassociatedLabels(''), []);
+});
+
+test('nonInteractiveOnClick: onClick 있는 비대화형 태그를 행 번호로 보고한다(여러 줄 포함)', () => {
+  assert.deepEqual(nonInteractiveOnClick('a\n<div className="card" onClick={go}>x</div>'), [2]);
+  assert.deepEqual(nonInteractiveOnClick('<span onClick={f}>x</span>\n<li\n  onClick={g}\n>y</li>'), [1, 2]);
+  assert.deepEqual(nonInteractiveOnClick('<div className="plain">x</div>'), []);
+  assert.deepEqual(nonInteractiveOnClick('<button type="button" onClick={f}>x</button>'), []);
+});
+
+test('nonInteractiveOnClick: onKeyDown·role+tabIndex·전개 속성은 통과/보류하고 이상 입력에 throw 하지 않는다', () => {
+  assert.deepEqual(nonInteractiveOnClick('<div onClick={f} onKeyDown={k}>x</div>'), []);
+  assert.deepEqual(nonInteractiveOnClick('<th\n  scope="col"\n  role="button"\n  tabIndex={0}\n  onClick={f}\n>x</th>'), [1]);
+  assert.deepEqual(nonInteractiveOnClick('<th role="button" tabIndex={0} onClick={f} onKeyDown={k}>x</th>'), []);
+  assert.deepEqual(nonInteractiveOnClick('<div {...pressableProps(f, "열기")}>x</div>'), []);
+  assert.deepEqual(nonInteractiveOnClick('<div role="button" onClick={f}>x</div>'), [1]);
+  assert.deepEqual(nonInteractiveOnClick(null), []);
+  assert.deepEqual(nonInteractiveOnClick(''), []);
+});
+
 // ---- 통합: 실소스 전수 스캔(재발 고정) ----
 function walkJsx(dir, out = []) {
   for (const f of fs.readdirSync(dir)) {
     const p = path.join(dir, f);
     if (fs.statSync(p).isDirectory()) walkJsx(p, out);
     else if (p.endsWith('.jsx')) out.push(p);
+  }
+  return out;
+}
+
+// .js 도 포함(포커스 속성은 pressableProps 처럼 .js 헬퍼가 만들 수 있다).
+function walkSrc(dir, out = []) {
+  for (const f of fs.readdirSync(dir)) {
+    const p = path.join(dir, f);
+    if (fs.statSync(p).isDirectory()) walkSrc(p, out);
+    else if (p.endsWith('.jsx') || p.endsWith('.js')) out.push(p);
   }
   return out;
 }
@@ -199,4 +279,52 @@ test('app/·lib/ 전 JSX: alt 없는 <img> 0건 · 방침 없는 <svg> 0건 · r
     if (a.length) bad.push(`${path.relative(root, f)} a:${a.join(',')}`);
   }
   assert.deepEqual(bad, [], `이미지/SVG/새 창 링크 불변식 위반: ${bad.join(' · ')}`);
+});
+
+test('app/·lib/ 전 소스: 양수 tabIndex 0건 · autoFocus 는 허용목록뿐(115회차 포커스 불변식)', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const files = [...walkSrc(path.join(root, 'app')), ...walkSrc(path.join(root, 'lib'))];
+  assert.ok(files.length >= 40, `소스 파일 수집 이상(${files.length}개) — 경로 확인`);
+  // autoFocus 정당 사례 허용목록: 단일 목적 폼(로그인 아이디)·방금 연 편집 입력(저장된 보기 이름).
+  // 새 autoFocus 를 추가하려면 여기에 의도를 명시하고 추가하라(포커스 강탈은 기본 금지).
+  const AUTOFOCUS_ALLOW = new Set(['app/login/page.jsx', 'lib/SavedViews.jsx']);
+  const bad = [];
+  for (const f of files) {
+    const rel = path.relative(root, f).split(path.sep).join('/');
+    // 스캐너 자신은 제외 — 주석·정규식이 금지 패턴을 서술하므로 자기 참조 오탐이 난다.
+    if (rel === 'lib/sourceLint.js') continue;
+    const src = fs.readFileSync(f, 'utf8');
+    const ti = positiveTabIndex(src);
+    if (ti.length) bad.push(`${rel} tabIndex:${ti.join(',')}`);
+    const af = autoFocusLines(src);
+    if (af.length && !AUTOFOCUS_ALLOW.has(rel)) bad.push(`${rel} autoFocus:${af.join(',')}`);
+  }
+  assert.deepEqual(bad, [], `포커스 순서 불변식 위반: ${bad.join(' · ')}`);
+});
+
+test('app/·lib/ 전 JSX: 연결 없는 <label> 0건 · 마우스 전용 onClick 은 허용목록뿐(116회차 불변식)', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const files = [...walkJsx(path.join(root, 'app')), ...walkJsx(path.join(root, 'lib'))];
+  assert.ok(files.length >= 20, `JSX 파일 수집 이상(${files.length}개) — 경로 확인`);
+  // 마우스 전용 onClick 허용목록(파일별 허용 건수): 전부 **포인터 전용 중복 장치**로,
+  // 키보드 사용자는 Esc·메뉴 버튼 등 별도 경로로 같은 동작이 가능하다(WCAG 2.1.1 비저촉).
+  //   CommandPalette 2 = 스크림 클릭 닫기(키보드는 Esc) + 내부 상자 전파 차단(stopPropagation).
+  //   layout 3 = 모바일 오버레이 닫기(키보드는 ☰ aria-expanded 버튼) + 사용자 메뉴 바깥클릭 캐처 2곳.
+  // 새 비대화형 onClick 을 추가하려면 pressableProps/onKeyDown 으로 마감하거나(기본),
+  // 정당한 포인터 전용 중복 장치일 때만 여기 건수를 갱신하며 의도를 명시하라.
+  const ONCLICK_ALLOW = new Map([
+    ['app/(portal)/CommandPalette.jsx', 2],
+    ['app/(portal)/layout.jsx', 3],
+  ]);
+  const bad = [];
+  for (const f of files) {
+    const rel = path.relative(root, f).split(path.sep).join('/');
+    const src = fs.readFileSync(f, 'utf8');
+    const lb = unassociatedLabels(src);
+    if (lb.length) bad.push(`${rel} label:${lb.join(',')}`);
+    const oc = nonInteractiveOnClick(src);
+    const allow = ONCLICK_ALLOW.get(rel) ?? 0;
+    if (oc.length !== allow) bad.push(`${rel} onClick:${oc.join(',') || '없음'} (허용 ${allow}건·발견 ${oc.length}건)`);
+  }
+  assert.deepEqual(bad, [], `라벨 연결/비대화형 onClick 불변식 위반: ${bad.join(' · ')}`);
 });

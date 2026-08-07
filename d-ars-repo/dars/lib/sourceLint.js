@@ -62,13 +62,14 @@ export function missingTableLabel(src) {
 // 재발을 회귀 고정한다. 판정은 **내용까지** 봐야 하므로(여는 태그만으로는 기호 전용 여부를 모른다)
 // 요소 전체(<button …>…</button>)를 수집하는 buttonElements 를 신설한다.
 
-// <button> 요소 전체를 {tag(여는 태그), inner(내용), line(시작 행)}으로 수집한다.
-// 중첩 <button> 은 HTML 스펙상 금지(폼 콘텐츠 모델)라 비탐욕 매칭으로 충분하다.
-// 자기닫힘(<button …/>)은 내용 없음으로 취급한다.
-export function buttonElements(src) {
-  if (typeof src !== 'string' || !src) return [];
+// <name> 요소 전체를 {tag(여는 태그), inner(내용), line(시작 행)}으로 수집한다.
+// 자기 중첩이 HTML 스펙상 금지인 요소(button·label 등 — 폼 콘텐츠 모델)에만 사용하며,
+// 그 전제에서 비탐욕 매칭으로 충분하다. 자기닫힘(<name …/>)은 내용 없음으로 취급한다.
+// (116회차: buttonElements 를 일반화 — 수집 계약 동일, 기존 테스트 하위호환)
+export function elementsOf(src, name) {
+  if (typeof src !== 'string' || !src || typeof name !== 'string' || !/^[a-z][a-z0-9]*$/.test(name)) return [];
   const out = [];
-  const re = /<button\b[^>]*\/>|<button\b[^>]*>[\s\S]*?<\/button>/g;
+  const re = new RegExp(`<${name}\\b[^>]*\\/>|<${name}\\b[^>]*>[\\s\\S]*?<\\/${name}>`, 'g');
   let m;
   while ((m = re.exec(src))) {
     const whole = m[0];
@@ -77,11 +78,16 @@ export function buttonElements(src) {
     const gt = whole.indexOf('>');
     out.push({
       tag: selfClose ? whole : whole.slice(0, gt + 1),
-      inner: selfClose ? '' : whole.slice(gt + 1, whole.lastIndexOf('</button>')),
+      inner: selfClose ? '' : whole.slice(gt + 1, whole.lastIndexOf(`</${name}>`)),
       line,
     });
   }
   return out;
+}
+
+// <button> 요소 전체 수집(113회차 API 유지 — 기존 테스트 하위호환).
+export function buttonElements(src) {
+  return elementsOf(src, 'button');
 }
 
 // 접근 가능한 이름이 없는 **기호/공백 전용** <button> 의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
@@ -157,6 +163,88 @@ export function blankTargetMissingRel(src) {
     const m = t.tag.match(/\brel\s*=\s*"([^"]*)"/);
     if (m && /\bno(?:opener|referrer)\b/.test(m[1])) continue;
     bad.push(t.line);
+  }
+  return bad;
+}
+
+// ---- 115회차: 포커스 순서 불변식(tabIndex 양수 금지 · autoFocus 허용목록) ----
+// 배경(114회차 예고 항목): (1) **양수 tabIndex** 는 문서 순서와 다른 탭 순서를 강제해 키보드
+// 탐색을 예측 불가로 만든다(WCAG 2.4.3 Focus Order — 업계 공통 금지 규칙 · eslint-plugin-jsx-a11y
+// no-positive-tabindex 와 동일 취지). 현재 앱은 tabIndex 0(도달 가능)만 사용 — 양수 0건을
+// 소스 불변식으로 고정한다. (2) **autoFocus** 는 화면 진입 시 포커스를 강탈해 스크린리더 문맥을
+// 끊고 모바일 키보드를 불쑥 띄운다 — 단일 목적 폼(/login 아이디 입력)·방금 연 편집 입력
+// (SavedViews 이름 입력)만 정당 사례. 전면 금지 대신 **허용목록 대조**로 고정해, 새 autoFocus 가
+// 추가되면 테스트가 실패하며 의도 확인(허용목록 갱신)을 강제한다.
+
+// 정적 양수 tabIndex 의 행 번호 목록. **항상 빈 배열이어야 한다.**
+// JSX 속성(tabIndex={1}·tabIndex="1")과 JS 객체 속성(tabIndex: 1 — pressableProps 등 헬퍼가
+// .js 에서 속성 묶음을 만드는 경우)을 함께 잡는다. 0·음수(-1 프로그램 포커스)·표현식은
+// 판정 대상 아님(보수적 — 오탐 방지 우선).
+export function positiveTabIndex(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const bad = [];
+  const re = /\btabIndex\s*(?:=\s*(?:\{\s*\+?(\d+)\s*\}|"\+?(\d+)")|:\s*\+?(\d+))/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const v = Number(m[1] ?? m[2] ?? m[3]);
+    if (v > 0) bad.push(src.slice(0, m.index).split('\n').length);
+  }
+  return bad;
+}
+
+// autoFocus 식별자 출현 행 번호 목록(JSX 속성·JS 객체 속성 — 식별자 단위·주석 포함).
+// 스캐너는 수집만 담당하고, 통합 테스트가 허용목록(login·SavedViews)과 대조한다.
+// autoFocused 등 다른 식별자는 \b 경계로 잡지 않는다.
+export function autoFocusLines(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const out = [];
+  const re = /\bautoFocus\b/g;
+  let m;
+  while ((m = re.exec(src))) out.push(src.slice(0, m.index).split('\n').length);
+  return out;
+}
+
+// ---- 116회차: 폼 라벨 연결 · 비대화형 onClick 불변식 ----
+// 배경(115회차 예고 항목): (1) 연결(htmlFor 또는 컨트롤 감싸기) 없는 <label> 은 스크린리더가
+// 입력의 이름을 낭독하지 못하고 라벨 클릭-포커스도 안 된다(WCAG 1.3.1 / 3.3.2 — 현재 3곳 전부
+// 준수: login 2=htmlFor · notifications 1=input 감싸기). (2) 비대화형 태그(div·span 등)의
+// onClick 은 키보드 도달·활성화가 불가한 잠복 회귀(WCAG 2.1.1) — 110회차에 pressableProps 로
+// 마감했지만 새 div onClick 이 추가되는 순간 조용히 깨진다. 정당한 포인터 전용 사례
+// (스크림·바깥클릭 캐처·전파 차단)만 통합 테스트 허용목록으로 대조한다.
+
+// 연결 근거가 없는 <label> 의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
+// 통과(보수적 — 오탐 방지 우선): htmlFor= 명시 · 내용에 컨트롤(input/select/textarea) 감싸기 ·
+// 컴포넌트(<대문자)나 JSX 표현식({…}) 내용은 정적 판정 불가 → 보류.
+// 위반: 순수 텍스트/기호뿐이거나 빈 내용인데 htmlFor 도 없는 label.
+export function unassociatedLabels(src) {
+  const bad = [];
+  for (const el of elementsOf(src, 'label')) {
+    if (/\bhtmlFor\s*=/.test(el.tag)) continue;
+    if (/<(?:input|select|textarea)\b/.test(el.inner)) continue;
+    if (/<[A-Z]/.test(el.inner)) continue; // 컴포넌트가 컨트롤을 렌더할 수 있음 — 보류
+    if (/\{/.test(el.inner)) continue; // 표현식 내용 — 보류
+    bad.push(el.line);
+  }
+  return bad;
+}
+
+// onClick 이 있는데 키보드 대책이 없는 **비대화형 태그**의 시작 행 번호 목록.
+// 통과: onKeyDown 동반(자체 키보드 활성화 처리 — SortTh 패턴). 보류(보수적): 전개 속성
+// ({...pressableProps(…)} 류 — onClick·onKeyDown 을 묶음으로 부여하므로 정적 판정 불가).
+// role·tabIndex 만으로는 통과가 아니다 — 포커스는 되는데 Enter/Space 가 죽어 있는 상태도 회귀다.
+// 남는 것(마우스 전용 onClick)은 보고하되, 스크림·바깥클릭 캐처 같은 정당한 포인터 전용
+// 중복 장치(키보드엔 Esc 등 별도 경로 존재)는 통합 테스트의 허용목록이 걸러낸다.
+export function nonInteractiveOnClick(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const bad = [];
+  const re = /<(?:div|span|li|ul|ol|tr|td|th|p|section|header|footer|main|nav|table|img|svg)\b[^>]*>/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const tag = m[0];
+    if (!/\bonClick\s*=/.test(tag)) continue;
+    if (/\bonKeyDown\s*=/.test(tag)) continue;
+    if (/\{\s*\.\.\./.test(tag)) continue; // 전개 속성 — 판정 보류
+    bad.push(src.slice(0, m.index).split('\n').length);
   }
   return bad;
 }
