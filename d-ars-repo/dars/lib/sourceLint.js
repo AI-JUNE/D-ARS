@@ -248,3 +248,47 @@ export function nonInteractiveOnClick(src) {
   }
   return bad;
 }
+
+// ---- 119회차: 제어 컴포넌트 배선 · 팝업 토글 상태 낭독 불변식 ----
+// 배경(118회차 예고 항목): (1) value=(또는 checked=)만 있고 변경 핸들러가 없는 입력은 React 가
+// "read-only field" 경고를 내며 **타이핑·클릭이 조용히 무시되는** 잠복 회귀다(제어 컴포넌트 배선
+// 누락 — 빌드는 통과하고 화면도 멀쩡해 보여서 실사용에서만 드러난다). 현재 앱은 위반 0건 —
+// 소스 불변식으로 고정한다. (2) aria-haspopup 을 선언한 트리거는 aria-expanded 로 열림/닫힘
+// 상태를 함께 낭독해야 한다(WAI-ARIA — 팝업 존재만 알리고 상태를 안 알리면 스크린리더 사용자는
+// 눌렀는지 알 수 없다). 현재 2곳(사용자 메뉴 데스크톱/모바일) 전부 준수 — 불변식으로 고정한다.
+
+// value= 또는 checked= 는 있는데 변경 핸들러(onChange/onInput)도 읽기 전용 선언(readOnly/disabled)도
+// 없는 input/select/textarea 의 시작 행 번호 목록(오름차순). **항상 빈 배열이어야 한다.**
+// defaultValue/defaultChecked(비제어)는 대소문자 경계로 매칭되지 않아 판정 대상 아님.
+// 전개 속성({...props})은 핸들러가 묶음으로 올 수 있으므로 판정 보류(통과 · 보수적 —
+// unnamedIconButtons·nonInteractiveOnClick 의 보류와 동일 계약).
+export function deadControlledInputs(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const bad = [];
+  for (const name of ['input', 'select', 'textarea']) {
+    for (const t of openTags(src, name)) {
+      if (!/\bvalue\s*=|\bchecked\s*=/.test(t.tag)) continue;
+      if (/\bonChange\s*=|\bonInput\s*=/.test(t.tag)) continue;
+      if (/\breadOnly\b|\bdisabled\b/.test(t.tag)) continue;
+      if (/\{\s*\.\.\./.test(t.tag)) continue; // 전개 속성 — 판정 보류
+      bad.push(t.line);
+    }
+  }
+  return bad.sort((a, b) => a - b);
+}
+
+// aria-haspopup 선언이 있는데 aria-expanded 가 없는 여는 태그의 시작 행 번호 목록.
+// **항상 빈 배열이어야 한다.** 새 드롭다운/메뉴 트리거가 추가될 때 조용히 깨지는 성격이라
+// 소스 스캔으로 고정한다. aria-expanded 값은 강제하지 않는다(표현식 {open} 허용 —
+// 상태 배선 자체가 목적이고, 값 검증은 런타임 영역).
+export function hasPopupMissingExpanded(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const bad = [];
+  const re = /<[a-zA-Z][^>]*\baria-haspopup\s*=[^>]*>/g;
+  let m;
+  while ((m = re.exec(src))) {
+    if (/\baria-expanded\s*=/.test(m[0])) continue;
+    bad.push(src.slice(0, m.index).split('\n').length);
+  }
+  return bad;
+}

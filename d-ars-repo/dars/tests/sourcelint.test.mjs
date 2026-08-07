@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -327,4 +327,65 @@ test('app/·lib/ 전 JSX: 연결 없는 <label> 0건 · 마우스 전용 onClick
     if (oc.length !== allow) bad.push(`${rel} onClick:${oc.join(',') || '없음'} (허용 ${allow}건·발견 ${oc.length}건)`);
   }
   assert.deepEqual(bad, [], `라벨 연결/비대화형 onClick 불변식 위반: ${bad.join(' · ')}`);
+});
+
+// ---- 119회차: 제어 컴포넌트 배선 · 팝업 토글 상태 낭독 불변식 ----
+
+test('deadControlledInputs: 변경 핸들러 없는 value=/checked= 입력을 행 번호로 보고한다(여러 줄·3종 태그)', () => {
+  assert.deepEqual(deadControlledInputs('a\n<input value={q}/>'), [2]);
+  assert.deepEqual(deadControlledInputs('<input\n  type="text"\n  value={q}\n/>'), [1]);
+  assert.deepEqual(deadControlledInputs('<select value={v}><option>a</option></select>'), [1]);
+  assert.deepEqual(deadControlledInputs('<textarea value={t}/>'), [1]);
+  assert.deepEqual(deadControlledInputs('<input type="checkbox" checked={on}/>'), [1]);
+  assert.deepEqual(deadControlledInputs('<select value={v}/>\n<input value={q}/>'), [1, 2]);
+});
+
+test('deadControlledInputs: onChange/onInput·readOnly/disabled·전개·defaultValue 는 통과/보류한다', () => {
+  assert.deepEqual(deadControlledInputs('<input value={q} onChange={e => setQ(e.target.value)}/>'), []);
+  assert.deepEqual(deadControlledInputs('<input type="range" value={v} onInput={f}/>'), []);
+  assert.deepEqual(deadControlledInputs('<input value={q} readOnly/>'), []);
+  assert.deepEqual(deadControlledInputs('<select value={v} disabled><option>a</option></select>'), []);
+  assert.deepEqual(deadControlledInputs('<input {...fieldProps}/>'), []);
+  assert.deepEqual(deadControlledInputs('<input defaultValue={q}/>'), []);
+  assert.deepEqual(deadControlledInputs('<input type="checkbox" defaultChecked/>'), []);
+  assert.deepEqual(deadControlledInputs('<input type="text" placeholder="검색"/>'), []);
+});
+
+test('deadControlledInputs: 이상 입력에 throw 하지 않는다', () => {
+  assert.deepEqual(deadControlledInputs(null), []);
+  assert.deepEqual(deadControlledInputs(undefined), []);
+  assert.deepEqual(deadControlledInputs(''), []);
+  assert.deepEqual(deadControlledInputs(123), []);
+});
+
+test('hasPopupMissingExpanded: aria-expanded 없는 aria-haspopup 태그를 행 번호로 보고한다', () => {
+  assert.deepEqual(hasPopupMissingExpanded('a\n<button type="button" aria-haspopup="menu">👤</button>'), [2]);
+  assert.deepEqual(hasPopupMissingExpanded('<div\n  aria-haspopup="listbox"\n  className="combo"\n>'), [1]);
+});
+
+test('hasPopupMissingExpanded: aria-expanded 동반(표현식 포함)·무관 태그·이상 입력엔 불개입한다', () => {
+  assert.deepEqual(hasPopupMissingExpanded('<button type="button" aria-haspopup="menu" aria-expanded={menu}>👤</button>'), []);
+  assert.deepEqual(hasPopupMissingExpanded('<button type="button"\n  aria-haspopup="dialog"\n  aria-expanded="false"\n>열기</button>'), []);
+  assert.deepEqual(hasPopupMissingExpanded('<button type="button" aria-expanded={open}>⚙</button>'), []);
+  assert.deepEqual(hasPopupMissingExpanded('<div className="box">x</div>'), []);
+  assert.deepEqual(hasPopupMissingExpanded(null), []);
+  assert.deepEqual(hasPopupMissingExpanded(''), []);
+});
+
+test('app/·lib/ 전 소스: 배선 없는 제어 입력 0건 · aria-expanded 없는 haspopup 트리거 0건(119회차 불변식)', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const files = [...walkSrc(path.join(root, 'app')), ...walkSrc(path.join(root, 'lib'))];
+  assert.ok(files.length >= 40, `소스 파일 수집 이상(${files.length}개) — 경로 확인`);
+  const bad = [];
+  for (const f of files) {
+    const rel = path.relative(root, f).split(path.sep).join('/');
+    // 스캐너 자신은 제외 — 주석·정규식이 금지 패턴을 서술하므로 자기 참조 오탐이 난다(115회차와 동일).
+    if (rel === 'lib/sourceLint.js') continue;
+    const src = fs.readFileSync(f, 'utf8');
+    const ci = deadControlledInputs(src);
+    if (ci.length) bad.push(`${rel} input:${ci.join(',')}`);
+    const hp = hasPopupMissingExpanded(src);
+    if (hp.length) bad.push(`${rel} haspopup:${hp.join(',')}`);
+  }
+  assert.deepEqual(bad, [], `제어 입력/팝업 토글 불변식 위반: ${bad.join(' · ')}`);
 });
