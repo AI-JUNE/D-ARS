@@ -26,6 +26,7 @@ const TITLES = {
   '/history':['멀티모달 이력','운영 · 상호작용 로그'],
   '/report':['운영 리포트','운영 · 리포트(PDF)'],'/templates':['화면 템플릿','콘텐츠 · 표출 화면'],
   '/launcher':['런처 설정','콘텐츠 · 보이는 ARS 런처'],
+  '/admin/audit':['접근/감사 로그','관리 · 감사'],
 };
 
 export default function PortalLayout({ children }) {
@@ -132,6 +133,16 @@ export default function PortalLayout({ children }) {
               ))}
             </div>
           ))}
+          {/* 관리 그룹(P0-7 감사 열람): admin 전용 — 데모 모드(me.user 없음)에서는 노출(다른 화면과 동일 정책),
+              로그인 상태에서는 admin 역할일 때만 보인다. 비admin 직접 접근은 미들웨어가 차단(이중 게이트). */}
+          {(!me?.user || me.user.role === 'admin') && (
+            <div>
+              <div className="navgrp">관리</div>
+              <Link href="/admin/audit" className={'nav' + (path === '/admin/audit' ? ' on' : '')} aria-current={path === '/admin/audit' ? 'page' : undefined}>
+                <span className="e">🛡️</span>접근/감사 로그
+              </Link>
+            </div>
+          )}
         </nav>
         <div className="side-foot">
           <div className="gw-logo">GOWON</div>

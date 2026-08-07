@@ -10,6 +10,7 @@ export const RANK = { admin: 3, operator: 2, viewer: 1 };
 
 // 접두사 우선순위(구체적 규칙을 먼저 두지 않아도 prefix 정확 매칭으로 충돌 없음)
 export const ROUTE_RULES = [
+  { prefix: '/admin', min: 'admin' },
   { prefix: '/scenarios', min: 'operator' },
   { prefix: '/launcher', min: 'operator' },
   { prefix: '/ums', min: 'operator' },

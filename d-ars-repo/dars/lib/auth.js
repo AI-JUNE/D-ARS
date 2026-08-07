@@ -11,6 +11,8 @@ export function roleAtLeast(role, need) {
 }
 // 경로별 최소 역할 (지정 없으면 viewer = 로그인만 되면 열람 가능)
 const ROUTE_MIN = {
+  '/admin': 'admin',      // 감사 로그 열람 등 관리 화면(P0-7)
+  '/api/admin': 'admin',  // 관리 API(감사 열람) — 라우트 guardWrite 와 이중 게이트
   '/launcher': 'admin',
   '/ums': 'operator',
   '/scenarios': 'operator',

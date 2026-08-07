@@ -30,6 +30,7 @@ export async function middleware(req) {
 
 export const config = {
   matcher: [
+    '/admin/:path*',
     '/dashboard/:path*', '/sessions/:path*', '/scenarios/:path*', '/docs/:path*',
     '/ums/:path*', '/stats/:path*', '/notifications/:path*', '/history/:path*',
     '/report/:path*', '/templates/:path*', '/launcher/:path*', '/help/:path*',

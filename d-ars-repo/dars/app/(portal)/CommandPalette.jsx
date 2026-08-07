@@ -19,6 +19,7 @@ const DESTS = [
   ['/docs','📋','필요서류 관리','콘텐츠 · 서류','docs seoryu 서류 문서 필요서류'],
   ['/ums','✉️','UMS 문자발송','발송 · UMS','ums munja sms 문자 발송'],
   ['/help','❓','도움말','지원 · FAQ','help doumal faq 도움말 지원'],
+  ['/admin/audit','🛡️','접근/감사 로그','관리 · 감사','audit gamsa 감사 접근 로그 보안 admin 관리'],
   ['/visual','📱','보이는 ARS 데모','고객 화면','visual demo 보이는 데모 고객'],
   ['/','🏢','서비스 홈','랜딩','home service 홈 랜딩 서비스'],
 ];
