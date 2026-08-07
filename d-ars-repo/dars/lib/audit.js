@@ -14,6 +14,8 @@ export const AUDIT_EVENTS = [
   'AUTH_LOGIN_FAIL',        // 자격증명 불일치
   'AUTH_LOGIN_RATELIMITED', // 브루트포스 완화 게이트 차단(429)
   'AUTH_LOGOUT',            // 로그아웃
+  'WRITE_DENIED',           // 쓰기 API 가드 거부(401 미인증 / 403 역할 부족) — guardWrite
+  'INGEST_DENIED',          // 수집(ingest) 가드 거부(401) — guardIngest
 ];
 
 // ── 마스킹(순수 함수 — PII 는 마스킹 후에만 기록) ──────────────

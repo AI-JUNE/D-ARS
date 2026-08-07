@@ -101,17 +101,34 @@ export function parseCookie(header, name) {
   return null;
 }
 
+// ── 가드 거부 감사(P0-7) — 동적 import(Edge 미들웨어 번들 불변) · 기록 실패 무해화(절대 throw 금지) ──
+async function auditDenied(event, req, detail, user = null) {
+  try {
+    const { audit } = await import('./audit.js');
+    const { clientIp } = await import('./rateLimit.js');
+    let path = '';
+    try { path = new URL(req.url).pathname; } catch { path = ''; }
+    await audit(event, { actor: user?.u, role: user?.role, ip: clientIp(req), detail: { ...detail, path } });
+  } catch { /* 감사 실패가 본 요청을 실패시키면 안 된다 */ }
+}
+
 // 쓰기 API 가드. 기본(비강제) 모드에서는 통과(null 반환)하여 라이브 데모 무붕괴.
 // 운영자가 AUTH_ENFORCE=1 을 켰을 때만 실제 인증/역할 검사를 수행하고,
 // 미인증 → 401, 역할 부족 → 403 Response 를 반환한다(호출측은 값이 있으면 즉시 return).
-// 반환: 통과 시 null, 차단 시 Response.
+// 반환: 통과 시 null, 차단 시 Response. 거부 시 WRITE_DENIED 감사 기록(마스킹·무해화).
 export async function guardWrite(req, need = 'operator') {
   if (!isEnforced()) return null;                        // 데모/기본: 통과
   let token = null;
   try { token = parseCookie(req?.headers?.get?.('cookie'), COOKIE); } catch { token = null; }
   const user = token ? await verifyToken(token) : null;
-  if (!user) return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  if (!roleAtLeast(user.role, need)) return Response.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  if (!user) {
+    await auditDenied('WRITE_DENIED', req, { reason: 'unauthorized', need });   // 감사(P0-7)
+    return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  }
+  if (!roleAtLeast(user.role, need)) {
+    await auditDenied('WRITE_DENIED', req, { reason: 'forbidden', need }, user); // 감사(P0-7)
+    return Response.json({ ok: false, error: 'forbidden' }, { status: 403 });
+  }
   return null;                                           // 통과
 }
 
@@ -140,5 +157,6 @@ export async function guardIngest(req, need = 'operator') {
   const user = token ? await verifyToken(token) : null;
   if (user && roleAtLeast(user.role, need)) return null;             // 유효 세션 → 통과
   if (!key) return null;                                             // 키 미설정: 하위호환 통과
+  await auditDenied('INGEST_DENIED', req, { reason: 'unauthorized', need });     // 감사(P0-7)
   return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
 }
