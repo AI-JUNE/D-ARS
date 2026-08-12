@@ -1,235 +1,286 @@
-'use client';
-import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
-
-const TR='#bd5a40', TRD='#9c4025', INK='#3a2b24', MUT='#9c8b80';
-const PAGE='#f6ece2', CARD='#ffffff', SCR='#f8f1ea', BADGE='#f4e3da', LINE='#ece0d5', ALERT='#c0392b';
-const wrap={maxWidth:1120,margin:'0 auto',padding:'0 20px'};
-
-function useCount(target,dur=1200){
-  const [v,setV]=useState(0); const ref=useRef(null);
-  useEffect(()=>{ let raf,start;
-    const io=new IntersectionObserver(([e])=>{ if(e.isIntersecting){
-      const step=(t)=>{start??=t;const p=Math.min((t-start)/dur,1);setV(Math.round(target*(1-Math.pow(1-p,3))));if(p<1)raf=requestAnimationFrame(step);};
-      raf=requestAnimationFrame(step); io.disconnect(); } },{threshold:0.4});
-    if(ref.current) io.observe(ref.current);
-    return ()=>{io.disconnect();cancelAnimationFrame(raf);};
-  },[target,dur]);
-  return [v,ref];
+// D-ARS 랜딩 — TOBE 블루 디자인(통합 최상급). 원본 HTML을 손실 없이 렌더.
+export const dynamic = 'force-static';
+const LP = `<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+:root{
+  --brand:#2563eb; --brand2:#3b82f6; --brand-d:#1d4ed8; --ink:#0f172a; --body:#475569; --mut:#94a3b8;
+  --line:#e6ebf3; --bg:#f6f8fc; --card:#fff; --navy1:#0b1220; --navy2:#132445; --navy3:#1e3a6e;
+  --ok:#16a34a; --radius:18px; --shadow:0 1px 2px rgba(15,23,42,.04),0 12px 28px -12px rgba(30,64,120,.18);
+  --shadow-lg:0 24px 60px -24px rgba(30,64,120,.35);
 }
-function Stat({n,suffix='',label}){
-  const [v,ref]=useCount(n);
-  return <div ref={ref} style={{textAlign:'center'}}>
-    <div style={{fontSize:'clamp(28px,7vw,44px)',fontWeight:800,color:TRD,lineHeight:1}}>{v.toLocaleString('ko-KR')}{suffix}</div>
-    <div style={{fontSize:13.5,color:MUT,marginTop:8,fontWeight:600}}>{label}</div>
-  </div>;
-}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Pretendard,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.015em}
+.wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+a{color:inherit;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:15px;border-radius:12px;padding:12px 22px;cursor:pointer;border:0;transition:.18s;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,var(--brand2),var(--brand-d));color:#fff;box-shadow:0 8px 20px -6px rgba(37,99,235,.5)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 26px -6px rgba(37,99,235,.6)}
+.btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25)}
+.btn-outline{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.eyebrow{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--brand);text-transform:uppercase}
+.h2{font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1.2}
+.sub{color:var(--body);font-size:17px;margin-top:12px}
+section{padding:88px 0}
+.center{text-align:center}
+.grid{display:grid;gap:22px}
 
-const S=(k)=><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={TR} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{k}</svg>;
-const IcHead=()=>S(<><path d="M5 13a7 7 0 0 1 14 0"/><rect x="3" y="12" width="4" height="7" rx="2" fill={TR} stroke="none"/><rect x="17" y="12" width="4" height="7" rx="2" fill={TR} stroke="none"/></>);
-const IcCal=()=>S(<><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></>);
-const IcHeart=()=>S(<path d="M12 20s-7-4.5-7-9.5A3.5 3.5 0 0 1 12 8a3.5 3.5 0 0 1 7 2.5c0 5-7 9.5-7 9.5z" fill={TR} stroke="none"/>);
-const IcInfo=()=>S(<><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></>);
-const IcBowl=()=>S(<><path d="M4 11a8 7 0 0 0 16 0z" fill={TR} stroke="none"/><path d="M9 7c2-2 0-3 0-4M15 7c2-2 0-3 0-4"/></>);
-const IcCar=()=>S(<><path d="M4 13l2-5h12l2 5"/><rect x="3" y="13" width="18" height="5" rx="2" fill={TR} stroke="none"/><circle cx="7.5" cy="19" r="1.6" fill={TR}/><circle cx="16.5" cy="19" r="1.6" fill={TR}/></>);
-const IcHome=()=>S(<><path d="M4 11l8-7 8 7"/><path d="M6 10v9h12v-9" fill={TR} stroke="none"/></>);
-const IcPerson=()=>S(<><circle cx="12" cy="8" r="3.5" fill={TR} stroke="none"/><path d="M5 20a7 7 0 0 1 14 0z" fill={TR} stroke="none"/></>);
-const IcMic=(c)=><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={c||'#fff'} strokeWidth="2" strokeLinecap="round" aria-hidden="true" focusable="false"><rect x="9" y="3" width="6" height="11" rx="3" fill={c||'#fff'} stroke="none"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3M9 20h6"/></svg>;
+/* NAV */
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.86);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav{display:flex;align-items:center;justify-content:space-between;height:70px}
+.logo{display:flex;align-items:center;gap:9px;font-weight:900;font-size:20px;letter-spacing:-.03em}
+.logo svg{width:26px;height:26px}
+.navmenu{display:flex;gap:30px;font-size:15px;font-weight:600;color:var(--body)}
+.navmenu a:hover{color:var(--brand)}
+.navright{display:flex;align-items:center;gap:16px}
+.login{font-weight:700;font-size:15px;color:var(--body)}
 
-function Badge({children,bg}){return <span style={{width:44,height:44,borderRadius:'50%',background:bg||BADGE,display:'inline-grid',placeItems:'center',flex:'0 0 auto'}}>{children}</span>;}
-function Section({eyebrow,title,desc,children,style}){
-  return <section style={{...wrap,padding:'clamp(36px,6vw,64px) 20px',...style}}>
-    {eyebrow&&<div style={{textAlign:'center',color:TR,fontWeight:800,fontSize:13,letterSpacing:1}}>{eyebrow}</div>}
-    {title&&<h2 style={{textAlign:'center',fontSize:'clamp(22px,5vw,34px)',margin:'10px 0 8px',color:INK,lineHeight:1.25}}>{title}</h2>}
-    {desc&&<p style={{textAlign:'center',color:MUT,fontSize:'clamp(14px,3.5vw,16px)',maxWidth:620,margin:'0 auto 28px',lineHeight:1.6}}>{desc}</p>}
-    {children}
-  </section>;
-}
-function Phone({title,sub,children}){
-  return <div style={{background:'#e7d9cb',borderRadius:34,padding:10,boxShadow:'0 18px 44px rgba(80,45,30,.14)',width:'100%',maxWidth:320,margin:'0 auto'}}>
-    <div style={{background:SCR,borderRadius:26,overflow:'hidden',minHeight:520}}>
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 16px 4px',fontSize:12,fontWeight:700,color:INK}}><span>9:41</span><span style={{letterSpacing:2}}>••▪</span></div>
-      <div style={{textAlign:'center',padding:'4px 12px 10px',borderBottom:'1px solid '+LINE}}>
-        <div style={{fontSize:14,fontWeight:800,color:INK}}><span style={{display:'inline-grid',placeItems:'center',width:18,height:18,borderRadius:'50%',background:TR,color:'#fff',fontSize:10,marginRight:6,verticalAlign:'middle'}}>이</span>{title}</div>
-        <div style={{fontSize:11.5,color:MUT,marginTop:2}}>{sub}</div>
+/* HERO */
+.hero{background:radial-gradient(1100px 500px at 78% -8%,#1b3e7e 0%,transparent 60%),linear-gradient(160deg,var(--navy1),var(--navy2) 60%,#0f1e3d);color:#fff;position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,rgba(255,255,255,.06) 1px,transparent 0);background-size:26px 26px;opacity:.6}
+.hero-in{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding:70px 0 64px;position:relative}
+.hero h1{font-size:52px;font-weight:900;line-height:1.14;letter-spacing:-.04em}
+.hero h1 .accent{background:linear-gradient(120deg,#60a5fa,#a5b4fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{color:#c3d0e6;font-size:18px;margin:22px 0 30px;max-width:520px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#bcd0f5;background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.3);padding:7px 14px;border-radius:999px;margin-bottom:22px}
+.hero-cta{display:flex;gap:12px;flex-wrap:wrap}
+/* phone visual */
+.viz{position:relative;height:440px;display:grid;place-items:center}
+.glow{position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,.45),transparent 65%);filter:blur(10px)}
+.ring{position:absolute;border:1px solid rgba(120,170,255,.25);border-radius:50%}
+.ring.r1{width:300px;height:300px}.ring.r2{width:400px;height:400px;border-style:dashed;opacity:.5}
+.phone{position:relative;width:210px;height:420px;background:linear-gradient(160deg,#1b2c4d,#0e1a30);border-radius:34px;padding:12px;box-shadow:0 30px 60px -20px rgba(0,0,0,.6),inset 0 0 0 1px rgba(120,160,255,.25)}
+.screen{background:linear-gradient(180deg,#0c1730,#0a1226);border-radius:24px;height:100%;padding:18px 14px;display:flex;flex-direction:column;gap:10px;color:#dbe6fb}
+.screen .st{font-size:11px;color:#8fa8d6;text-align:center}
+.avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#60a5fa);margin:8px auto 4px;display:grid;place-items:center;box-shadow:0 0 24px rgba(59,130,246,.6)}
+.num{text-align:center;font-weight:800;font-size:15px;letter-spacing:.02em}
+.wave{display:flex;align-items:center;justify-content:center;gap:3px;height:44px;margin-top:auto}
+.wave i{width:3px;border-radius:3px;background:linear-gradient(#60a5fa,#3b82f6);animation:wv 1.1s ease-in-out infinite}
+@keyframes wv{0%,100%{height:8px}50%{height:34px}}
+.chatb{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:9px 11px;font-size:11.5px;line-height:1.5}
+.callend{width:40px;height:40px;border-radius:50%;background:#ef4444;margin:6px auto 0;display:grid;place-items:center;box-shadow:0 8px 18px -4px rgba(239,68,68,.6)}
+.chip{position:absolute;background:rgba(255,255,255,.08);border:1px solid rgba(150,190,255,.3);backdrop-filter:blur(6px);border-radius:14px;padding:10px;color:#cfe0ff}
+.chip.c1{top:24px;left:8px}.chip.c2{bottom:60px;right:0}.chip.c3{top:120px;right:16px}
+
+/* logos */
+.logos{background:#0a1226;padding:26px 0}
+.logos .row{display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;opacity:.85}
+.logos span{color:#9fb2d4;font-weight:800;font-size:19px;letter-spacing:.02em}
+
+/* stats band */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:34px;margin-top:-46px;position:relative;z-index:5}
+.stat{text-align:center}
+.stat b{display:block;font-size:34px;font-weight:900;color:var(--brand);letter-spacing:-.03em}
+.stat span{color:var(--body);font-size:14px;font-weight:600}
+
+/* cards */
+.cards4{grid-template-columns:repeat(4,1fr)}
+.cards3{grid-template-columns:repeat(3,1fr)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);transition:.2s}
+.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:#dbe6fb}
+.ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#eef4ff,#dbe8ff);color:var(--brand);margin-bottom:16px}
+.ic svg{width:26px;height:26px}
+.card h3{font-size:18px;font-weight:800;margin-bottom:8px}
+.card p{color:var(--body);font-size:14.5px}
+.card .more{color:var(--brand);font-weight:700;font-size:14px;margin-top:14px;display:inline-flex;gap:5px}
+
+/* solution split */
+.sol{display:grid;grid-template-columns:.9fr 1.1fr;gap:40px;align-items:center}
+.sollist{display:flex;flex-direction:column;gap:10px}
+.solitem{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:14px;border:1px solid var(--line);background:#fff}
+.solitem.on{border-color:var(--brand);box-shadow:0 10px 24px -12px rgba(37,99,235,.4)}
+.solitem .k{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#eef4ff,#dbe8ff);color:var(--brand);display:grid;place-items:center;flex:none}
+.solvis{background:linear-gradient(160deg,#eaf1ff,#f4f8ff);border:1px solid var(--line);border-radius:22px;height:360px;display:grid;place-items:center;position:relative;overflow:hidden}
+
+/* pricing */
+.price{grid-template-columns:repeat(3,1fr);align-items:stretch}
+.pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:32px 28px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.pcard.hot{border:2px solid var(--brand);box-shadow:var(--shadow-lg);position:relative;transform:scale(1.03)}
+.tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font-size:12px;font-weight:800;padding:5px 14px;border-radius:999px}
+.pcard h3{font-size:19px;font-weight:800}
+.pcard .amt{font-size:34px;font-weight:900;margin:14px 0 4px;letter-spacing:-.03em}
+.pcard .amt small{font-size:15px;color:var(--mut);font-weight:700}
+.plist{list-style:none;margin:18px 0;display:flex;flex-direction:column;gap:11px;flex:1}
+.plist li{font-size:14.5px;color:var(--body);display:flex;gap:9px;align-items:flex-start}
+.plist li svg{width:18px;height:18px;color:var(--brand);flex:none;margin-top:2px}
+
+/* process */
+.proc{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
+.pstep{text-align:center;position:relative}
+.pnum{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--brand2),var(--brand-d));color:#fff;font-weight:900;font-size:20px;display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 12px 24px -8px rgba(37,99,235,.5)}
+.pstep h4{font-size:16px;font-weight:800;margin-bottom:6px}
+.pstep p{font-size:13.5px;color:var(--body)}
+
+/* CTA */
+.cta{background:radial-gradient(800px 300px at 20% 0%,#1b3e7e,transparent),linear-gradient(135deg,var(--navy2),var(--navy1));color:#fff;border-radius:26px;padding:56px;display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap;box-shadow:var(--shadow-lg)}
+.cta h2{font-size:32px;font-weight:900;letter-spacing:-.03em}
+.cta p{color:#c3d0e6;margin-top:10px}
+
+/* footer */
+footer{background:#0a1226;color:#9fb2d4;padding:56px 0 30px;margin-top:0}
+.fgrid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:30px}
+footer h5{color:#fff;font-size:14px;font-weight:800;margin-bottom:14px}
+footer a{display:block;color:#9fb2d4;font-size:14px;margin-bottom:9px}
+footer a:hover{color:#fff}
+.fbottom{border-top:1px solid rgba(255,255,255,.08);margin-top:34px;padding-top:20px;font-size:13px;color:#6b7f9e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.badge-ai{display:inline-flex;gap:6px;font-size:12px;color:var(--mut)}
+@media(max-width:900px){.hero-in,.sol{grid-template-columns:1fr}.stats,.cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr 1fr}.hero h1{font-size:38px}.h2{font-size:30px}.viz{height:360px}}
+</style>
+
+
+<header><div class="wrap"><nav>
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#2563eb"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#3b82f6"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#2563eb"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div>
+  <div class="navmenu"><a>서비스 소개</a><a>주요 기능</a><a>도입 효과</a><a>고객사례</a><a>요금안내</a></div>
+  <div class="navright"><a class="login">로그인</a><button class="btn btn-primary">무료 체험하기</button></div>
+</nav></div></header>
+
+<!-- HERO -->
+<div class="hero"><div class="wrap"><div class="hero-in">
+  <div>
+    <div class="hero-badge">◆ AI 기반 차세대 디지털 ARS 솔루션</div>
+    <h1>더 스마트한 고객 경험,<br><span class="accent">D-ARS</span>로 완성하세요</h1>
+    <p>AI 음성봇이 전화를 받고 이해하고 해결합니다. 24시간 쉬지 않는 스마트한 응대와 실시간 화면 안내로 고객 응대 프로세스를 혁신합니다.</p>
+    <div class="hero-cta"><button class="btn btn-primary">무료 체험 신청 →</button><button class="btn btn-ghost">솔루션 알아보기</button></div>
+  </div>
+  <div class="viz">
+    <div class="glow"></div><div class="ring r1"></div><div class="ring r2"></div>
+    <div class="chip c1">📞 응답률 98.5%</div><div class="chip c3">⚡ 평균 2.3초</div><div class="chip c2">🛡 24/7 무중단</div>
+    <div class="phone"><div class="screen">
+      <div class="st">● 통화 연결됨 · 00:12</div>
+      <div class="avatar"><svg viewBox="0 0 24 24" width="26" fill="#fff"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" stroke-width="1.6" fill="none"/></svg></div>
+      <div class="num">AI 상담 · 1600-1234</div>
+      <div class="chatb">안녕하세요, 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.</div>
+      <div class="wave"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.05s"></i><i style="animation-delay:.25s"></i><i style="animation-delay:.12s"></i><i style="animation-delay:.3s"></i></div>
+      <div class="callend"><svg viewBox="0 0 24 24" width="18" fill="#fff"><path d="M21 15.5c-1.2 0-2.4-.2-3.5-.6-.35-.1-.75 0-1 .27l-1.5 1.5a15 15 0 0 1-6.6-6.6l1.5-1.5c.27-.27.36-.66.26-1A11 11 0 0 1 9 4.5 1 1 0 0 0 8 3.5H4.5A1 1 0 0 0 3.5 4.5 17.5 17.5 0 0 0 21 22a1 1 0 0 0 1-1v-3.5a1 1 0 0 0-1-1z"/></svg></div>
+    </div></div>
+  </div>
+</div></div></div>
+
+<div class="logos"><div class="wrap"><div class="row">
+  <span>SAMSUNG</span><span>kt</span><span>신한은행</span><span>LOTTE</span><span>KB국민은행</span><span>SK telecom</span>
+</div></div></div>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><b>99.5%</b><span>시스템 가동률</span></div>
+    <div class="stat"><b>60%</b><span>상담 시간 절감</span></div>
+    <div class="stat"><b>30%</b><span>운영 비용 절감</span></div>
+    <div class="stat"><b>98%</b><span>고객 만족도 향상</span></div>
+  </div>
+</div>
+
+<!-- WHY -->
+<section><div class="wrap">
+  <div class="center"><div class="eyebrow">Why D-ARS?</div><h2 class="h2" style="margin-top:10px">비즈니스 성장을 이끄는 차별화된 가치</h2><p class="sub">D-ARS는 최적의 AI 음성 기술로 고객 경험을 혁신하고, 운영 효율을 높여 비즈니스 성과를 극대화합니다.</p></div>
+  <div class="grid cards4" style="margin-top:44px">
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>AI 기반 자연어 이해</h3><p>정확한 음성 인식과 자연어 처리로 고객 의도를 파악하고 최적의 답변을 제공합니다.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>24/7 무중단 서비스</h3><p>365일 24시간 언제나 안정적으로 고객 문의에 즉시 응답하는 무중단 응대 체계.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 3 6-7"/><path d="M17 6h4v4"/></svg></div><h3>운영 효율 극대화</h3><p>자동화된 상담으로 인건비와 운영 비용을 줄이고 업무 효율을 크게 높입니다.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v10H4z"/><path d="M8 20h8M12 15v5"/><path d="M7 10l2 2 3-4 3 3"/></svg></div><h3>데이터 기반 인사이트</h3><p>통화 데이터를 분석해 인사이트를 도출, 비즈니스 의사결정을 지원합니다.</p></div>
+  </div>
+</div></section>
+
+<!-- SOLUTION -->
+<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="sol">
+    <div>
+      <div class="eyebrow">Solution</div><h2 class="h2" style="margin-top:10px">하나의 플랫폼,<br>완결형 AI 콜 솔루션</h2>
+      <p class="sub">전화 인입부터 화면 안내, 데이터 분석까지 — D-ARS 한 곳에서 이어집니다.</p>
+      <div class="sollist" style="margin-top:24px">
+        <div class="solitem on"><div class="k"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4zM5 11a7 7 0 0 0 14 0"/></svg></div><div><h3 style="font-size:16px;font-weight:800">AI 음성봇</h3><p style="color:var(--body);font-size:14px">자연어 처리 기반으로 고객 문의를 이해하고 정확히 답변하는 지능형 음성 상담.</p></div></div>
+        <div class="solitem"><div class="k"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="2" width="16" height="20" rx="3"/><path d="M9 18h6"/></svg></div><div><h3 style="font-size:16px;font-weight:800">보이는 ARS</h3><p style="color:var(--body);font-size:14px">통화 중 고객 스마트폰에 화면을 띄워 음성 안내를 시각화하고 바로 처리.</p></div></div>
+        <div class="solitem"><div class="k"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 16v-4M12 16V8M16 16v-6"/></svg></div><div><h3 style="font-size:16px;font-weight:800">통화 분석 · 리포트</h3><p style="color:var(--body);font-size:14px">통화 데이터를 분석해 상담 품질과 성과를 리포트로 제공합니다.</p></div></div>
+        <div class="solitem"><div class="k"><svg viewBox="0 0 24 24" width="20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.5 7.5 11 15M16.5 7.5 13 15"/></svg></div><div><h3 style="font-size:16px;font-weight:800">스마트 라우팅</h3><p style="color:var(--body);font-size:14px">문의 유형을 판별해 적합한 담당·상담사에게 자동으로 연결합니다.</p></div></div>
       </div>
-      <div style={{padding:14}}>{children}</div>
     </div>
-  </div>;
-}
-function MRow({icon,title,desc}){
-  return <div style={{display:'flex',alignItems:'center',gap:12,background:CARD,border:'1px solid '+LINE,borderRadius:14,padding:10,marginBottom:8}}>
-    <Badge>{icon}</Badge>
-    <div style={{flex:1,minWidth:0}}><div style={{fontSize:14.5,fontWeight:800,color:INK}}>{title}</div>{desc&&<div style={{fontSize:12,color:MUT,marginTop:1}}>{desc}</div>}</div>
-    <span aria-hidden="true" style={{color:'#c8b8ac',fontSize:16}}>›</span>
-  </div>;
-}
-function Tile({icon,label}){
-  return <div style={{background:CARD,border:'1px solid '+LINE,borderRadius:14,padding:'14px 6px',textAlign:'center'}}><Badge>{icon}</Badge><div style={{fontSize:13.5,fontWeight:800,color:INK,marginTop:8}}>{label}</div></div>;
-}
-function Chip({children}){return <span style={{fontSize:12.5,fontWeight:700,color:TRD,background:BADGE,borderRadius:999,padding:'5px 12px'}}>{children}</span>;}
+    <div class="solvis">
+      <svg width="300" height="280" viewBox="0 0 300 280" fill="none">
+        <rect x="40" y="40" width="220" height="150" rx="14" fill="#fff" stroke="#dbe8ff"/>
+        <rect x="58" y="60" width="90" height="10" rx="5" fill="#3b82f6"/><rect x="58" y="80" width="150" height="7" rx="3.5" fill="#e6ebf3"/><rect x="58" y="94" width="120" height="7" rx="3.5" fill="#e6ebf3"/>
+        <rect x="58" y="120" width="80" height="46" rx="8" fill="#eef4ff"/><rect x="146" y="120" width="96" height="46" rx="8" fill="#eef4ff"/>
+        <circle cx="98" cy="143" r="13" fill="#3b82f6" opacity=".2"/><path d="M92 143l4 4 8-8" stroke="#2563eb" stroke-width="2.4" fill="none"/>
+        <rect x="150" y="210" width="120" height="44" rx="12" fill="#132445"/><path d="M170 232h10M186 224v16M198 226v14M210 228v12" stroke="#60a5fa" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="250" cy="70" r="20" fill="#2563eb"/><path d="M243 70l5 5 9-10" stroke="#fff" stroke-width="2.6" fill="none"/>
+      </svg>
+    </div>
+  </div>
+</div></section>
 
-const FAQS=[
-  ['보이는 ARS가 뭔가요?','통화 중 고객 스마트폰에 화면을 띄워, 음성 안내를 텍스트·버튼·카드로 함께 보여주는 서비스입니다. 말하기 어려워도 화면을 눌러 신청·조회할 수 있어요.'],
-  ['기존 콜봇과 어떻게 연계되나요?','콜봇의 STT·LLM·시나리오·TTS·CTI를 그대로 재사용합니다. D-ARS는 그 대화를 화면으로 보여주고 손으로 처리하게 하는 시각 계층입니다.'],
-  ['어르신·취약계층 접근성은요?','대형 버튼·큰글씨·단순한 흐름으로 설계했습니다. 음성과 화면을 동시에 제공해 정보를 놓치지 않게 하고, 필요 시 문자·상담원으로 즉시 전환합니다.'],
-  ['이상징후 감지는 어떻게 동작하나요?','통화 음성·내용의 다중 신호를 분석해 우울·고립·건강 위험을 점수화하고, 임계 초과 시 코디네이터·담당자에게 자동 연계합니다.'],
-];
-function FAQ(){
-  const [open,setOpen]=useState(0);
-  return <div style={{maxWidth:760,margin:'0 auto'}}>
-    {FAQS.map(([q,a],i)=>(
-      <div key={i} style={{background:CARD,border:'1px solid '+LINE,borderRadius:14,marginBottom:10,overflow:'hidden'}}>
-        <button type="button" aria-expanded={open===i} onClick={()=>setOpen(open===i?-1:i)} style={{width:'100%',textAlign:'left',background:'transparent',border:0,padding:'16px 18px',fontSize:15.5,fontWeight:700,color:INK,cursor:'pointer',display:'flex',justifyContent:'space-between',gap:10}}>
-          <span>{q}</span><span aria-hidden="true" style={{color:TR,transform:open===i?'rotate(45deg)':'none',transition:'.2s'}}>+</span>
-        </button>
-        {open===i&&<div style={{padding:'0 18px 18px',fontSize:14,color:MUT,lineHeight:1.65}}>{a}</div>}
-      </div>
-    ))}
-  </div>;
-}
+<!-- PRODUCT -->
+<section><div class="wrap">
+  <div class="center"><div class="eyebrow">Product</div><h2 class="h2" style="margin-top:10px">검증된 기술력으로 완성한 제품 라인업</h2></div>
+  <div class="grid cards3" style="margin-top:44px">
+    <div class="card"><div class="ic">AI</div><h3>D-ARS AI</h3><p>고도화된 AI 기술로 자연스러운 대화와 정확한 응답을 제공하는 음성봇 솔루션.</p><span class="more">자세히 보기 →</span></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 16v-5M12 16V7M16 16v-3"/></svg></div><h3>D-ARS Analytics</h3><p>통화 데이터를 분석해 고객 인사이트와 운영 효율을 제공하는 분석 솔루션.</p><span class="more">자세히 보기 →</span></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="18" r="2.4"/><path d="M8.4 6h7.2M6 8.4v7.2M18 8.4v7.2M8.4 18h7.2"/></svg></div><h3>D-ARS Connect</h3><p>다양한 시스템과 유연하게 연동해 자유롭게 확장하는 통합 플랫폼.</p><span class="more">자세히 보기 →</span></div>
+  </div>
+</div></section>
 
-export default function Landing(){
-  return (
-    <main style={{background:PAGE,color:INK,minHeight:'100dvh'}}>
-      <header style={{background:'#faf3ec',borderBottom:'1px solid '+LINE}}>
-        <div style={{...wrap,display:'flex',alignItems:'center',gap:12,height:62}}>
-          <span style={{width:30,height:30,borderRadius:'50%',background:TR,color:'#fff',display:'grid',placeItems:'center',fontWeight:800,fontSize:14}}>D</span>
-          <b style={{fontSize:18}}>D-ARS</b><span style={{fontSize:12,fontWeight:600,color:MUT}}>보이는 ARS</span>
-          <div style={{flex:1}}/>
-          <Link href="/visual" style={{fontSize:13.5,fontWeight:700,color:TRD,marginRight:6}}>데모 체험</Link>
-          <Link href="/dashboard" style={{fontSize:13.5,fontWeight:800,color:'#fff',background:TR,borderRadius:999,padding:'9px 16px'}}>운영 콘솔</Link>
-        </div>
-      </header>
+<!-- TECHNOLOGY -->
+<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="center"><div class="eyebrow">Technology</div><h2 class="h2" style="margin-top:10px">핵심 기술</h2><p class="sub">D-ARS의 핵심 기술로 더 정확하고 자연스러운 대화를 구현합니다.</p></div>
+  <div class="grid cards4" style="margin-top:44px">
+    <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v16M8 8v8M4 11v2M16 8v8M20 11v2"/></svg></div><h3>음성 인식 (ASR)</h3><p>고객 음성을 정확한 텍스트로 변환합니다.</p></div>
+    <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg></div><h3>자연어 처리 (NLP)</h3><p>고객 의도와 맥락을 정확히 이해합니다.</p></div>
+    <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5zM16 9a4 4 0 0 1 0 6M19 7a7 7 0 0 1 0 10"/></svg></div><h3>음성 합성 (TTS)</h3><p>자연스럽고 명료한 음성으로 응답합니다.</p></div>
+    <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9zM4 10h-1M21 10h-1M4 14h-1M21 14h-1M10 4V3M14 4V3M10 21v-1M14 21v-1"/></svg></div><h3>머신 러닝 (ML)</h3><p>지속적인 학습으로 성능을 향상합니다.</p></div>
+  </div>
+</div></section>
 
-      <section style={{background:'radial-gradient(1100px 520px at 50% -10%, #fbeee5, '+PAGE+')'}}>
-        <div style={{...wrap,textAlign:'center',padding:'clamp(44px,7vw,84px) 20px 24px'}}>
-          <Chip>쉽고 빠른 상담 · 보이는 ARS</Chip>
-          <h1 style={{fontSize:'clamp(30px,7.5vw,56px)',margin:'18px 0 8px',lineHeight:1.15,letterSpacing:'-.5px',color:INK}}>전화 상담을<br/><span style={{color:TRD}}>보고, 누르고, 끝내다</span></h1>
-          <p style={{color:MUT,fontSize:'clamp(15px,3.6vw,18px)',maxWidth:580,margin:'0 auto 24px',lineHeight:1.6}}>복잡한 ARS 메뉴 탐색 없이, 통화 중 스마트폰 화면에서 안내·서류·문자를 몇 번의 터치로 해결하세요.</p>
-          <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-            <Link href="/visual" style={{fontWeight:800,color:'#fff',background:TR,borderRadius:12,padding:'13px 22px'}}>보이는 ARS 체험 →</Link>
-            <Link href="/dashboard" style={{fontWeight:800,color:TRD,background:'#fff',border:'1px solid '+LINE,borderRadius:12,padding:'13px 22px'}}>운영 콘솔 열기</Link>
-          </div>
-          <div style={{display:'flex',gap:8,justifyContent:'center',flexWrap:'wrap',marginTop:22}}>
-            {['음성·화면 동기','필요서류·UMS','상담원 Fallback','실시간 모니터링'].map((t)=><Chip key={t}>{t}</Chip>)}
-          </div>
-        </div>
-      </section>
+<!-- CASE -->
+<section><div class="wrap">
+  <div class="center"><div class="eyebrow">Case Study</div><h2 class="h2" style="margin-top:10px">도입 사례</h2><p class="sub">다양한 기업들이 D-ARS로 비즈니스 성과를 만들어가고 있습니다.</p></div>
+  <div class="grid cards3" style="margin-top:44px">
+    <div class="card"><div style="font-weight:900;font-size:18px;color:#1a4fa0">신한은행</div><p style="margin:12px 0 16px">AI 음성봇 도입으로 상담 대기시간 <b style="color:var(--brand)">60% 감소</b>, 고객 만족도 <b style="color:var(--brand)">40% 향상</b>을 달성했습니다.</p><span class="more">자세히 보기 →</span></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:#111">kt</div><p style="margin:12px 0 16px">통화 분석 솔루션으로 인사이트를 도출해 서비스 품질을 <b style="color:var(--brand)">개선</b>했습니다.</p><span class="more">자세히 보기 →</span></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:#b5122e">롯데백화점</div><p style="margin:12px 0 16px">보이는 ARS 도입으로 고객 편의성 향상 및 문의 <b style="color:var(--brand)">처리율 제고</b>를 이뤘습니다.</p><span class="more">자세히 보기 →</span></div>
+  </div>
+</div></section>
 
-      <Section eyebrow="WHY D-ARS" title="듣는 ARS를 넘어, 보는 ARS로" desc="음성만으로 놓치던 정보를 화면으로 함께 보여주고, 서류·문자·상담원 전환을 통화 한 번에 끝냅니다.">
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
-          {[[<IcHead key="a"/>,'음성 + 화면 동시 안내','고객이 말하는 동안 화면에 안내·메뉴·카드를 실시간 표출해 정보 전달 정확도를 높입니다.'],
-            [<IcCal key="b"/>,'서류·문자 자동 처리','필요서류 안내부터 UMS 문자 발송, 영수증·확인서 발급까지 화면에서 바로 처리합니다.'],
-            [<IcPerson key="c"/>,'상담원 Fallback','자동으로 해결되지 않으면 대화 맥락과 함께 상담원에게 즉시 인계합니다.']].map(([ic,t,d],i)=>(
-            <div key={i} style={{background:CARD,border:'1px solid '+LINE,borderRadius:18,padding:22}}>
-              <Badge>{ic}</Badge><div style={{fontSize:17,fontWeight:800,marginTop:12,color:INK}}>{t}</div>
-              <p style={{color:MUT,fontSize:14,lineHeight:1.65,margin:'8px 0 0'}}>{d}</p>
-            </div>))}
-        </div>
-      </Section>
+<!-- PRICING -->
+<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="center"><div class="eyebrow">Pricing</div><h2 class="h2" style="margin-top:10px">요금 안내</h2><p class="sub">비즈니스 규모와 필요에 맞는 최적의 플랜을 선택하세요.</p></div>
+  <div class="grid price" style="margin-top:48px">
+    <div class="pcard"><h3>Starter</h3><div class="amt">월 30만<small>원~</small></div><p style="color:var(--body);font-size:14px">소규모 비즈니스를 위한 기본 플랜</p>
+      <ul class="plist"><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>기본 AI 음성봇</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>월 1,000건 통화</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>기본 리포트</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>이메일 지원</li></ul>
+      <button class="btn btn-outline" style="justify-content:center">시작하기</button></div>
+    <div class="pcard hot"><span class="tag">추천</span><h3>Business</h3><div class="amt">월 80만<small>원~</small></div><p style="color:var(--body);font-size:14px">성장 기업을 위한 인기 플랜</p>
+      <ul class="plist"><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>고급 AI 음성봇</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>월 5,000건 통화</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>통화 분석 리포트</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>보이는 ARS · 우선 지원</li></ul>
+      <button class="btn btn-primary" style="justify-content:center">시작하기</button></div>
+    <div class="pcard"><h3>Enterprise</h3><div class="amt">맞춤 견적</div><p style="color:var(--body);font-size:14px">대규모 기업을 위한 맞춤 플랜</p>
+      <ul class="plist"><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>무제한 통화</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>전용 AI 모델</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>실시간 모니터링</li><li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>24/7 전담 지원</li></ul>
+      <button class="btn btn-outline" style="justify-content:center">문의하기</button></div>
+  </div>
+  <p class="center" style="color:var(--mut);font-size:13px;margin-top:20px">* 모든 요금은 부가세 별도이며, 통화량·옵션에 따라 변동될 수 있습니다.</p>
+</div></section>
 
-      <Section eyebrow="AX · AI EXPERIENCE" title="화면으로 완성하는 복지 상담" desc="어르신·청년 눈높이에 맞춘 세대별 맞춤 화면. 말하기 어려우면 버튼만 눌러도 신청·안내됩니다." style={{background:'#faf3ec',maxWidth:'none'}}>
-        <div style={{...wrap,padding:0,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:24,marginTop:8}}>
-          <div>
-            <Phone title="복지 상담 전화" sub="어르신 음성 복지 신청">
-              <div style={{fontSize:21,fontWeight:800,color:INK}}>말씀만 하세요</div>
-              <div style={{fontSize:13,color:MUT,marginBottom:12}}>복지 신청·안내를 도와드려요</div>
-              <div style={{display:'grid',placeItems:'center',margin:'6px 0 10px'}}><div style={{width:92,height:92,borderRadius:'50%',background:TR,display:'grid',placeItems:'center',boxShadow:'0 0 0 10px '+BADGE}}>{IcMic('#fff')}</div></div>
-              <div style={{textAlign:'center',fontSize:12.5,fontWeight:700,color:TRD,marginBottom:12}}>● 듣고 있어요…</div>
-              <div style={{background:BADGE,borderRadius:14,padding:'9px 12px',fontSize:13,color:TRD,marginBottom:8,marginLeft:40,textAlign:'right'}}>기초연금 신청하고 싶어요</div>
-              <div style={{background:CARD,border:'1px solid '+LINE,borderRadius:14,padding:'9px 12px',fontSize:13,color:INK,marginRight:30}}>네, 기초연금 신청을 도와드릴게요. 생년월일을 말씀해 주세요.</div>
-            </Phone>
-            <p style={{textAlign:'center',marginTop:16,fontWeight:800,color:INK}}>어르신 · 음성으로 복지 신청</p>
-          </div>
-          <div>
-            <Phone title="복지 서비스 시작" sub="어르신 대상">
-              <div style={{fontSize:19,fontWeight:800,color:INK,marginBottom:12}}>무엇을 도와드릴까요?</div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-                <Tile icon={<IcHeart/>} label="돌봄 신청"/><Tile icon={<IcCal/>} label="방문 예약"/>
-                <Tile icon={<IcInfo/>} label="복지 정보"/><Tile icon={<IcBowl/>} label="식사·배달"/>
-                <Tile icon={<IcCar/>} label="교통 지원"/><Tile icon={<IcHead/>} label="상담 연결"/>
-              </div>
-              <div style={{background:TR,color:'#fff',textAlign:'center',fontWeight:800,fontSize:15,borderRadius:14,padding:'13px 0',marginTop:10}}>상담사 문자 받기</div>
-            </Phone>
-            <p style={{textAlign:'center',marginTop:16,fontWeight:800,color:INK}}>버튼만으로 셀프 신청</p>
-          </div>
-          <div>
-            <Phone title="AI 안심 케어" sub="이상 징후 감지">
-              <div style={{display:'flex',alignItems:'center',gap:10,background:CARD,border:'1px solid '+LINE,borderRadius:12,padding:10,marginBottom:8}}><Badge>{<IcPerson/>}</Badge><div><div style={{fontSize:14,fontWeight:800,color:INK}}>박순자 어르신</div><div style={{fontSize:12,color:MUT}}>통화 중 · 우울·고립 신호</div></div></div>
-              <div style={{background:'#fbe9e3',borderRadius:12,padding:'10px 12px',marginBottom:10}}><div style={{fontSize:13.5,fontWeight:800,color:ALERT}}>⚠ 이상 징후 감지 · 위험</div><div style={{fontSize:12,color:ALERT,marginTop:3}}>식사 이슈 · 활동량 저하 · 위험도 높음</div></div>
-              <MRow icon={<IcHead/>} title="코디네이터 즉시 연결" desc="지금 바로 도와드려요"/>
-              <MRow icon={<IcHome/>} title="긴급 방문 요청" desc="담당자에게 전달"/>
-              <MRow icon={<IcPerson/>} title="가족에게 알림" desc="보호자에게 상황 알림"/>
-            </Phone>
-            <p style={{textAlign:'center',marginTop:16,fontWeight:800,color:INK}}>이상징후 · 사각지대 발굴</p>
-          </div>
-        </div>
-      </Section>
+<!-- PROCESS -->
+<section><div class="wrap">
+  <div class="center"><div class="eyebrow">Process</div><h2 class="h2" style="margin-top:10px">도입 프로세스</h2><p class="sub">체계적인 프로세스로 성공적인 도입을 지원합니다.</p></div>
+  <div class="proc" style="margin-top:48px">
+    <div class="pstep"><div class="pnum">01</div><h4>상담 및 분석</h4><p>고객 요구사항 분석 및 맞춤 솔루션 제안</p></div>
+    <div class="pstep"><div class="pnum">02</div><h4>설계 및 구축</h4><p>맞춤 시나리오 설계 및 시스템 구축</p></div>
+    <div class="pstep"><div class="pnum">03</div><h4>테스트 및 검증</h4><p>철저한 테스트로 안정성·성능 검증</p></div>
+    <div class="pstep"><div class="pnum">04</div><h4>운영 및 최적화</h4><p>지속적인 모니터링과 성능 최적화 지원</p></div>
+  </div>
+</div></section>
 
-      <Section eyebrow="보이는 ARS" title="세대별 맞춤 화면" desc="문자·웹·D-ARS로 어르신·청년 눈높이에 맞춘 복지 상담 창구를 제공합니다.">
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:14,maxWidth:820,margin:'0 auto'}}>
-          {[['1세대','TEXT','IVR 음성 · 텍스트 안내',false],['2세대','WEB','웹 메뉴 셀프서비스',false],['3세대','DIGITAL','음성+화면 동기 · 멀티채널',true]].map(([g,t,d,on])=>(
-            <div key={g} style={{background:on?TR:CARD,border:'2px solid '+TR,borderRadius:16,padding:20,textAlign:'center'}}>
-              <div style={{fontSize:20,fontWeight:800,color:on?'#fff':TRD}}>{g}</div>
-              <div style={{fontSize:12,fontWeight:800,letterSpacing:1,color:on?'#ffe4d8':MUT,marginTop:2}}>{t}</div>
-              <div style={{fontSize:13,color:on?'#ffe9e0':MUT,marginTop:10,lineHeight:1.5}}>{d}</div>
-            </div>))}
-        </div>
-      </Section>
+<!-- CTA -->
+<div class="wrap" style="padding-bottom:80px"><div class="cta">
+  <div><h2>D-ARS로 고객 경험을 혁신해보세요</h2><p>지금 바로 문의하시고 맞춤형 솔루션을 확인해보세요.</p></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap"><button class="btn btn-primary">문의하기</button><button class="btn btn-ghost">데모 체험하기</button></div>
+</div></div>
 
-      <Section eyebrow="이음만의 것" title="차별화 · 특허 포인트" desc="아이디어가 아니라, 이미 작동하는 접근성·안전·정산 기술이 진입장벽입니다." style={{background:'#faf3ec',maxWidth:'none'}}>
-        <div style={{...wrap,padding:0,display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16}}>
-          {[['멀티모달 접근성','음성+화면 동시 안내로 고령·취약계층도 화면 버튼으로 신청. 대기업 범용 AICC가 들어오지 않은 복지 도메인.'],
-            ['이상징후 스코어링','통화 음성·내용의 다중 신호를 점수화해 우울·고립·건강 위험을 감지하고 자동 개입 (특허 후보).'],
-            ['확인콜 → 매칭 → 정산 폐루프','D-ARS 통화 결과를 매칭 신뢰도·1365 실적·바우처 정산에 피드백하는 폐루프 (BM 특허 결합).']].map(([t,d],i)=>(
-            <div key={i} style={{background:CARD,border:'1px solid '+LINE,borderRadius:18,padding:22}}>
-              <div style={{width:34,height:34,borderRadius:10,background:BADGE,color:TRD,display:'grid',placeItems:'center',fontWeight:800}}>{i+1}</div>
-              <div style={{fontSize:17,fontWeight:800,marginTop:12,color:INK}}>{t}</div>
-              <p style={{color:MUT,fontSize:14,lineHeight:1.65,margin:'8px 0 0'}}>{d}</p>
-            </div>))}
-        </div>
-      </Section>
-
-      <Section title="역할을 골라 들어가 보세요" desc="데모 데이터로 모든 기능을 직접 조작할 수 있어요.">
-        <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))',gap:16}}>
-          {[[<IcHead key="a"/>,'운영 관리자','시나리오·서류·세션·통계를 한 화면에서 운영','/dashboard','운영 콘솔 입장'],
-            [<IcMic key="b"/>,'고객 (보이는 ARS)','통화 중 스마트폰 화면을 그대로 체험','/visual','고객 화면 체험'],
-            [<IcCal key="c"/>,'시나리오 빌더','보이는 ARS 화면 흐름을 노드로 구성','/scenarios','시나리오 편집']].map(([ic,t,d,href,cta])=>(
-            <Link key={t} href={href} style={{display:'block',background:CARD,border:'1px solid '+LINE,borderRadius:18,padding:22,textDecoration:'none'}}>
-              <Badge>{ic}</Badge><b style={{fontSize:17,display:'block',marginTop:12,color:INK}}>{t}</b>
-              <p style={{color:MUT,fontSize:14,lineHeight:1.55,margin:'6px 0 14px'}}>{d}</p>
-              <span style={{fontWeight:800,color:'#fff',background:TR,borderRadius:10,padding:'9px 14px',fontSize:13.5}}>{cta} →</span>
-            </Link>))}
-        </div>
-      </Section>
-
-      <Section eyebrow="숫자로 보는 D-ARS" title="이미 돌아가는 지표" desc="데모 시연용 샘플 데이터">
-        <div style={{background:CARD,border:'1px solid '+LINE,borderRadius:20,padding:'clamp(24px,4vw,40px)',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:20,maxWidth:820,margin:'0 auto'}}>
-          <Stat n={1220} label="멀티모달 발송"/><Stat n={540} label="런처 자동런칭"/><Stat n={74} suffix="%" label="사용 완료율"/><Stat n={99} suffix=".9%" label="서비스 가용율"/>
-        </div>
-      </Section>
-
-      <Section eyebrow="FAQ" title="궁금한 점, 먼저 답해드려요"><FAQ/></Section>
-
-      <section style={{background:INK,color:'#fff'}}>
-        <div style={{...wrap,textAlign:'center',padding:'clamp(44px,6vw,72px) 20px'}}>
-          <div style={{color:'#e6b8a6',fontWeight:800,fontSize:13,letterSpacing:1}}>START TODAY</div>
-          <h2 style={{fontSize:'clamp(24px,5.5vw,38px)',margin:'12px 0 8px'}}>지금, 보이는 ARS를 경험해 보세요</h2>
-          <p style={{color:'#c9b6ab',fontSize:15,marginBottom:22}}>체험은 1분이면 충분합니다.</p>
-          <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap'}}>
-            <Link href="/visual" style={{fontWeight:800,color:'#fff',background:TR,borderRadius:12,padding:'13px 24px'}}>보이는 ARS 체험 →</Link>
-            <Link href="/dashboard" style={{fontWeight:800,color:'#fff',background:'rgba(255,255,255,.12)',borderRadius:12,padding:'13px 24px'}}>운영 콘솔</Link>
-          </div>
-        </div>
-      </section>
-
-      <footer style={{...wrap,padding:'28px 20px 44px',textAlign:'center',color:MUT,fontSize:12.5,lineHeight:1.8}}>D-ARS · 보이는 ARS · 콜봇 연계 모듈 · 운영 GOWON<br/>
-        <span style={{display:'inline-flex',gap:14,flexWrap:'wrap',justifyContent:'center',margin:'8px 0'}}>
-          <Link href="/pricing" style={{color:TR,textDecoration:'none',fontWeight:700}}>요금제</Link>
-          <Link href="/legal/terms" style={{color:TR,textDecoration:'none',fontWeight:700}}>이용약관</Link>
-          <Link href="/legal/privacy" style={{color:TR,textDecoration:'none',fontWeight:700}}>개인정보처리방침</Link>
-        </span><br/><span style={{opacity:0.7}}>© 2026 · 데모 모드</span></footer>
-    </main>
-  );
+<!-- FOOTER -->
+<footer><div class="wrap">
+  <div class="fgrid">
+    <div><div class="logo" style="color:#fff;margin-bottom:14px"><svg viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#3b82f6"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#60a5fa"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#3b82f6"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div><p style="font-size:14px;max-width:280px">AI와 음성기술로 고객과 기업을 연결하는 스마트한 커뮤니케이션 솔루션.</p></div>
+    <div><h5>솔루션</h5><a>AI 음성봇</a><a>보이는 ARS</a><a>통화 분석</a><a>스마트 라우팅</a></div>
+    <div><h5>회사</h5><a>회사 소개</a><a>뉴스룸</a><a>파트너</a><a>채용</a></div>
+    <div><h5>지원</h5><a>고객센터</a><a>도입 문의</a><a>FAQ</a><a>자료실</a></div>
+  </div>
+  <div class="fbottom"><span>© 2026 D-ARS. All rights reserved.</span><span class="badge-ai">개인정보처리방침 · 이용약관 · 본 서비스는 생성형 AI가 함께 응대합니다 (AI기본법 제31조)</span></div>
+</div></footer>`;
+export default function Home() {
+  return <main suppressHydrationWarning dangerouslySetInnerHTML={{ __html: LP }} />;
 }
