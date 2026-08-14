@@ -76,7 +76,7 @@ export function toExcelHTML(rows, columns, sheetName = 'Sheet1', opts = {}) {
     const v = typeof c.value === 'function' ? c.value(r) : r[c.value];
     return `<td style="border:1px solid #e6dcd6;padding:5px 10px;mso-number-format:'\\@'">${esc(v)}</td>`;
   }).join('') + '</tr>').join('');
-  return `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">`
+  return `<html lang="ko" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">`
     + `<head><meta charset="utf-8">`
     + `<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>`
     + `<x:Name>${esc(sheetName)}</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>`

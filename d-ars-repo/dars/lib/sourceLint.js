@@ -293,170 +293,28 @@ export function hasPopupMissingExpanded(src) {
   return bad;
 }
 
-// ---- 120회차: 프레임 제목 · 문서 언어 선언 불변식 ----
-// 배경(119회차 예고 항목): (1) title 없는 <iframe> 은 스크린리더가 "프레임"이라고만 낭독해
-// 안에 뭐가 있는지 알 수 없다(WCAG 4.1.2 / H64 — 프레임 제목). 숨김 유틸 프레임(aria-hidden
-// 선언 — 인쇄용 등)은 낭독 대상이 아니므로 예외. 현재 앱은 JSX <iframe> 0건(인쇄 iframe 은
-// DOM 생성 + aria-hidden 부여)이라 지금 불변식으로 고정한다 — 앞으로 추가될 임베드(미리보기·
-// 외부 위젯)를 테스트가 즉시 잡는다. (2) lang 없는 <html> 은 스크린리더가 낭독 언어(TTS 엔진)를
-// 오판해 한국어 화면을 영어 음성으로 읽는다(WCAG 3.1.1 Language of Page). 루트 레이아웃·
-// global-error(루트 레이아웃 대체 규약)·인쇄 문서 템플릿 문자열까지 같은 스캔으로 고정한다.
+// ---- 120회차: 프레임 이름 · 문서 언어 선언 불변식 ----
+// 배경(119회차 예고 항목): (1) 이름 없는 <iframe> 은 스크린리더가 "프레임"이라고만 낭독해
+// 무엇이 들어 있는지 알 수 없다(WCAG 4.1.2 / H64 — 프레임은 title 로 용도를 밝혀야 한다).
+// 현재 JSX <iframe> 0건(내보내기 인쇄 프레임은 DOM 생성 + aria-hidden 이라 판정 대상 아님) —
+// 앞으로 추가될 임베드(지도·미리보기 등)를 소스 불변식으로 고정한다. (2) lang 없는 <html> 은
+// 스크린리더가 문서 언어를 추정해 한국어를 영어 음성으로 읽는 회귀(WCAG 3.1.1 Language of Page).
+// 앱 문서 2곳(layout·global-error)과 내보내기 생성 문서(export.js 인쇄/Excel HTML)까지
+// 전부 lang="ko" 명시 상태를 고정한다.
 
-// title 도 aria-hidden 도 없는 <iframe> 의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
-// (title 값은 강제하지 않는다 — 표현식 허용. aria-hidden 숨김 유틸 프레임은 예외.)
-export function iframesMissingTitle(src) {
+// title 도 aria-hidden(장식·숨김 프레임) 도 없는 <iframe> 태그의 시작 행 번호 목록.
+// **항상 빈 배열이어야 한다.** title 값은 강제하지 않는다(표현식 {t} 허용 — 선언 자체가 목적).
+export function iframeMissingTitle(src) {
   return missingAttr(src, 'iframe', /\btitle\s*=|\baria-hidden\s*=/);
 }
 
-// lang 선언이 없는 <html> 여는 태그의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
-// JSX 뿐 아니라 템플릿 문자열 속 인쇄 문서(<!doctype html>…)도 같은 규칙이 적용된다.
-// xmlns 네임스페이스 선언이 있는 태그(Excel SpreadsheetML 등 비브라우저 문서 포맷)는
-// lang 이 무의미하므로 판정 보류(통과 · 보수적 — 기존 스캐너의 보류와 동일 계약).
+// lang= 선언이 없는 <html> 태그의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
+// JSX 루트 레이아웃뿐 아니라 템플릿 문자열로 생성하는 문서(인쇄 리포트·Excel HTML)도 잡는다.
+// 오탐 방지: 줄 주석(공백 뒤 // …)은 행을 보존한 채 제거 후 판정 — 주석 속 <html> 언급
+// (global-error 규약 주석 등)은 판정 대상이 아니다. URL 의 //(https:// 등)는 공백이 앞서지
+// 않아 제거되지 않는다(보수적 — 같은 줄 주석 뒤 실코드는 보류).
 export function htmlMissingLang(src) {
-  return openTags(src, 'html')
-    .filter((t) => !/\bxmlns\b/.test(t.tag) && !/\blang\s*=/.test(t.tag))
-    .map((t) => t.line);
-}
-
-// ---- 121회차: role 값 화이트리스트 · 뷰포트 정책 불변식 ----
-// 배경(120회차 예고 항목): (1) role 오타(role="buton")·비표준 값은 빌드·런타임 오류 없이
-// 스크린리더 시맨틱만 조용히 사라지는 잠복 회귀다(WAI-ARIA 1.2 — 브라우저는 미지의 role 을
-// 무시한다). 현재 앱은 11종 값 전부 표준 — 화이트리스트 대조로 고정한다. (2) 모바일 우선
-// 원칙의 뿌리인 뷰포트는 두 방향으로 고정한다: 루트 레이아웃의 `viewport` 선언(width=
-// device-width) **존재**(Next App Router 규약 — 없으면 모바일에서 데스크톱 폭 렌더 후 축소 =
-// 전 화면 붕괴), 그리고 **줌 차단 금지**(user-scalable=no·maximum-scale<2 는 WCAG 1.4.4
-// Resize Text 위반 — 저시력 사용자의 확대를 막는다. iOS 는 무시하지만 Android 는 존중).
-
-// WAI-ARIA 1.2 표준 role 전체(문서 구조·위젯·랜드마크·라이브 영역 — 추상 role 제외).
-// 새 role 이 표준에 추가되면 여기에 갱신한다(테스트 실패로 의도 확인 강제).
-export const ARIA_ROLES = new Set([
-  'alert', 'alertdialog', 'application', 'article', 'banner', 'blockquote', 'button',
-  'caption', 'cell', 'checkbox', 'code', 'columnheader', 'combobox', 'complementary',
-  'contentinfo', 'definition', 'deletion', 'dialog', 'directory', 'document', 'emphasis',
-  'feed', 'figure', 'form', 'generic', 'grid', 'gridcell', 'group', 'heading', 'img',
-  'insertion', 'link', 'list', 'listbox', 'listitem', 'log', 'main', 'marquee', 'math',
-  'menu', 'menubar', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'meter', 'navigation',
-  'none', 'note', 'option', 'paragraph', 'presentation', 'progressbar', 'radio',
-  'radiogroup', 'region', 'row', 'rowgroup', 'rowheader', 'scrollbar', 'search',
-  'searchbox', 'separator', 'slider', 'spinbutton', 'status', 'strong', 'subscript',
-  'superscript', 'switch', 'tab', 'table', 'tablist', 'tabpanel', 'term', 'textbox',
-  'time', 'timer', 'toolbar', 'tooltip', 'tree', 'treegrid', 'treeitem',
-]);
-
-// 정적 문자열 role 값이 표준 role 이 아닌 곳의 {line, value} 목록. **항상 빈 배열이어야 한다.**
-// line 은 role 속성이 적힌 줄(여러 줄 태그면 태그 시작 줄이 아니라 그 속성 줄).
-// 다중 role(폴백 목록 — role="none presentation" 류)은 공백 구분 전부가 표준이어야 통과.
-// 빈 값(role="")도 위반. 표현식(role={…})은 정적 판정 불가 → 보류(통과 · 보수적 —
-// 기존 스캐너의 표현식 보류와 동일 계약).
-export function invalidRoles(src) {
   if (typeof src !== 'string' || !src) return [];
-  const bad = [];
-  const re = /\brole\s*=\s*"([^"]*)"/g;
-  let m;
-  while ((m = re.exec(src))) {
-    const vals = m[1].trim().split(/\s+/).filter(Boolean);
-    if (vals.length && vals.every((r) => ARIA_ROLES.has(r))) continue;
-    bad.push({ line: src.slice(0, m.index).split('\n').length, value: m[1] });
-  }
-  return bad;
-}
-
-// 루트 레이아웃이 모바일 뷰포트 정책을 선언했는지 판정(Next App Router `viewport` export —
-// width: 'device-width' 필수). 통합 테스트가 app/layout.jsx 에 대해 **항상 true 를 단정**한다.
-export function hasDeviceViewport(src) {
-  if (typeof src !== 'string' || !src) return false;
-  const m = src.match(/export\s+const\s+viewport\s*=\s*\{[\s\S]*?\}/);
-  return !!m && /\bwidth\s*:\s*['"]device-width['"]/.test(m[0]);
-}
-
-// 사용자 확대(줌)를 차단하는 뷰포트 선언의 행 번호 목록(오름차순·중복 제거).
-// **항상 빈 배열이어야 한다.** JS 객체 표기(userScalable: false·maximumScale)와
-// HTML meta 문자열 표기(user-scalable=no·maximum-scale=)를 함께 잡는다.
-// maximum scale 은 2 이상이면 통과(WCAG 1.4.4 — 200% 확대까지는 보장해야 한다).
-export function zoomBlockingViewport(src) {
-  if (typeof src !== 'string' || !src) return [];
-  const bad = [];
-  const patterns = [
-    /\buserScalable\s*:\s*(?:false|0)\b/g,
-    /\buser-scalable\s*=\s*(?:no|0)\b/g,
-    /\bmaximumScale\s*:\s*(\d+(?:\.\d+)?)/g,
-    /\bmaximum-scale\s*=\s*(\d+(?:\.\d+)?)/g,
-  ];
-  for (const re of patterns) {
-    let m;
-    while ((m = re.exec(src))) {
-      if (m[1] !== undefined && Number(m[1]) >= 2) continue;
-      bad.push(src.slice(0, m.index).split('\n').length);
-    }
-  }
-  return [...new Set(bad)].sort((a, b) => a - b);
-}
-
-// ---- 123회차: aria-* 속성명 화이트리스트 · 빈 텍스트 링크 불변식 ----
-// 배경(121회차 예고 항목): (1) aria-* 속성명 오타(aria-lable·aria-expandd)는 빌드·런타임 오류
-// 없이 보조기술 시맨틱만 조용히 사라지는 잠복 회귀다 — 브라우저는 미지의 aria-* 를 무시하고,
-// React 도 aria-* 는 대소문자·철자 검증 없이 그대로 DOM 에 통과시킨다(role 오타와 동일 성격 —
-// 121회차 invalidRoles 의 속성명 판이다). 현재 앱은 18종 전부 표준 — 화이트리스트 대조로 고정한다.
-// (2) 접근 가능한 이름이 없는 <a>(빈 내용·기호/아이콘 전용)는 스크린리더가 href 를 그대로
-// 낭독하거나 "링크"라고만 읽는다(WCAG 2.4.4 Link Purpose / 4.1.2 Name). 현재 앱 8곳 전부
-// 텍스트 보유 — 불변식으로 고정해, 앞으로 추가될 아이콘 전용 링크를 테스트가 즉시 잡는다.
-
-// WAI-ARIA 1.2 표준 aria-* 속성 전체(상태·프로퍼티 — deprecated 인 dropeffect·grabbed 포함:
-// 사용 자체는 유효하며 오타 검출이 목적이라 배제하지 않는다). 표준이 갱신되면 여기에 갱신한다.
-export const ARIA_ATTRS = new Set([
-  'aria-activedescendant', 'aria-atomic', 'aria-autocomplete', 'aria-braillelabel',
-  'aria-brailleroledescription', 'aria-busy', 'aria-checked', 'aria-colcount', 'aria-colindex',
-  'aria-colindextext', 'aria-colspan', 'aria-controls', 'aria-current', 'aria-describedby',
-  'aria-description', 'aria-details', 'aria-disabled', 'aria-dropeffect', 'aria-errormessage',
-  'aria-expanded', 'aria-flowto', 'aria-grabbed', 'aria-haspopup', 'aria-hidden', 'aria-invalid',
-  'aria-keyshortcuts', 'aria-label', 'aria-labelledby', 'aria-level', 'aria-live', 'aria-modal',
-  'aria-multiline', 'aria-multiselectable', 'aria-orientation', 'aria-owns', 'aria-placeholder',
-  'aria-posinset', 'aria-pressed', 'aria-readonly', 'aria-relevant', 'aria-required',
-  'aria-roledescription', 'aria-rowcount', 'aria-rowindex', 'aria-rowindextext', 'aria-rowspan',
-  'aria-selected', 'aria-setsize', 'aria-sort', 'aria-valuemax', 'aria-valuemin',
-  'aria-valuenow', 'aria-valuetext',
-]);
-
-// 값 할당이 있는 aria-* 속성명이 표준이 아닌 곳의 {line, value} 목록. **항상 빈 배열이어야 한다.**
-// line 은 속성이 적힌 줄(121회차 invalidRoles 와 동일 계약 — 값을 보고하는 스캐너는 실제 자리를
-// 가리켜야 바로 고칠 수 있다). JSX 속성(aria-x=)과 JS 객체 키('aria-x':)를 함께 잡고,
-// 할당 없는 산문 언급(주석 속 "aria-label 을 부여" 류)은 [=:] 요구로 잡지 않는다(오탐 방지).
-// 객체 키의 닫는 따옴표('aria-x': · "aria-x":)는 이름과 [=:] 사이에서 허용한다.
-export function unknownAriaAttrs(src) {
-  if (typeof src !== 'string' || !src) return [];
-  const bad = [];
-  const re = /\b(aria-[a-z][a-z0-9]*(?:-[a-z0-9]+)*)['"]?\s*[=:]/g;
-  let m;
-  while ((m = re.exec(src))) {
-    if (ARIA_ATTRS.has(m[1])) continue;
-    bad.push({ line: src.slice(0, m.index).split('\n').length, value: m[1] });
-  }
-  return bad;
-}
-
-// 접근 가능한 이름이 없는 <a> 의 시작 행 번호 목록. **항상 빈 배열이어야 한다.**
-// 판정(보수적 — unnamedIconButtons 와 동일 계약):
-//   1) 여는 태그에 aria-label/aria-labelledby 있으면 통과.
-//   2) 내용의 하위 태그가 라벨을 제공하면(aria-label(ledby)= · 비어 있지 않은 alt="…" ·
-//      표현식 alt={…}) 이름 계산에 참여하므로 통과. alt=""(장식 선언)는 이름이 아니다.
-//   3) 하위 태그 제거·JSX 표현식({…}) 반복 제거 후 잔여 텍스트에 글자·숫자(\p{L}\p{N})가
-//      있으면 통과. 표현식이 있었으면 정적 판정 불가 → 보류(통과).
-//   4) 남는 것(빈 내용·기호/아이콘 전용인데 라벨 없음)만 위반.
-export function emptyTextLinks(src) {
-  const bad = [];
-  for (const el of elementsOf(src, 'a')) {
-    if (/\baria-label(?:ledby)?\s*=/.test(el.tag)) continue;
-    if (/\baria-label(?:ledby)?\s*=|\balt\s*=\s*(?:\{|"[^"])/.test(el.inner)) continue;
-    let t = el.inner.replace(/<[^>]*>/g, ' ');
-    let hadExpr = false;
-    let prev;
-    do {
-      prev = t;
-      t = t.replace(/\{[^{}]*\}/g, () => { hadExpr = true; return ' '; });
-    } while (t !== prev);
-    if (/[\p{L}\p{N}]/u.test(t)) continue;
-    if (hadExpr) continue;
-    bad.push(el.line);
-  }
-  return bad;
+  const stripped = src.split('\n').map((l) => l.replace(/(^|\s)\/\/.*$/, '$1')).join('\n');
+  return missingAttr(stripped, 'html', /\blang\s*=/);
 }
