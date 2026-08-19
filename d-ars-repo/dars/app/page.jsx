@@ -172,7 +172,7 @@ footer a:hover{color:#fff}
 
 <header><div class="wrap"><nav>
   <div class="logo"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#2563eb"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#3b82f6"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#2563eb"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div>
-  <div class="navmenu"><a>서비스 소개</a><a>주요 기능</a><a>도입 효과</a><a>고객사례</a><a>요금안내</a></div>
+  <div class="navmenu"><a>서비스 소개</a><a>주요 기능</a><a>도입 효과</a><a>기술 표준</a><a>요금안내</a></div>
   <div class="navright"><a class="login">로그인</a><button type="button" class="btn btn-primary">무료 체험하기</button></div>
 </nav></div></header>
 
@@ -198,8 +198,14 @@ footer a:hover{color:#fff}
   </div>
 </div></div></div>
 
+<div class="wrap" style="margin-top:8px">
+  <div style="display:flex;align-items:center;gap:8px;justify-content:center;background:#eef4ff;border:1px solid #d6e4fb;color:#1a4fa0;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;max-width:640px;margin:0 auto">
+    <span aria-hidden="true">🤖</span><span>본 서비스는 인공지능(AI)이 응대합니다. AI가 생성한 안내가 포함될 수 있습니다.</span>
+  </div>
+</div>
+
 <div class="logos"><div class="wrap"><div class="row">
-  <span>SAMSUNG</span><span>kt</span><span>신한은행</span><span>LOTTE</span><span>KB국민은행</span><span>SK telecom</span>
+  <span>SIP · SIPREC</span><span>MRCPv2</span><span>RFC 4733 DTMF</span><span>WebSocket</span><span>CTI 연동</span><span>E.164</span>
 </div></div></div>
 
 <div class="wrap">
@@ -269,24 +275,25 @@ footer a:hover{color:#fff}
   </div>
 </div></section>
 
-<!-- CASE -->
+<!-- USE CASES -->
 <section><div class="wrap">
-  <div class="center"><div class="eyebrow">Case Study</div><h2 class="h2" style="margin-top:10px">도입 사례</h2><p class="sub">다양한 기업들이 D-ARS로 비즈니스 성과를 만들어가고 있습니다.</p></div>
+  <div class="center"><div class="eyebrow">Use Cases</div><h2 class="h2" style="margin-top:10px">적용 시나리오</h2><p class="sub">보이는 ARS가 효과를 내는 대표 업무 유형입니다. 실제 효과는 고객사 환경에서 실측해 산출합니다.</p></div>
   <div class="grid cards3" style="margin-top:44px">
-    <div class="card"><div style="font-weight:900;font-size:18px;color:#1a4fa0">신한은행</div><p style="margin:12px 0 16px">AI 음성봇 도입으로 상담 대기시간 <b style="color:var(--brand)">60% 감소</b>, 고객 만족도 <b style="color:var(--brand)">40% 향상</b>을 달성했습니다.</p><span class="more">자세히 보기 →</span></div>
-    <div class="card"><div style="font-weight:900;font-size:18px;color:#111">kt</div><p style="margin:12px 0 16px">통화 분석 솔루션으로 인사이트를 도출해 서비스 품질을 <b style="color:var(--brand)">개선</b>했습니다.</p><span class="more">자세히 보기 →</span></div>
-    <div class="card"><div style="font-weight:900;font-size:18px;color:#b5122e">롯데백화점</div><p style="margin:12px 0 16px">보이는 ARS 도입으로 고객 편의성 향상 및 문의 <b style="color:var(--brand)">처리율 제고</b>를 이뤘습니다.</p><span class="more">자세히 보기 →</span></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:#1a4fa0">본인확인 · 인증</div><p style="margin:12px 0 16px">음성으로 불러주기 어려운 <b style="color:var(--brand)">계좌·인증번호</b>를 화면 입력으로 전환해 오입력과 재문의를 줄입니다.</p></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:#111">복잡한 메뉴 안내</div><p style="margin:12px 0 16px">선택지가 많은 ARS 트리를 <b style="color:var(--brand)">화면 버튼</b>으로 제시해 안내 시간을 단축합니다.</p></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:#1a4fa0">서류 · 접수</div><p style="margin:12px 0 16px">상담 중 <b style="color:var(--brand)">폼 입력·전자서명</b>을 화면에서 처리해 후속 콜을 없앱니다.</p></div>
   </div>
+  <p class="sub" style="margin-top:18px;text-align:center;font-size:13px">※ 본 페이지의 수치·화면은 데모 기준이며, 특정 고객사의 실적을 나타내지 않습니다.</p>
 </div></section>
 
 <!-- PRICING -->
 <section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
   <div class="center"><div class="eyebrow">Pricing</div><h2 class="h2" style="margin-top:10px">요금 안내</h2><p class="sub">비즈니스 규모와 필요에 맞는 최적의 플랜을 선택하세요.</p></div>
   <div class="grid price" style="margin-top:48px">
-    <div class="pcard"><h3>Starter</h3><div class="amt">월 30만<small>원~</small></div><p style="color:var(--body);font-size:14px">소규모 비즈니스를 위한 기본 플랜</p>
+    <div class="pcard"><h3>Starter</h3><div class="amt">견적<small> 문의</small></div><p style="color:var(--body);font-size:14px">소규모 비즈니스를 위한 기본 플랜</p>
       <ul class="plist"><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>기본 AI 음성봇</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>월 1,000건 통화</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>기본 리포트</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>이메일 지원</li></ul>
       <button type="button" class="btn btn-outline" style="justify-content:center">시작하기</button></div>
-    <div class="pcard hot"><span class="tag">추천</span><h3>Business</h3><div class="amt">월 80만<small>원~</small></div><p style="color:var(--body);font-size:14px">성장 기업을 위한 인기 플랜</p>
+    <div class="pcard hot"><span class="tag">추천</span><h3>Business</h3><div class="amt">견적<small> 문의</small></div><p style="color:var(--body);font-size:14px">성장 기업을 위한 인기 플랜</p>
       <ul class="plist"><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>고급 AI 음성봇</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>월 5,000건 통화</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>통화 분석 리포트</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>보이는 ARS · 우선 지원</li></ul>
       <button type="button" class="btn btn-primary" style="justify-content:center">시작하기</button></div>
     <div class="pcard"><h3>Enterprise</h3><div class="amt">맞춤 견적</div><p style="color:var(--body);font-size:14px">대규모 기업을 위한 맞춤 플랜</p>
