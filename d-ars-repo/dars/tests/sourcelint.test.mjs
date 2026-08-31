@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -440,4 +440,79 @@ test('app/·lib/ 전 소스: 배선 없는 제어 입력 0건 · aria-expanded �
     if (hp.length) bad.push(`${rel} haspopup:${hp.join(',')}`);
   }
   assert.deepEqual(bad, [], `제어 입력/팝업 토글 불변식 위반: ${bad.join(' · ')}`);
+});
+
+// ---- 125회차: 목적지 없는 링크 · id 중복 불변식 ----
+
+test('anchorWithoutHref: href 없는 <a> 를 행 번호로 보고한다(여러 줄·복수 포함)', () => {
+  assert.deepEqual(anchorWithoutHref('x\n<a>도입 문의</a>'), [2]);
+  assert.deepEqual(anchorWithoutHref('<a\n  className="login"\n>로그인</a>'), [1]);
+  assert.deepEqual(anchorWithoutHref('<a>가</a><a>나</a>'), [1, 1]);
+  assert.deepEqual(anchorWithoutHref('<a>가</a>\n<a href="/b">나</a>\n<a>다</a>'), [1, 3]);
+});
+
+test('anchorWithoutHref: href 명시(표현식·빈 문자열)·전개 속성·유사 태그·이상 입력엔 불개입한다', () => {
+  assert.deepEqual(anchorWithoutHref('<a href="/login">로그인</a>'), []);
+  assert.deepEqual(anchorWithoutHref('<a\n  href={url}\n  target="_blank"\n>열기</a>'), []);
+  assert.deepEqual(anchorWithoutHref('<a href="#features">주요 기능</a>'), []);
+  assert.deepEqual(anchorWithoutHref('<a {...linkProps}>보류</a>'), []); // 전개 속성 — 판정 보류
+  assert.deepEqual(anchorWithoutHref('<abbr title="ARS">ARS</abbr>'), []); // \b 경계 — 유사 태그 불개입
+  assert.deepEqual(anchorWithoutHref('<article>본문</article>'), []);
+  assert.deepEqual(anchorWithoutHref(null), []);
+  assert.deepEqual(anchorWithoutHref(''), []);
+});
+
+test('duplicateIdAttrs: 중복 id 의 2번째 이후 출현만 행 번호로 보고한다', () => {
+  assert.deepEqual(duplicateIdAttrs('<input id="q"/>\n<input id="q"/>'), [2]);
+  assert.deepEqual(duplicateIdAttrs('<i id="a"/>\n<i id="b"/>\n<i id="a"/>\n<i id="a"/>'), [3, 4]);
+  // 첫 출현은 위반이 아니다(고칠 지점은 다시 쓴 쪽).
+  assert.deepEqual(duplicateIdAttrs('<i id="a"/>'), []);
+});
+
+test('duplicateIdAttrs: 고유 id·표현식 id·이상 입력엔 불개입한다', () => {
+  assert.deepEqual(duplicateIdAttrs('<label htmlFor="q">검색</label>\n<input id="q"/>'), []);
+  assert.deepEqual(duplicateIdAttrs('<i id="a"/>\n<i id="b"/>\n<i id="c"/>'), []);
+  assert.deepEqual(duplicateIdAttrs('<i id={`row-${i}`}/>\n<i id={`row-${j}`}/>'), []); // 표현식 — 대상 아님
+  assert.deepEqual(duplicateIdAttrs(null), []);
+  assert.deepEqual(duplicateIdAttrs(''), []);
+});
+
+// 앱(포털·공개 라우트) 소스는 목적지 없는 <a> 0건이어야 한다.
+// 예외는 랜딩 `app/page.jsx` 뿐 — 원본 마크업(dangerouslySetInnerHTML) 유래 죽은 링크로,
+// 목적지·카피 결정이 필요해 [주간 컨펌] 대기 중이다. 파일 단위 허용목록으로 분리해
+// **랜딩 외 다른 화면에 새 죽은 링크가 생기면 즉시 실패**하도록 고정한다.
+const DEAD_ANCHOR_ALLOW = new Set(['app/page.jsx']);
+
+test('app/·lib/ 전 소스: href 없는 <a> 0건(랜딩 제외) · 중복 id 0건(125회차 불변식)', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const files = [...walkSrc(path.join(root, 'app')), ...walkSrc(path.join(root, 'lib'))];
+  assert.ok(files.length >= 40, `소스 파일 수집 이상(${files.length}개) — 경로 확인`);
+  const bad = [];
+  for (const f of files) {
+    const rel = path.relative(root, f).split(path.sep).join('/');
+    // 스캐너 자신은 제외 — 주석·정규식이 금지 패턴을 서술하므로 자기 참조 오탐이 난다(115회차와 동일).
+    if (rel === 'lib/sourceLint.js') continue;
+    const src = fs.readFileSync(f, 'utf8');
+    if (!DEAD_ANCHOR_ALLOW.has(rel)) {
+      const a = anchorWithoutHref(src);
+      if (a.length) bad.push(`${rel} a:${a.join(',')}`);
+    }
+    const dup = duplicateIdAttrs(src);
+    if (dup.length) bad.push(`${rel} id:${dup.join(',')}`);
+  }
+  assert.deepEqual(bad, [], `링크 목적지/id 중복 불변식 위반: ${bad.join(' · ')}`);
+});
+
+// 허용목록이 "잊힌 부채"가 되지 않도록: 랜딩에는 실제로 죽은 링크가 남아 있어야 하고
+// (0건이 되면 = 주간에 목적지 배선 완료 → 허용목록을 지우라는 신호로 실패시킨다),
+// 허용목록에 랜딩 외 파일이 슬며시 추가되는 것도 막는다.
+test('랜딩 죽은 링크 허용목록은 app/page.jsx 하나뿐이며, 해소되면 실패로 알린다(부채 가시화)', () => {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  assert.deepEqual([...DEAD_ANCHOR_ALLOW], ['app/page.jsx']);
+  const src = fs.readFileSync(path.join(root, 'app', 'page.jsx'), 'utf8');
+  const lines = anchorWithoutHref(src);
+  assert.ok(
+    lines.length > 0,
+    '랜딩 죽은 링크가 0건이 되었다 — 목적지 배선이 끝났다는 뜻이므로 DEAD_ANCHOR_ALLOW 를 비우고 이 테스트를 제거하라.'
+  );
 });

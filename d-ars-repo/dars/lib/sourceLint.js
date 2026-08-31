@@ -318,3 +318,47 @@ export function htmlMissingLang(src) {
   const stripped = src.split('\n').map((l) => l.replace(/(^|\s)\/\/.*$/, '$1')).join('\n');
   return missingAttr(stripped, 'html', /\blang\s*=/);
 }
+
+// ---- 125회차: 목적지 없는 링크 · id 중복 불변식 ----
+// 배경(121회차 예고 항목): (1) href 없는 <a> 는 **링크가 아니다** — 키보드 탭으로 도달할 수 없고
+// (기본 포커스 가능 대상에서 제외) 스크린리더도 "링크"로 낭독하지 않는다(WCAG 2.1.1 / 4.1.2 ·
+// eslint-plugin-jsx-a11y anchor-is-valid 와 동일 취지). 마우스로는 눌러 보이지만 아무 일도
+// 일어나지 않는 "죽은 링크"가 되어 상용 화면에서 즉시 신뢰를 잃는다. (2) 같은 문서에 **중복 id**
+// 가 있으면 htmlFor·aria-labelledby·aria-controls·앵커(#id)가 항상 첫 번째 요소로만 연결돼
+// 라벨·설명·이동이 조용히 엉킨다(HTML 명세 위반 · 빌드/런타임 오류 없음 = 잠복 회귀).
+// 현재 앱 전 소스 중복 id 0건 — 불변식으로 고정한다.
+
+// href= 선언이 없는 <a> 여는 태그의 시작 행 번호 목록.
+// 통과(보수적 — 오탐 방지 우선): href= 명시(값은 강제하지 않음 — 표현식 {url} 허용) ·
+// 전개 속성({...props})으로 href 가 주입될 수 있는 태그는 판정 보류
+// (unnamedIconButtons·deadControlledInputs 의 보류와 동일 계약).
+// 정책: 앱(포털) 소스는 **항상 빈 배열**이어야 한다. 랜딩(app/page.jsx)의 원본 마크업 유래
+// 죽은 링크는 목적지·카피 결정이 필요해 통합 테스트가 파일 단위 허용목록으로 분리 관리한다.
+export function anchorWithoutHref(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const bad = [];
+  for (const t of openTags(src, 'a')) {
+    if (/\bhref\s*=/.test(t.tag)) continue;
+    if (/\{\s*\.\.\./.test(t.tag)) continue; // 전개 속성 — 판정 보류
+    bad.push(t.line);
+  }
+  return bad;
+}
+
+// 같은 소스 안에서 두 번 이상 나타나는 정적 id 값의 **2번째 이후** 출현 행 번호 목록(오름차순).
+// **항상 빈 배열이어야 한다.** 문자열 리터럴 id 만 판정하고 표현식(id={`x-${i}`} — 리스트 렌더에서
+// 의도적으로 고유화하는 패턴)은 정적 판정 불가 → 대상 아님(보수적). 첫 출현은 보고하지 않는다
+// (위반은 "다시 쓴 쪽"이므로 사람이 고칠 지점을 가리킨다).
+export function duplicateIdAttrs(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const seen = new Set();
+  const bad = [];
+  const re = /\bid\s*=\s*"([^"]+)"/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const v = m[1];
+    if (seen.has(v)) bad.push(src.slice(0, m.index).split('\n').length);
+    else seen.add(v);
+  }
+  return bad.sort((a, b) => a - b);
+}
