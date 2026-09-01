@@ -186,7 +186,7 @@ footer a:hover{color:#fff}
   </div>
   <div class="viz">
     <div class="glow"></div><div class="ring r1"></div><div class="ring r2"></div>
-    <div class="chip c1">📞 응답률 98.5%</div><div class="chip c3">⚡ 평균 2.3초</div><div class="chip c2">🛡 24/7 무중단</div>
+    <div class="chip c1">📞 전화 자동응대</div><div class="chip c3">⚡ 스트리밍 응답</div><div class="chip c2">🛡 24/7 무중단</div>
     <div class="phone"><div class="screen">
       <div class="st">● 통화 연결됨 · 00:12</div>
       <div class="avatar"><svg aria-hidden="true" viewBox="0 0 24 24" width="26" fill="#fff"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" stroke-width="1.6" fill="none"/></svg></div>
@@ -210,11 +210,12 @@ footer a:hover{color:#fff}
 
 <div class="wrap">
   <div class="stats">
-    <div class="stat"><b>99.5%</b><span>시스템 가동률</span></div>
-    <div class="stat"><b>60%</b><span>상담 시간 절감</span></div>
-    <div class="stat"><b>30%</b><span>운영 비용 절감</span></div>
-    <div class="stat"><b>98%</b><span>고객 만족도 향상</span></div>
+    <div class="stat"><b>무중단 설계</b><span>이중화 · 장애 시 기존 IVR 폴백</span></div>
+    <div class="stat"><b>상담 시간 절감</b><span>정형 문의 AI 1차 응대</span></div>
+    <div class="stat"><b>운영 비용 절감</b><span>야간·주말 무인 운영</span></div>
+    <div class="stat"><b>응대 품질 관리</b><span>녹취·QA·감사로그</span></div>
   </div>
+  <p class="sub" style="text-align:center;font-size:13px;margin-top:14px">※ 위 항목은 제품 기능·설계 기준의 설명이며, 특정 고객사의 운영 실적을 나타내지 않습니다. 실제 효과는 도입 환경에서 실측해 산출합니다.</p>
 </div>
 
 <!-- WHY -->
