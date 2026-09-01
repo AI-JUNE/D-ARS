@@ -1,9 +1,17 @@
 'use client';
 import Link from 'next/link';
 import { useEffect } from 'react';
+// 순수 포맷터만 가져온다(전송 로직 미사용) — 브라우저에서 외부 통신은 일어나지 않는다.
+import { buildEvent, monitorLine } from '@/lib/monitor';
 
 export default function Error({ error, reset }) {
-  useEffect(() => { if (typeof console !== 'undefined') console.error(error); }, [error]);
+  // 원인 추적: 화면에는 스택·메시지를 노출하지 않고 콘솔에만 남긴다.
+  // 서버 로그와 같은 [MONITOR] 봉투로 찍어 두면 브라우저 콘솔·세션 리플레이에서 같은 스키마로 읽힌다.
+  // PII 는 buildEvent 내부에서 마스킹된다(전화·이메일·주민번호·자격증명).
+  useEffect(() => {
+    if (typeof console === 'undefined') return;
+    console.error(monitorLine(buildEvent({ err: error, level: 'fatal', source: 'client' })));
+  }, [error]);
   return (
     <main style={{minHeight:'100dvh',display:'grid',placeItems:'center',padding:'24px',
       background:'var(--bg)',color:'var(--ink)',

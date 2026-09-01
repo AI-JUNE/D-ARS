@@ -1,5 +1,6 @@
 import { hasDB, sql } from '@/lib/db';
 import { buildHealth } from '@/lib/health';
+import { captureError } from '@/lib/monitor';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,9 @@ export async function GET() {
       dbStatus = 'connected';
       latencyMs = Date.now() - t0;
     } catch (e) {
-      console.error('health probe failed:', e?.message);
+      // 전역 캡처 훅(lib/monitor): [MONITOR] 한 줄 + DSN 설정 시에만 외부 전송.
+      // await 하지 않는다 — 모니터링 지연이 헬스체크 응답을 늦추면 안 된다(무해화 계약상 reject 없음).
+      captureError(e, { level: 'fatal', source: 'api/health', context: { probe: 'select 1' } });
       dbStatus = 'error';
     }
   }
