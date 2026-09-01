@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
 
-// 이음 3세대 연결 · 보이는 ARS 고객 화면
+// 보이는 ARS 고객 화면 데모 — 통화 중 화면 동반 안내 시연
 // 콜봇 events node 키(합의안): SHOW_WELFARE_FORM · SHOW_TRIO_MATCH · SHOW_SAFETY_CHECK
 //                              · SHOW_CARD_POINTS · TRANSFER_COORDINATOR · SHOW_DOCS
 const journey = ['연결', '본인확인', '신청·상담', '매칭·안내', '완료'];
@@ -92,7 +92,7 @@ export default function Visual() {
     const id = ++runId.current;
     setPlaying(true); setMsgs([]); setStep(0); setTyping(false); setListening(false);
     await wait(400);
-    await bot('안녕하세요, 이음 복지상담입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.', null, id);
+    await bot('안녕하세요, 고객센터입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.', null, id);
     if (id !== runId.current) return;
     setStep(1); await cust('김순자입니다. 기초연금을 신청하고 싶어요', id);
     await bot('네, 본인확인 되었어요. 말씀만 하시면 신청서를 대신 채워드릴게요.', 'SHOW_WELFARE_FORM', id);
@@ -130,13 +130,13 @@ export default function Visual() {
         <div style={{ background: '#f4f1ee', borderRadius: 34, overflow: 'hidden', height: 'min(760px,84vh)', minHeight: 540, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'linear-gradient(135deg,#be5535,#9c4025)', color: '#fff', padding: '20px 18px 13px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <b style={{ fontSize: 15.5 }}>이음 · 세대를 잇다</b>
+              <b style={{ fontSize: 15.5 }}>D-ARS · 보이는 ARS</b>
               <span style={{ fontSize: 11, background: 'rgba(255,255,255,.18)', padding: '4px 9px', borderRadius: 999 }}>{live ? '● 실시간 연동' : '● 통화 연결됨'}</span>
             </div>
-            <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>광주 광산구 3세대 상생 품앗이 · 보이는 ARS</div>
+            <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>통화 중 화면 동반 안내 · 데모 화면</div>
           </div>
           <div style={{ background: '#fff7f3', borderBottom: '1px solid #e6ddd7', color: '#8a5a44', fontSize: 11, padding: '7px 16px' }}>
-            ℹ️ 본 상담은 생성형 AI가 함께 응대합니다 (AI 기본법 제31조 고지).</div>
+            ℹ️ 본 상담은 생성형 AI가 함께 응대합니다 (AI 기본법 제31조 고지). · 본 화면은 데모이며 실제 고객 데이터가 아닙니다.</div>
           <div style={{ display: 'flex', gap: 6, padding: '9px 14px 4px', alignItems: 'center' }}>
             <span style={{ fontSize: 10.5, color: '#8a7a72', fontWeight: 700 }}>세대별 화면</span>
             {GENS.map((g) => (
@@ -226,7 +226,7 @@ function NodeCard({ node, S }) {
   if (node === 'TRANSFER_COORDINATOR') return (
     <div style={box}>{title('📞 코디네이터 연결')}
       <div style={{ display: 'flex', gap: 8, marginTop: 7, alignItems: 'center' }}>
-        <span style={{ flex: 1, color: '#9c8b80' }}>광산구 상생지원센터 · 예상 대기 30초</span>
+        <span style={{ flex: 1, color: '#9c8b80' }}>담당 상담사 연결 · 예상 대기 30초</span>
         <button type="button" onClick={(e) => { e.currentTarget.textContent = '연결 중…'; e.currentTarget.style.background = '#2e8b57'; }}
           style={{ border: 0, background: '#be5535', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>연결</button>
       </div>
