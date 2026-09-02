@@ -91,11 +91,36 @@ test('전 라우트: req.json() 은 try/catch 또는 readJson 경유', () => {
   }
 });
 
-// ── 5) 레이트리밋 응답 규약 ───────────────────────────────────────────────
-// 429 를 내는 라우트는 Retry-After 를 붙여야 한다 → rateLimited() 헬퍼가 이를 보장한다.
-test('레이트리밋 라우트: rateLimited() 헬퍼로 429 응답(Retry-After 보장)', () => {
+// ── 5) 레이트리밋 규약 ────────────────────────────────────────────────────
+// 한도(숫자)는 lib/apiLimits 의 정책표에만 존재해야 한다. 라우트가 자체 리미터를 만들면
+// "어디에 얼마가 걸려 있는지"를 정책표만 보고는 알 수 없게 된다.
+test('전 라우트: 자체 리미터 생성 금지 — lib/apiLimits 정책표 경유', () => {
   for (const { name, src } of ROUTES) {
-    if (!/createRateLimiter\(/.test(src)) continue;
-    assert.ok(/rateLimited\(/.test(src), `${name}: 429 응답은 apiError.rateLimited() 사용`);
+    assert.equal(/createRateLimiter\(/.test(src), false, `${name}: 한도는 lib/apiLimits.LIMIT_POLICY 에 정의할 것`);
+  }
+});
+
+// 429 응답은 Retry-After 를 반드시 동반한다 → consume()/rateLimited() 가 이를 보장한다.
+test('레이트리밋 라우트: consume() 결과를 그대로 반환(Retry-After 보장)', () => {
+  for (const { name, src } of ROUTES) {
+    if (!/from\s+'@\/lib\/apiLimits'/.test(src)) continue;
+    assert.ok(/consume\(/.test(src), `${name}: apiLimits 를 import 했으면 consume() 을 쓸 것`);
+  }
+});
+
+// 부작용이 있거나 공개적으로 접근 가능한 라우트는 반드시 rate limit 을 건다.
+// 새 공개 라우트를 무방비로 추가하는 사고를 막는 회귀 가드다.
+const MUST_LIMIT = [
+  'auth/login/route.js', 'cpaas/events/route.js', 'cpaas/voice/route.js',
+  'dev/simulate/route.js', 'sessions/route.js', 'visual/action/route.js', 'visual/state/route.js',
+  'docs/route.js', 'scenarios/route.js', 'ums/route.js', 'multimodal/route.js',
+  'stats/route.js', 'notifications/route.js',
+];
+test('공개 API: rate limit 적용 누락 없음', () => {
+  const byName = new Map(ROUTES.map((r) => [r.name, r.src]));
+  for (const n of MUST_LIMIT) {
+    const src = byName.get(n);
+    assert.ok(src, `대상 라우트를 찾지 못함(경로 변경?): ${n}`);
+    assert.ok(/consume\(/.test(src), `${n}: rate limit 미적용`);
   }
 });

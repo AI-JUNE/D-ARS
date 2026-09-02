@@ -6,6 +6,7 @@ import { sessionAggRows, foldSessionGroups } from '@/lib/sessionsAgg';
 import { parseSortParams, orderBySql, sortRowsBy } from '@/lib/sortParams';
 import { SESSION_SORTS } from '@/lib/listSorts';
 import { invalidJson, serverError } from '@/lib/apiError';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const dynamic = 'force-dynamic';
 
 // 검색 대상: 세션ID·시나리오·노드. 전화번호(마스킹 PII)는 서버 검색 대상에서 제외.
@@ -18,6 +19,10 @@ const SESSION_SEARCH_FIELDS = ['id', 'scenario', 'node'];
 // agg=1 : 현재 조건(검색어) **전체**에 대한 집계만 반환 → 화면 KPI가 "로드된 행"이 아니라
 //         서버 총계를 쓰므로 "더 보기" 페이징에도 수치가 왜곡되지 않는다.
 export async function GET(req) {
+  // 읽기 과다요청 완화(정책: lib/apiLimits.read — 사무실 공유 IP 를 감안한 넉넉한 한도).
+  // CDN 캐시를 우회하는 스크래핑만 걸리도록 정상 폴링 대비 수십 배로 잡았다.
+  const overRead = consume('read', ipKey(req));
+  if (overRead) return overRead;
   const rawUrl = req?.url || 'http://local/api/sessions';
   const p = parseListParams(rawUrl, { limit: 20 });
   const like = likeParam(p.q);
@@ -90,6 +95,9 @@ function maskPhone(p) {
   return d.length >= 8 ? d.slice(0, 3) + '-****-' + d.slice(-4) : p;
 }
 export async function POST(req) {
+  // 과다요청 완화(정책: lib/apiLimits.ingest). 키 검증 **이전에** 검사해 INGEST_KEY 브루트포스도 함께 막는다.
+  const over = consume('ingest', ipKey(req));
+  if (over) return over;
   // 머신 수집 가드: 강제 모드 + INGEST_KEY 설정 시에만 실제 검사(그 외 통과 → 라이브 무붕괴).
   const denied = await guardIngest(req, 'operator');
   if (denied) return denied;

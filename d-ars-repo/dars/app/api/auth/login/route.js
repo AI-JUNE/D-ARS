@@ -1,20 +1,18 @@
 import { NextResponse } from 'next/server';
 import { findUser, signToken, COOKIE, SESSION_HOURS } from '@/lib/auth';
-import { createRateLimiter, clientIp } from '@/lib/rateLimit';
+import { clientIp } from '@/lib/rateLimit';
 import { audit } from '@/lib/audit';
-import { rateLimited, unauthorized } from '@/lib/apiError';
+import { unauthorized } from '@/lib/apiError';
+import { consume } from '@/lib/apiLimits';
 export const dynamic = 'force-dynamic';
 
-// 브루트포스 완화: IP당 5분 내 로그인 시도 10회 제한(인메모리 · 단일 인스턴스).
-// [승인 필요] 멀티노드/서버리스 확장 시 Redis 등 공유 스토어로 교체.
-const loginLimiter = createRateLimiter({ windowMs: 5 * 60_000, max: 10 });
-
+// 브루트포스 완화. 한도는 lib/apiLimits 정책표(login: 5분 10회)에 있다.
 export async function POST(req) {
   const ip = clientIp(req);
-  const gate = loginLimiter.check(ip);
-  if (!gate.allowed) {
+  const over = consume('login', ip, '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.');
+  if (over) {
     await audit('AUTH_LOGIN_RATELIMITED', { ip });                 // 감사(P0-7): 마스킹 후 기록·실패 무해화
-    return rateLimited(gate.retryAfterSec, '로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.');
+    return over;
   }
   const { username, password } = await req.json().catch(() => ({}));
   const u = findUser(username, password);

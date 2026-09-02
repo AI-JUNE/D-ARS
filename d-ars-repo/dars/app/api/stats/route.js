@@ -2,6 +2,7 @@ import { sql, safe, jsonCached } from '@/lib/db';
 import { demoDaily, demoMultimodal, demoUms } from '@/lib/demo';
 import { aggregateServiceRows, foldServiceGroups, LAUNCH_NODE, SMS_CHANNEL, SMS_SENT_STATUS, RESULT_DROP, RESULT_DONE } from '@/lib/services';
 import { parseRangeParams, filterByDate, tailDays } from '@/lib/statsRange';
+import { consume, ipKey } from '@/lib/apiLimits';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,10 @@ export const dynamic = 'force-dynamic';
 //   - 날짜는 형식 검증(YYYY-MM-DD)을 통과한 값만 $n 바인딩으로 전달 → SQL 인젝션 무관.
 // 전화번호(PII)는 집계·필터 대상 아님 · 인증/과금 로직 무관 → 저위험.
 export async function GET(req) {
+  // 읽기 과다요청 완화(정책: lib/apiLimits.read — 사무실 공유 IP 를 감안한 넉넉한 한도).
+  // CDN 캐시를 우회하는 스크래핑만 걸리도록 정상 폴링 대비 수십 배로 잡았다.
+  const overRead = consume('read', ipKey(req));
+  if (overRead) return overRead;
   const range = parseRangeParams(req?.url);
 
   const daily = await safe(

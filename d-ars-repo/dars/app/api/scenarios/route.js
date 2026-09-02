@@ -6,6 +6,7 @@ import { parseListParams, likeParam, filterRows, sliceRows, listResponse } from 
 import { parseSortParams, orderBySql, sortRowsBy } from '@/lib/sortParams';
 import { SCENARIO_SORTS, SCENARIO_SEARCH_FIELDS } from '@/lib/listSorts';
 import { parseRangeParams, rangeBounds, filterByDate } from '@/lib/statsRange';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const dynamic = 'force-dynamic';
 
 const COLS = 'id,name,type,status,version,nodes,updated_by,updated_at';
@@ -21,6 +22,10 @@ const COLS = 'id,name,type,status,version,nodes,updated_by,updated_at';
 //   - 날짜는 strictDay 를 통과한 `YYYY-MM-DD` 만 **$n 바인딩**(문자열 보간 없음) → 인젝션 시도는 구간 미적용 폴백.
 //   - 파라미터가 없으면 from/to = null → 기존 쿼리 결과와 동일(**완전 하위호환**).
 export async function GET(req) {
+  // 읽기 과다요청 완화(정책: lib/apiLimits.read — 사무실 공유 IP 를 감안한 넉넉한 한도).
+  // CDN 캐시를 우회하는 스크래핑만 걸리도록 정상 폴링 대비 수십 배로 잡았다.
+  const overRead = consume('read', ipKey(req));
+  if (overRead) return overRead;
   const status = new URL(req.url).searchParams.get('status');
   const hasStatus = !!(status && status !== '전체');
   const p = parseListParams(req.url, { limit: 100 });

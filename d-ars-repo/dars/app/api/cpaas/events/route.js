@@ -4,19 +4,16 @@
 // 보안(v1.1): voice와 동일하게 x-webhook-secret 검증 → 가짜 이벤트 주입 차단
 import { sql, safe } from '@/lib/db';
 import { verifyWebhook } from '@/lib/cpaas';
-import { createRateLimiter, clientIp } from '@/lib/rateLimit';
-import { rateLimited, unauthorized, invalidJson, badRequest } from '@/lib/apiError';
+import { unauthorized, invalidJson, badRequest } from '@/lib/apiError';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// 과다요청/플러딩 완화: IP당 1분 120회(통화 중 STT·TTS·node 이벤트는 빈번하므로 넉넉히).
-// 시크릿 브루트포스도 함께 완화하기 위해 verifyWebhook 이전에 검사한다.
-// [승인 필요] 멀티노드/서버리스 확장 시 Redis 등 공유 스토어로 교체.
-const eventsLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
-
+// 과다요청/플러딩 완화. 한도는 lib/apiLimits 의 정책표(cpaasEvents)에 있다 — 라우트에 숫자를 두지 않는다.
+// 시크릿 브루트포스도 함께 완화하기 위해 verifyWebhook **이전에** 검사한다.
 export async function POST(req) {
-  const gate = eventsLimiter.check(clientIp(req));
-  if (!gate.allowed) return rateLimited(gate.retryAfterSec);
+  const over = consume('cpaasEvents', ipKey(req));
+  if (over) return over;
   if (!verifyWebhook(req)) return unauthorized();
   let b = {}; try { b = await req.json(); } catch { return invalidJson(); }
   const sessionId = b.sessionId || b.id;

@@ -39,6 +39,10 @@ export const LIMIT_POLICY = {
   read:         { windowMs: 60_000, max: 1200 },
   // 시뮬레이터: DB 행 생성 + SMS 발송 경로라 부작용이 있다 → 가장 빡빡하게.
   simulate:     { windowMs: 60_000, max: 10 },
+  // ── 기존에 라우트 안에 흩어져 있던 정책을 그대로 옮겨온 것(값 변경 없음) ──
+  login:        { windowMs: 5 * 60_000, max: 10 },  // 로그인 브루트포스 완화
+  cpaasEvents:  { windowMs: 60_000, max: 120 },     // 통화 중 STT·TTS·node 이벤트는 잦다
+  cpaasVoice:   { windowMs: 60_000, max: 30 },      // 인입콜 웹훅 — SMS 발송 남용 방어
 };
 
 const limiters = new Map();

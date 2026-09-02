@@ -6,11 +6,16 @@ import { parseListParams, likeParam, filterRows, sliceRows, listResponse } from 
 import { parseSortParams, orderBySql, sortRowsBy } from '@/lib/sortParams';
 // 정렬 화이트리스트·검색 필드는 lib/listSorts.js 로 단일화(라우트 내 중복 스펙 제거 · 스펙 자체를 단위 테스트).
 import { DOC_SORTS, DOC_SEARCH_FIELDS } from '@/lib/listSorts';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const dynamic = 'force-dynamic';
 
 // 목록 조회: limit/offset/q(서버 사이드 검색)/sort·dir(서버 사이드 정렬)/meta 지원.
 // 파라미터가 없으면 기존과 동일한 배열 응답(완전 하위호환) — 정렬 미지정 시 기존 `order by req desc` 그대로.
 export async function GET(req) {
+  // 읽기 과다요청 완화(정책: lib/apiLimits.read — 사무실 공유 IP 를 감안한 넉넉한 한도).
+  // CDN 캐시를 우회하는 스크래핑만 걸리도록 정상 폴링 대비 수십 배로 잡았다.
+  const overRead = consume('read', ipKey(req));
+  if (overRead) return overRead;
   const p = parseListParams(req.url, { limit: 100 });
   const like = likeParam(p.q);
   const sort = parseSortParams(req.url, DOC_SORTS);

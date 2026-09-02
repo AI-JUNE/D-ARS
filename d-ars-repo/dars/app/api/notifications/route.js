@@ -2,6 +2,7 @@ import { sql, safe, jsonCached } from '@/lib/db';
 import { demoDocs, demoUms, demoSessions, demoDaily } from '@/lib/demo';
 import { deriveNotifications } from '@/lib/notify';
 import { parseThresholdParams } from '@/lib/notifyRules';
+import { consume, ipKey } from '@/lib/apiLimits';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,10 @@ export const dynamic = 'force-dynamic';
 // 값은 lib/notifyRules 의 화이트리스트 키만 읽어 정수화·범위 클램핑하고, **SQL 에는 들어가지 않는다**(집계 쿼리 불변).
 // 파라미터가 없으면 기존 상수와 동일한 기본값 → 완전 하위호환(기존 클라이언트 무영향).
 export async function GET(req) {
+  // 읽기 과다요청 완화(정책: lib/apiLimits.read — 사무실 공유 IP 를 감안한 넉넉한 한도).
+  // CDN 캐시를 우회하는 스크래핑만 걸리도록 정상 폴링 대비 수십 배로 잡았다.
+  const overRead = consume('read', ipKey(req));
+  if (overRead) return overRead;
   const thresholds = parseThresholdParams(req?.url || 'http://local/api/notifications');
 
   const docs = await safe(() => sql`select id,biz,name,req,sent,done,in_use from docs order by req desc`, demoDocs);

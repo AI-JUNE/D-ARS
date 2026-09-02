@@ -8,6 +8,7 @@ import { parseSortParams, orderBySql, sortRowsBy } from '@/lib/sortParams';
 // 검색 대상은 서비스·서류·상태 — 전화번호(PII)는 정렬 대상이지만 서버 검색 대상이 아니다(기존 정책 유지).
 import { UMS_SORTS, UMS_SEARCH_FIELDS } from '@/lib/listSorts';
 import { parseRangeParams, rangeBounds, filterByDate } from '@/lib/statsRange';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const dynamic = 'force-dynamic';
 
 // **기간 파라미터(2026-07-13 야간)**: `?days=N` 또는 `?from=&to=` (lib/statsRange).
@@ -16,6 +17,10 @@ export const dynamic = 'force-dynamic';
 //   - 날짜는 `strictDay` 검증을 통과한 `YYYY-MM-DD` 만 **$n 바인딩**으로 전달(문자열 보간 없음) → 인젝션 무관.
 //   - 파라미터가 없으면 from/to = null → 기존 쿼리 결과와 동일(**완전 하위호환**). 전화번호(PII) 처리 불변.
 export async function GET(req) {
+  // 읽기 과다요청 완화(정책: lib/apiLimits.read — 사무실 공유 IP 를 감안한 넉넉한 한도).
+  // CDN 캐시를 우회하는 스크래핑만 걸리도록 정상 폴링 대비 수십 배로 잡았다.
+  const overRead = consume('read', ipKey(req));
+  if (overRead) return overRead;
   const status = new URL(req.url).searchParams.get('status');
   const hasStatus = !!(status && status !== '전체');
   const p = parseListParams(req.url, { limit: 100 });

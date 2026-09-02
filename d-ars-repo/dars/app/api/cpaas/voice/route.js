@@ -3,19 +3,16 @@
 // 멱등성(v1.1): 같은 callId 재호출 시 기존 세션 재사용 + 중복 SMS 미발송(콜봇 재시도 대비)
 import { signLink, sendSms, verifyWebhook, baseUrl, maskPhone, sessionIdFor, PROVIDER } from '@/lib/cpaas';
 import { sql, safe } from '@/lib/db';
-import { createRateLimiter, clientIp } from '@/lib/rateLimit';
-import { rateLimited, unauthorized } from '@/lib/apiError';
+import { unauthorized } from '@/lib/apiError';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// 인입콜 웹훅 남용 완화: IP당 1분 30회(정상 인입 대비 넉넉, SMS 발송 남용·시크릿 브루트포스 방어).
-// verifyWebhook 이전에 검사해 인증 실패 요청도 카운트한다.
-// [승인 필요] 멀티노드/서버리스 확장 시 Redis 등 공유 스토어로 교체.
-const voiceLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
-
+// 인입콜 웹훅 남용 완화(SMS 발송 남용·시크릿 브루트포스 방어). 한도는 lib/apiLimits(cpaasVoice).
+// verifyWebhook **이전에** 검사해 인증 실패 요청도 카운트한다.
 export async function POST(req) {
-  const gate = voiceLimiter.check(clientIp(req));
-  if (!gate.allowed) return rateLimited(gate.retryAfterSec);
+  const over = consume('cpaasVoice', ipKey(req));
+  if (over) return over;
   if (!verifyWebhook(req)) return unauthorized();
   let b = {}; try { b = await req.json(); } catch {}
   const from = b.from || b.From || b.phone || b.caller || '01000000000';

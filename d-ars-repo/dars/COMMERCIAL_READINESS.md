@@ -17,7 +17,9 @@
   - 근거: `lib/health.js`(`version`·`deps[]` 화이트리스트 정규화 — name·status·latencyMs·required 만 통과, URL·키는 넘겨도 응답에 안 실림 · 필수 아닌 의존성 오류는 `degraded=true`로만 200 유지) + `tests/health.test.mjs` 23케이스(export 금지 가드 포함). 외부 API 실프로브는 미실시(설정 유무만 노출) — 실프로브 활성화는 **[승인 필요]**
 - [x] **표준 에러 응답** 전 API 통일 + 입력검증
   - 근거: `lib/apiError.js`(단일 봉투 `{ok:false,error,...}` · `fail`에 headers 인자 추가 — 넘겨도 `no-store`는 덮이지 않음 · `rateLimited()`가 Retry-After를 정수초·최소 1로 정규화 · `invalidJson()`)로 **app/api 20개 라우트 전부** 전환, 손수 조립한 `ok:false` 리터럴 0건. `lib/validate.badRequest`는 apiError에 위임(본문 형태 불변, no-store만 추가). 입력검증: `docs/[id]`·`scenarios/[id]` PUT이 보호되지 않은 `await req.json()`(깨진 본문 → 500)을 `readJson`+`badRequest`로 교체하고 값 클램핑(POST와 동일 규칙, 미지정 필드는 null → coalesce로 기존값 유지). 가드: `tests/routecontract.test.mjs` 6케이스(전 라우트 export 화이트리스트·`ok:false` 금지·4xx/5xx 시 헬퍼 import·`req.json()` 무보호 금지·429 시 `rateLimited()` 강제) + `tests/apierror.test.mjs` 12·`tests/validate.test.mjs` 17케이스
-- [ ] **rate limit** 공개 API 적용
+- [x] **rate limit** 공개 API 적용
+  - 근거: `lib/apiLimits.js` 정책표(`LIMIT_POLICY` 9종)로 한도를 단일화하고 `consume(policy, key)` 한 줄로 배선 — **공개 라우트 13개 전부 적용**(login·cpaas/events·cpaas/voice·dev/simulate·sessions·visual/action·visual/state·docs·scenarios·ums·multimodal·stats·notifications). 기존에 라우트마다 흩어져 있던 `createRateLimiter` 3곳은 **값 변경 없이** 정책표로 이관하고, 라우트 내 자체 리미터 생성은 가드로 금지. **키 설계**: 서명토큰이 유효하면 세션 단위(`sessionId`), 검증 실패만 IP 단위(`tokenFail`) — CGNAT 공유 IP 환경에서 한 명의 과다요청이 같은 통신사 이용자를 함께 막는 무고한 차단을 피한다. 한도는 클라이언트 폴링 주기에서 역산한 여유값(실측 KPI 아님). 비상구 `RATE_LIMIT_DISABLED=1`(정확히 '1'일 때만 해제, 기본은 적용). 검증: `tests/apilimits.test.mjs` 16케이스(키 격리·정책 강도 역전 방지·비상구 오타 내성 포함) + `tests/routecontract.test.mjs`에 공개 API 누락 가드 3케이스 추가
+  - 한계: 인메모리·인스턴스 로컬 → 서버리스 인스턴스가 늘면 실효 한도도 함께 늘어난다. 멀티노드 정합(Redis 등 공유 스토어)은 **[승인 필요]**
 - [ ] **접근·감사 로그** — 관리 기능 접근 이력
 - [ ] **백업·복구 절차** RUNBOOK.md 문서화 + 복구 리허설 기록
 - [ ] **약관·개인정보 처리방침 확정본 반영** (현재 초안, 문안은 사람이 확정)
