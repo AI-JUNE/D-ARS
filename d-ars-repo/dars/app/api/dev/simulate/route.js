@@ -3,11 +3,16 @@
 import { signLink, sendSms, notifyCallbot, baseUrl, maskPhone, PROVIDER } from '@/lib/cpaas';
 import { sql, safe } from '@/lib/db';
 import { forbidden } from '@/lib/apiError';
+import { consume, ipKey } from '@/lib/apiLimits';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   if (process.env.DEMO_MODE === '0') return forbidden('운영 모드에서는 시뮬레이터 비활성');
+  // 이 엔드포인트는 세션 행을 만들고 SMS 발송 경로를 태운다(실연동 시 과금·발신 부작용).
+  // 키 없이 호출되는 공개 경로이므로 가장 빡빡한 한도를 건다.
+  const over = consume('simulate', ipKey(req));
+  if (over) return over;
   const u = new URL(req.url);
   const phone = u.searchParams.get('phone') || '01012345678';
   const scenario = u.searchParams.get('scenario') || '복지 상담';

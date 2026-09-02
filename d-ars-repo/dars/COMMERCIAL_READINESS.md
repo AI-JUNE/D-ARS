@@ -15,7 +15,8 @@
   - 근거: `lib/log.js`(고정 스키마 `ts·level·requestId·method·path·status·durationMs·code·msg·env` · 쿼리스트링 통째 폐기 · `scrubText` 재사용으로 마스킹 규칙 단일화 · throw 없음) + `tests/log.test.mjs` 22케이스, 배선 `app/api/health/route.js`(`X-Request-Id` 응답 반환). 외부 전송 없음(콘솔 전용)
 - [x] **/health 확장** — 의존성(DB·외부API) 상태와 버전·커밋 해시 노출(민감정보 제외)
   - 근거: `lib/health.js`(`version`·`deps[]` 화이트리스트 정규화 — name·status·latencyMs·required 만 통과, URL·키는 넘겨도 응답에 안 실림 · 필수 아닌 의존성 오류는 `degraded=true`로만 200 유지) + `tests/health.test.mjs` 23케이스(export 금지 가드 포함). 외부 API 실프로브는 미실시(설정 유무만 노출) — 실프로브 활성화는 **[승인 필요]**
-- [ ] **표준 에러 응답** 전 API 통일 + 입력검증
+- [x] **표준 에러 응답** 전 API 통일 + 입력검증
+  - 근거: `lib/apiError.js`(단일 봉투 `{ok:false,error,...}` · `fail`에 headers 인자 추가 — 넘겨도 `no-store`는 덮이지 않음 · `rateLimited()`가 Retry-After를 정수초·최소 1로 정규화 · `invalidJson()`)로 **app/api 20개 라우트 전부** 전환, 손수 조립한 `ok:false` 리터럴 0건. `lib/validate.badRequest`는 apiError에 위임(본문 형태 불변, no-store만 추가). 입력검증: `docs/[id]`·`scenarios/[id]` PUT이 보호되지 않은 `await req.json()`(깨진 본문 → 500)을 `readJson`+`badRequest`로 교체하고 값 클램핑(POST와 동일 규칙, 미지정 필드는 null → coalesce로 기존값 유지). 가드: `tests/routecontract.test.mjs` 6케이스(전 라우트 export 화이트리스트·`ok:false` 금지·4xx/5xx 시 헬퍼 import·`req.json()` 무보호 금지·429 시 `rateLimited()` 강제) + `tests/apierror.test.mjs` 12·`tests/validate.test.mjs` 17케이스
 - [ ] **rate limit** 공개 API 적용
 - [ ] **접근·감사 로그** — 관리 기능 접근 이력
 - [ ] **백업·복구 절차** RUNBOOK.md 문서화 + 복구 리허설 기록
