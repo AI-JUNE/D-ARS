@@ -5,6 +5,7 @@ import { parseListParams, likeParam, filterRows, sliceRows, listResponse } from 
 import { sessionAggRows, foldSessionGroups } from '@/lib/sessionsAgg';
 import { parseSortParams, orderBySql, sortRowsBy } from '@/lib/sortParams';
 import { SESSION_SORTS } from '@/lib/listSorts';
+import { invalidJson, serverError } from '@/lib/apiError';
 export const dynamic = 'force-dynamic';
 
 // 검색 대상: 세션ID·시나리오·노드. 전화번호(마스킹 PII)는 서버 검색 대상에서 제외.
@@ -93,7 +94,7 @@ export async function POST(req) {
   const denied = await guardIngest(req, 'operator');
   if (denied) return denied;
   let body;
-  try { body = await req.json(); } catch { return Response.json({ ok: false, error: 'invalid json' }, { status: 400 }); }
+  try { body = await req.json(); } catch { return invalidJson(); }
   const event = String(body.event || 'progress');
   const id = body.id || body.callId || 'VS-' + Date.now().toString(36).toUpperCase();
   const callId = body.callId || null;
@@ -130,6 +131,6 @@ export async function POST(req) {
       returning id, phone, scenario, step, node, elapsed, status`;
     return rows?.[0];
   }, null);
-  if (!saved) return Response.json({ ok: false, error: 'write failed', mode: 'db-error' }, { status: 500 });
+  if (!saved) return serverError('write failed', { mode: 'db-error' });
   return Response.json({ ok: true, mode: 'db', session: saved });
 }

@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ok, fail, badRequest, unauthorized, forbidden, notFound, gone, tooManyRequests, serverError,
+  rateLimited, invalidJson,
 } from '../lib/apiError.js';
 
 async function read(res) {
@@ -57,5 +58,50 @@ test('상태별 헬퍼: 코드/기본문구 확인', async () => {
 
 test('no-store 캐시 헤더 부착(실패 응답)', () => {
   const res = badRequest();
+  assert.equal(res.headers.get('Cache-Control'), 'no-store');
+});
+
+// ── rateLimited / invalidJson (전 라우트 통일용 헬퍼) ─────────────────────
+test('rateLimited: 429 + Retry-After 정수 초', async () => {
+  const res = rateLimited(30);
+  assert.equal(res.status, 429);
+  assert.equal(res.headers.get('Retry-After'), '30');
+  const body = await res.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.error, 'rate limited');
+});
+
+test('rateLimited: 0·음수·NaN·소수는 안전한 정수 초로 정규화(최소 1)', () => {
+  assert.equal(rateLimited(0).headers.get('Retry-After'), '1');
+  assert.equal(rateLimited(-5).headers.get('Retry-After'), '1');
+  assert.equal(rateLimited(undefined).headers.get('Retry-After'), '1');
+  assert.equal(rateLimited(NaN).headers.get('Retry-After'), '1');
+  assert.equal(rateLimited('abc').headers.get('Retry-After'), '1');
+  assert.equal(rateLimited(2.1).headers.get('Retry-After'), '3');   // 올림 — 이른 재시도 방지
+  assert.equal(rateLimited('30').headers.get('Retry-After'), '30'); // 문자열 숫자도 허용
+});
+
+test('rateLimited: 사용자 문구·추가 필드 유지', async () => {
+  const body = await rateLimited(5, '로그인 시도가 너무 많습니다.', { code: 'LOGIN_RATELIMITED' }).json();
+  assert.equal(body.error, '로그인 시도가 너무 많습니다.');
+  assert.equal(body.code, 'LOGIN_RATELIMITED');
+});
+
+test('rateLimited: 에러 응답이라도 캐시되지 않는다', () => {
+  assert.equal(rateLimited(10).headers.get('Cache-Control'), 'no-store');
+});
+
+test('invalidJson: 400 + 고정 문구', async () => {
+  const res = invalidJson();
+  assert.equal(res.status, 400);
+  assert.equal(res.headers.get('Cache-Control'), 'no-store');
+  const body = await res.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.error, 'invalid json');
+});
+
+test('fail: headers 인자를 얹어도 no-store 는 덮이지 않는다', () => {
+  const res = fail('x', 429, {}, { 'Retry-After': '7', 'Cache-Control': 'public, max-age=600' });
+  assert.equal(res.headers.get('Retry-After'), '7');
   assert.equal(res.headers.get('Cache-Control'), 'no-store');
 });

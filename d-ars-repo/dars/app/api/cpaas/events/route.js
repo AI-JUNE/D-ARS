@@ -5,6 +5,7 @@
 import { sql, safe } from '@/lib/db';
 import { verifyWebhook } from '@/lib/cpaas';
 import { createRateLimiter, clientIp } from '@/lib/rateLimit';
+import { rateLimited, unauthorized, invalidJson, badRequest } from '@/lib/apiError';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -15,11 +16,11 @@ const eventsLimiter = createRateLimiter({ windowMs: 60_000, max: 120 });
 
 export async function POST(req) {
   const gate = eventsLimiter.check(clientIp(req));
-  if (!gate.allowed) return Response.json({ ok: false, error: 'rate limited' }, { status: 429, headers: { 'Retry-After': String(gate.retryAfterSec) } });
-  if (!verifyWebhook(req)) return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  let b = {}; try { b = await req.json(); } catch { return Response.json({ ok: false, error: 'invalid json' }, { status: 400 }); }
+  if (!gate.allowed) return rateLimited(gate.retryAfterSec);
+  if (!verifyWebhook(req)) return unauthorized();
+  let b = {}; try { b = await req.json(); } catch { return invalidJson(); }
   const sessionId = b.sessionId || b.id;
-  if (!sessionId) return Response.json({ ok: false, error: 'sessionId 필요' }, { status: 400 });
+  if (!sessionId) return badRequest('sessionId 필요');
   const node = b.node || null;
   const step = Number.isFinite(b.step) ? b.step : null;
   const status = b.type === 'end' ? '완료' : '진행';

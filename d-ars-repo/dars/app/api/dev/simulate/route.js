@@ -2,11 +2,12 @@
 // GET /api/dev/simulate?phone=01012345678&scenario=복지상담
 import { signLink, sendSms, notifyCallbot, baseUrl, maskPhone, PROVIDER } from '@/lib/cpaas';
 import { sql, safe } from '@/lib/db';
+import { forbidden } from '@/lib/apiError';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
-  if (process.env.DEMO_MODE === '0') return Response.json({ ok: false, error: '운영 모드에서는 시뮬레이터 비활성' }, { status: 403 });
+  if (process.env.DEMO_MODE === '0') return forbidden('운영 모드에서는 시뮬레이터 비활성');
   const u = new URL(req.url);
   const phone = u.searchParams.get('phone') || '01012345678';
   const scenario = u.searchParams.get('scenario') || '복지 상담';

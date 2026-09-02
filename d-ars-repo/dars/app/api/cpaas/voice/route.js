@@ -4,6 +4,7 @@
 import { signLink, sendSms, verifyWebhook, baseUrl, maskPhone, sessionIdFor, PROVIDER } from '@/lib/cpaas';
 import { sql, safe } from '@/lib/db';
 import { createRateLimiter, clientIp } from '@/lib/rateLimit';
+import { rateLimited, unauthorized } from '@/lib/apiError';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -14,8 +15,8 @@ const voiceLimiter = createRateLimiter({ windowMs: 60_000, max: 30 });
 
 export async function POST(req) {
   const gate = voiceLimiter.check(clientIp(req));
-  if (!gate.allowed) return Response.json({ ok: false, error: 'rate limited' }, { status: 429, headers: { 'Retry-After': String(gate.retryAfterSec) } });
-  if (!verifyWebhook(req)) return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  if (!gate.allowed) return rateLimited(gate.retryAfterSec);
+  if (!verifyWebhook(req)) return unauthorized();
   let b = {}; try { b = await req.json(); } catch {}
   const from = b.from || b.From || b.phone || b.caller || '01000000000';
   const callId = b.callId || b.CallSid || b.call_id || ('C' + Date.now());

@@ -2,6 +2,7 @@
 // GET /api/visual/state?s=<서명토큰>  → { ok, sessionId, node, step, status, scenario }
 import { verifyLink } from '@/lib/cpaas';
 import { sql, safe } from '@/lib/db';
+import { unauthorized, gone } from '@/lib/apiError';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -9,8 +10,8 @@ export async function GET(req) {
   const u = new URL(req.url);
   const token = u.searchParams.get('s');
   const v = token ? verifyLink(token) : null;
-  if (!v) return Response.json({ ok: false, error: 'invalid token' }, { status: 401 });
-  if (v.expired) return Response.json({ ok: false, error: 'expired' }, { status: 410 });
+  if (!v) return unauthorized('invalid token');
+  if (v.expired) return gone();
   const rows = await safe(() => sql`select node, step, status, scenario from visual_sessions where id = ${v.sessionId}`, null);
   const r = Array.isArray(rows) && rows[0] ? rows[0] : null;
   // gen 컬럼은 분리 조회(미마이그레이션 시에도 node 조회가 깨지지 않도록)

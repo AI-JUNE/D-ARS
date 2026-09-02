@@ -95,3 +95,18 @@ test('라우트 계약: 시나리오 nodes 미제공 시 기본 런칭·종료 �
   assert.equal(nodes[0].type, 'VISUAL_LAUNCH');
   assert.equal(nodes[1].type, 'END');
 });
+
+// ── apiError 위임 회귀(2026-09-02) ────────────────────────────────────────
+// validate.badRequest 는 이제 lib/apiError.badRequest 에 위임한다. 본문 형태는 그대로여야
+// 하고(기존 클라이언트 무영향), no-store 헤더만 추가된다.
+test('badRequest: 본문 형태 불변 + no-store 추가', async () => {
+  const res = badRequest('invalid json');
+  assert.equal(res.status, 400);
+  assert.equal(res.headers.get('Cache-Control'), 'no-store');
+  const body = await res.json();
+  assert.deepEqual(body, { ok: false, error: 'invalid json' });
+});
+
+test('badRequest: 인자 없으면 기본 문구', async () => {
+  assert.equal((await badRequest().json()).error, 'invalid request');
+});
