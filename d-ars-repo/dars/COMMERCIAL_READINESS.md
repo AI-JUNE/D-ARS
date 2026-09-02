@@ -11,8 +11,10 @@
 ## 공통 상용 필수 (전 제품)
 - [x] **에러 모니터링** — 전역 에러 캡처 + 알림 훅. DSN은 환경변수, 미설정 시 무해하게 no-op
   - 근거: `lib/monitor.js`(PII 마스킹·지문 스로틀·`MONITOR_DSN` 미설정 시 콘솔 한 줄만 · throw 없음) + `tests/monitor.test.mjs` 14케이스, 배선 `app/api/health/route.js`·`app/error.jsx`. 실제 DSN 주입은 **[승인 필요]**
-- [ ] **구조화 로깅** — 요청 ID·소요시간·에러코드. PII 미기록
-- [ ] **/health 확장** — 의존성(DB·외부API) 상태와 버전·커밋 해시 노출(민감정보 제외)
+- [x] **구조화 로깅** — 요청 ID·소요시간·에러코드. PII 미기록
+  - 근거: `lib/log.js`(고정 스키마 `ts·level·requestId·method·path·status·durationMs·code·msg·env` · 쿼리스트링 통째 폐기 · `scrubText` 재사용으로 마스킹 규칙 단일화 · throw 없음) + `tests/log.test.mjs` 22케이스, 배선 `app/api/health/route.js`(`X-Request-Id` 응답 반환). 외부 전송 없음(콘솔 전용)
+- [x] **/health 확장** — 의존성(DB·외부API) 상태와 버전·커밋 해시 노출(민감정보 제외)
+  - 근거: `lib/health.js`(`version`·`deps[]` 화이트리스트 정규화 — name·status·latencyMs·required 만 통과, URL·키는 넘겨도 응답에 안 실림 · 필수 아닌 의존성 오류는 `degraded=true`로만 200 유지) + `tests/health.test.mjs` 23케이스(export 금지 가드 포함). 외부 API 실프로브는 미실시(설정 유무만 노출) — 실프로브 활성화는 **[승인 필요]**
 - [ ] **표준 에러 응답** 전 API 통일 + 입력검증
 - [ ] **rate limit** 공개 API 적용
 - [ ] **접근·감사 로그** — 관리 기능 접근 이력
