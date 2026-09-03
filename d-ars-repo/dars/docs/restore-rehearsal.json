@@ -1,0 +1,5 @@
+{
+  "_": "복구 리허설 기록. RUNBOOK.md 5장 참조. 추가만 하고 수정·삭제하지 않는다.",
+  "_format": { "at": "ISO 8601 시각", "by": "수행자", "steps": ["snapshot", "restore", "schema", "rowcount", "app", "signoff"], "note": "요약" },
+  "rehearsals": []
+}

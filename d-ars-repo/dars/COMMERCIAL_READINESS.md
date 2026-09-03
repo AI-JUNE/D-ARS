@@ -24,7 +24,9 @@
   - 근거: 기존에는 **거부·인증 이벤트만** 남아 "누가 관리 기능을 썼는가"가 비어 있었다. `lib/auth.guardWrite` 통과 경로에 성공 기록을 추가 — 관리 API(`/api/admin/*`)는 `ADMIN_ACCESS`, 그 외 보호 API 는 `WRITE_OK`(`lib/audit.accessEventFor` 순수 분류 · 접두어 오인 `/api/administration` 방지). `detail`에 `path·method·need·enforced` 만 담고 **쿼리스트링은 폐기**(PII 유입 방어), 계정·IP 는 기존 마스킹 계약 그대로. 비강제(데모) 모드에서도 `identityOf`로 신원만 확인해 이력을 남기되 **차단 판정은 하지 않는다**(라이브 무붕괴). 화면 `/admin/audit`에 두 이벤트 라벨·필터 추가.
   - 검증: `tests/auditaccess.test.mjs` 10케이스(통과/401/403 판정 불변 · 위조 서명은 계정 미기록 · `req` 이상 객체에도 무throw · 쿼리스트링 미기록) + `tests/audit.test.mjs` +4케이스(`accessEventFor`)
   - 한계: 기본은 **콘솔 기록**(Vercel 함수 로그 보존기간에 종속) — DB 영속화는 `AUDIT_DB=1` **[승인 필요]**. 수집(ingest) 성공은 머신 트래픽 폭주를 피하려 기록하지 않는다(거부만 기록). `guardWrite`를 거치지 않는 단순 조회 라우트는 이력 대상이 아니다.
-- [ ] **백업·복구 절차** RUNBOOK.md 문서화 + 복구 리허설 기록
+- [x] **백업·복구 절차** RUNBOOK.md 문서화 + 복구 리허설 기록
+  - 근거: `RUNBOOK.md`(데이터 자산표·백업 수단·사고 유형 A/B/C 분기 복구 절차·리허설 6단계·롤백·금지선). 문서가 썩는 것을 막기 위해 **복구 확인 대상 표 목록을 코드로 단일화** — `lib/backupCheck.js`의 `COVERED_TABLES` 와 `db/*.sql` 실선언을 `tests/backupcheck.test.mjs` 가 **양방향** 대조(새 표 추가 시 누락·삭제 후 유령 항목 모두 실패) → 표가 늘거나 줄면 런북 갱신이 강제된다. 리허설 기록은 `docs/restore-rehearsal.json` 에 누적하고 `rehearsalStatus()` 가 `none|incomplete|stale|ok` 로 판정(부분 수행을 근거로 삼지 않음 · 유효기간 90일은 분기 점검 관례 기준값이지 실측 지표 아님). 행수 대조 `compareRowCounts()` 는 **감소를 무조건 실패**로 본다. 점검 CLI `npm run backup:check`(읽기 전용 · DB 무접속). 검증: `tests/backupcheck.test.mjs` 21케이스
+  - 한계: **복구 리허설 자체는 미실시**(상태 `none`) — 실제 Neon 복구·`DATABASE_URL` 교체는 자동화가 하지 않는다 **[승인 필요]**. RPO/RTO 목표값은 요금제·계약 종속이라 임의 수치를 적지 않고 미확정으로 남겼다. 논리 백업(pg_dump) 주기·보관처도 미결 **[승인 필요]**
 - [ ] **약관·개인정보 처리방침 확정본 반영** (현재 초안, 문안은 사람이 확정)
 - [ ] **테스트** 핵심 로직 커버리지 확보, CI에서 실행
 
