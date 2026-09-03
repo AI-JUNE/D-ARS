@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AUDIT_EVENTS, maskActor, maskIp, sanitizeDetail, buildAuditEntry, auditLine, audit,
+  AUDIT_EVENTS, maskActor, maskIp, sanitizeDetail, buildAuditEntry, auditLine, audit, accessEventFor,
 } from '../lib/audit.js';
 
 // ── maskActor: 원문 계정이 그대로 남지 않는다 ──
@@ -76,4 +76,29 @@ test('audit: DB 없이 유효 이벤트 true·무효 이벤트 false·무throw',
   assert.equal(await audit('AUTH_LOGIN_FAIL', { actor: 'x', ip: '9.9.9.9' }), true);
   assert.equal(await audit('NOT_AN_EVENT'), false);
   assert.equal(await audit(), false);
+});
+
+// ── accessEventFor: 접근 성공 이벤트 분류(118회차) ──
+test('accessEventFor: 관리 API 는 ADMIN_ACCESS, 나머지는 WRITE_OK', () => {
+  assert.equal(accessEventFor('/api/admin/audit'), 'ADMIN_ACCESS');
+  assert.equal(accessEventFor('/api/admin'), 'ADMIN_ACCESS');
+  assert.equal(accessEventFor('/api/docs'), 'WRITE_OK');
+  assert.equal(accessEventFor('/api/scenarios/17'), 'WRITE_OK');
+});
+test('accessEventFor: 접두어 오인 방지(/api/administration 은 관리 API 가 아니다)', () => {
+  assert.equal(accessEventFor('/api/administration'), 'WRITE_OK');
+  assert.equal(accessEventFor('/api/adminx/y'), 'WRITE_OK');
+});
+test('accessEventFor: 쿼리·해시 무시 · 이상 입력은 WRITE_OK 로 축약(무throw)', () => {
+  assert.equal(accessEventFor('/api/admin/audit?event=AUTH_LOGIN'), 'ADMIN_ACCESS');
+  assert.equal(accessEventFor('/api/admin/audit#x'), 'ADMIN_ACCESS');
+  assert.equal(accessEventFor(''), 'WRITE_OK');
+  assert.equal(accessEventFor(null), 'WRITE_OK');
+  assert.equal(accessEventFor(undefined), 'WRITE_OK');
+  assert.equal(accessEventFor(42), 'WRITE_OK');
+});
+test('accessEventFor 반환값은 항상 화이트리스트 안이다', () => {
+  for (const p of ['/api/admin/audit', '/api/docs', '', null]) {
+    assert.ok(AUDIT_EVENTS.includes(accessEventFor(p)));
+  }
 });

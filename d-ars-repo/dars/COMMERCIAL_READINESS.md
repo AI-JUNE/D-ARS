@@ -20,7 +20,10 @@
 - [x] **rate limit** 공개 API 적용
   - 근거: `lib/apiLimits.js` 정책표(`LIMIT_POLICY` 9종)로 한도를 단일화하고 `consume(policy, key)` 한 줄로 배선 — **공개 라우트 13개 전부 적용**(login·cpaas/events·cpaas/voice·dev/simulate·sessions·visual/action·visual/state·docs·scenarios·ums·multimodal·stats·notifications). 기존에 라우트마다 흩어져 있던 `createRateLimiter` 3곳은 **값 변경 없이** 정책표로 이관하고, 라우트 내 자체 리미터 생성은 가드로 금지. **키 설계**: 서명토큰이 유효하면 세션 단위(`sessionId`), 검증 실패만 IP 단위(`tokenFail`) — CGNAT 공유 IP 환경에서 한 명의 과다요청이 같은 통신사 이용자를 함께 막는 무고한 차단을 피한다. 한도는 클라이언트 폴링 주기에서 역산한 여유값(실측 KPI 아님). 비상구 `RATE_LIMIT_DISABLED=1`(정확히 '1'일 때만 해제, 기본은 적용). 검증: `tests/apilimits.test.mjs` 16케이스(키 격리·정책 강도 역전 방지·비상구 오타 내성 포함) + `tests/routecontract.test.mjs`에 공개 API 누락 가드 3케이스 추가
   - 한계: 인메모리·인스턴스 로컬 → 서버리스 인스턴스가 늘면 실효 한도도 함께 늘어난다. 멀티노드 정합(Redis 등 공유 스토어)은 **[승인 필요]**
-- [ ] **접근·감사 로그** — 관리 기능 접근 이력
+- [x] **접근·감사 로그** — 관리 기능 접근 이력
+  - 근거: 기존에는 **거부·인증 이벤트만** 남아 "누가 관리 기능을 썼는가"가 비어 있었다. `lib/auth.guardWrite` 통과 경로에 성공 기록을 추가 — 관리 API(`/api/admin/*`)는 `ADMIN_ACCESS`, 그 외 보호 API 는 `WRITE_OK`(`lib/audit.accessEventFor` 순수 분류 · 접두어 오인 `/api/administration` 방지). `detail`에 `path·method·need·enforced` 만 담고 **쿼리스트링은 폐기**(PII 유입 방어), 계정·IP 는 기존 마스킹 계약 그대로. 비강제(데모) 모드에서도 `identityOf`로 신원만 확인해 이력을 남기되 **차단 판정은 하지 않는다**(라이브 무붕괴). 화면 `/admin/audit`에 두 이벤트 라벨·필터 추가.
+  - 검증: `tests/auditaccess.test.mjs` 10케이스(통과/401/403 판정 불변 · 위조 서명은 계정 미기록 · `req` 이상 객체에도 무throw · 쿼리스트링 미기록) + `tests/audit.test.mjs` +4케이스(`accessEventFor`)
+  - 한계: 기본은 **콘솔 기록**(Vercel 함수 로그 보존기간에 종속) — DB 영속화는 `AUDIT_DB=1` **[승인 필요]**. 수집(ingest) 성공은 머신 트래픽 폭주를 피하려 기록하지 않는다(거부만 기록). `guardWrite`를 거치지 않는 단순 조회 라우트는 이력 대상이 아니다.
 - [ ] **백업·복구 절차** RUNBOOK.md 문서화 + 복구 리허설 기록
 - [ ] **약관·개인정보 처리방침 확정본 반영** (현재 초안, 문안은 사람이 확정)
 - [ ] **테스트** 핵심 로직 커버리지 확보, CI에서 실행

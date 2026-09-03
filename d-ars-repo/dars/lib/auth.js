@@ -103,26 +103,62 @@ export function parseCookie(header, name) {
   return null;
 }
 
-// ── 가드 거부 감사(P0-7) — 동적 import(Edge 미들웨어 번들 불변) · 기록 실패 무해화(절대 throw 금지) ──
+// ── 가드 감사(P0-7) — 동적 import(Edge 미들웨어 번들 불변) · 기록 실패 무해화(절대 throw 금지) ──
+// 요청 경로만 추출(쿼리스트링은 버린다 — PII 유입 방어. lib/log.js 와 동일 규칙).
+function pathOf(req) {
+  try { return new URL(req.url).pathname; } catch { return ''; }
+}
+
 async function auditDenied(event, req, detail, user = null) {
   try {
     const { audit } = await import('./audit.js');
     const { clientIp } = await import('./rateLimit.js');
-    let path = '';
-    try { path = new URL(req.url).pathname; } catch { path = ''; }
-    await audit(event, { actor: user?.u, role: user?.role, ip: clientIp(req), detail: { ...detail, path } });
+    await audit(event, { actor: user?.u, role: user?.role, ip: clientIp(req), detail: { ...detail, path: pathOf(req) } });
+  } catch { /* 감사 실패가 본 요청을 실패시키면 안 된다 */ }
+}
+
+// 세션 쿠키에서 신원만 확인한다(차단 판단 없음 · 어떤 입력에도 throw 하지 않는다).
+// 비강제 모드에서도 "누가 썼는지"를 남기기 위해 사용한다 — 반환값으로 접근을 막지 않는다.
+async function identityOf(req) {
+  try {
+    const token = parseCookie(req?.headers?.get?.('cookie'), COOKIE);
+    return token ? await verifyToken(token) : null;
+  } catch { return null; }
+}
+
+// 가드를 통과한 접근을 기록한다(118회차 — 상용 요건 "관리 기능 접근 이력").
+// 관리 API 는 ADMIN_ACCESS, 그 외 보호 API 는 WRITE_OK 로 분류(lib/audit.accessEventFor).
+// detail.enforced 로 데모(비강제) 접근과 실인증 접근을 사후에 구분할 수 있게 남긴다.
+// 실패는 전면 무해화 — 감사가 본 요청(쓰기)을 실패시키면 안 된다.
+async function auditGranted(req, need, user = null) {
+  try {
+    const { audit, accessEventFor } = await import('./audit.js');
+    const { clientIp } = await import('./rateLimit.js');
+    const path = pathOf(req);
+    let method = '';
+    try { method = String(req?.method || ''); } catch { method = ''; }
+    await audit(accessEventFor(path), {
+      actor: user?.u,
+      role: user?.role,
+      ip: clientIp(req),
+      detail: { path, method, need, enforced: isEnforced() },
+    });
   } catch { /* 감사 실패가 본 요청을 실패시키면 안 된다 */ }
 }
 
 // 쓰기 API 가드. 기본(비강제) 모드에서는 통과(null 반환)하여 라이브 데모 무붕괴.
 // 운영자가 AUTH_ENFORCE=1 을 켰을 때만 실제 인증/역할 검사를 수행하고,
 // 미인증 → 401, 역할 부족 → 403 Response 를 반환한다(호출측은 값이 있으면 즉시 return).
-// 반환: 통과 시 null, 차단 시 Response. 거부 시 WRITE_DENIED 감사 기록(마스킹·무해화).
+// 반환: 통과 시 null, 차단 시 Response.
+// 감사: 거부는 WRITE_DENIED, 통과는 ADMIN_ACCESS/WRITE_OK 로 기록(마스킹·무해화 · 118회차).
 export async function guardWrite(req, need = 'operator') {
-  if (!isEnforced()) return null;                        // 데모/기본: 통과
-  let token = null;
-  try { token = parseCookie(req?.headers?.get?.('cookie'), COOKIE); } catch { token = null; }
-  const user = token ? await verifyToken(token) : null;
+  if (!isEnforced()) {
+    // 데모/기본: 차단하지 않는다. 다만 접근 이력은 지금부터 남긴다(쿠키가 있으면 마스킹된 계정까지,
+    // 없으면 익명 접근으로). 감사 기록은 통과 여부에 영향을 주지 않는다.
+    await auditGranted(req, need, await identityOf(req));
+    return null;
+  }
+  const user = await identityOf(req);
   if (!user) {
     await auditDenied('WRITE_DENIED', req, { reason: 'unauthorized', need });   // 감사(P0-7)
     return Response.json({ ok: false, error: 'unauthorized' }, { status: 401 });
@@ -131,6 +167,7 @@ export async function guardWrite(req, need = 'operator') {
     await auditDenied('WRITE_DENIED', req, { reason: 'forbidden', need }, user); // 감사(P0-7)
     return Response.json({ ok: false, error: 'forbidden' }, { status: 403 });
   }
+  await auditGranted(req, need, user);                   // 감사(118회차): 통과한 접근도 남긴다
   return null;                                           // 통과
 }
 

@@ -19,6 +19,8 @@ const EVENT_META = {
   AUTH_LOGOUT:            { label: '로그아웃',      tag: 't-info' },
   WRITE_DENIED:           { label: '쓰기 거부',     tag: 't-bad' },
   INGEST_DENIED:          { label: '수집 거부',     tag: 't-bad' },
+  ADMIN_ACCESS:           { label: '관리 접근',     tag: 't-info' },
+  WRITE_OK:               { label: '쓰기 수행',     tag: 't-ok' },
 };
 
 function fmtTs(ts) {
@@ -32,7 +34,7 @@ function fmtTs(ts) {
 // detail 요약: path·reason·need 우선 노출, 나머지는 k=v 나열(값은 이미 200자 절단됨)
 function fmtDetail(detail) {
   if (!detail || typeof detail !== 'object') return '';
-  const order = ['path', 'reason', 'need'];
+  const order = ['path', 'method', 'reason', 'need'];
   const keys = [...order.filter((k) => detail[k] != null), ...Object.keys(detail).filter((k) => !order.includes(k))];
   return keys.map((k) => `${k}=${detail[k]}`).join(' · ');
 }

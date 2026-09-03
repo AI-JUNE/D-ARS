@@ -16,7 +16,20 @@ export const AUDIT_EVENTS = [
   'AUTH_LOGOUT',            // 로그아웃
   'WRITE_DENIED',           // 쓰기 API 가드 거부(401 미인증 / 403 역할 부족) — guardWrite
   'INGEST_DENIED',          // 수집(ingest) 가드 거부(401) — guardIngest
+  'ADMIN_ACCESS',           // 관리 API(/api/admin/*) 접근 성공 — guardWrite 통과 시
+  'WRITE_OK',               // 일반 쓰기/보호 API 접근 성공 — guardWrite 통과 시
 ];
+
+// 접근 성공 이벤트 분류(순수 함수 · 118회차).
+// 배경: 지금까지 감사는 '거부'와 인증 이벤트만 남겼다. 상용 요건인 "관리 기능 접근 이력"은
+//   **성공한 접근**이 남아야 성립한다(누가·언제·어떤 관리 기능을 썼는가). 관리 API 는 별도
+//   이벤트로 분리해 감사 화면에서 필터 한 번으로 관리 행위만 추려볼 수 있게 한다.
+// 판정은 경로 접두어만 본다(쿼리스트링·호스트 무관 — 호출측이 pathname 만 넘긴다).
+export function accessEventFor(pathname) {
+  if (typeof pathname !== 'string' || !pathname) return 'WRITE_OK';
+  const path = pathname.split('?')[0].split('#')[0];
+  return /^\/api\/admin(\/|$)/.test(path) ? 'ADMIN_ACCESS' : 'WRITE_OK';
+}
 
 // ── 마스킹(순수 함수 — PII 는 마스킹 후에만 기록) ──────────────
 function maskCore(s) {
