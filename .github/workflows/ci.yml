@@ -21,6 +21,10 @@ jobs:
     defaults:
       run:
         working-directory: d-ars-repo/dars
+    # AICC-Core 는 별도(비공개) 저장소다. 토큰이 없으면 계약 검사는 **건너뛰며**,
+    # 건너뛴 검사를 통과로 적지 않는다. 토큰 등록은 [승인 필요].
+    env:
+      AICC_CORE_TOKEN: ${{ secrets.AICC_CORE_TOKEN }}
     strategy:
       fail-fast: false
       # 로컬(개발자 PC)과 Vercel 런타임의 버전 차이를 함께 본다.
@@ -49,3 +53,22 @@ jobs:
       # 스키마와 RUNBOOK 복구 대상 목록의 어긋남(리허설 미실시는 경고만 · 종료코드 0)
       - name: backup coverage
         run: npm run backup:check
+
+      # ── AICC-Core 채널 계약(§5.3) ────────────────────────────────────────
+      # D-ARS 가 Core 를 실제로 소비하므로, Core 의 적합성 스위트를 이 저장소 포트에 대고 돌린다.
+      # 드라이런 전용이라 고객 화면으로 아무것도 나가지 않는다(ci/aicc-port.mjs 는 transport 미주입).
+      - name: AICC-Core 체크아웃 (채널 계약 검사용)
+        id: aicc_core
+        if: env.AICC_CORE_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: AI-JUNE/aicc-core
+          path: .aicc-core
+          token: ${{ secrets.AICC_CORE_TOKEN }}
+
+      - name: 채널 계약 적합성 (드라이런 · 종료코드 0/1/2 그대로 게이트)
+        if: steps.aicc_core.outcome == 'success'
+        run: npm run conformance:aicc
+        env:
+          # checkout 은 워크스페이스 루트 기준, 실행은 d-ars-repo/dars 기준이다.
+          AICC_CORE: ../../.aicc-core
