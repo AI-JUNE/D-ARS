@@ -1,3 +1,11 @@
+# ⚠️ 이 파일은 **실행되지 않는다(dormant)**.
+#   GitHub Actions 는 **저장소 루트의 `.github/workflows/`** 만 읽는다. 이 파일은
+#   `d-ars-repo/dars/.github/workflows/` 에 있어 워크플로로 인식된 적이 없다
+#   (즉 26회차에 "CI 에 테스트를 넣었다"고 적힌 게이트는 실제로 돌지 않았다).
+#   → 실제 CI 는 저장소 루트 `.github/workflows/ci.yml` 이다(128회차 신설).
+#   이 파일은 이력 보존을 위해 남겨 두며, 고칠 일이 생기면 루트 쪽을 고친다.
+#   (루트 워크플로는 `next build` 를 돌리지 않는다 — 빌드 환경변수 주입이 필요해
+#    빌드 검증은 Vercel 배포가 담당한다.)
 name: CI
 on:
   push: { branches: [main] }

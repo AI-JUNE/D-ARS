@@ -32,7 +32,8 @@
   - 근거: CI `.github/workflows/ci.yml` — push·PR 마다 Node **20·22 두 버전**에서 `npm ci` → `npm test`(`scripts/run-tests.mjs`) → `npm run coverage:check` → `npm run backup:check` 를 돌린다(읽기 전용 · 시크릿·DB·배포 없음). 지금까지 테스트 게이트는 사람이 `deploy.bat` 을 돌릴 때만 걸렸고, 로컬에서 건너뛰면 깨진 채 push 될 수 있었다.
   - 커버리지 게이트: `lib/coverage.js` + `scripts/coverage-check.mjs`. 파일명 규칙(`lib/foo.js` ↔ `tests/foo.test.mjs`) 대조가 아니라 **테스트 소스가 그 모듈을 실제로 참조하는지**로 판정한다 — 이름만 맞춘 빈 테스트로는 통과하지 못한다. 예외 목록(`COVERAGE_EXEMPT`)은 **현재 비어 있고**, 유령(파일이 사라진 예외)·낡음(테스트가 생겼는데 남은 예외) 양쪽을 자동으로 실패시켜 목록이 썩지 않는다. 현재 **로직 모듈 48/48 참조됨**. 훅 7·컴포넌트 12 는 렌더 환경이 필요해 게이트 대상에서 빼되 **수를 숨기지 않고 함께 출력**한다.
   - 함께 메운 공백: 유일하게 어떤 테스트도 부르지 않던 로직 모듈 `lib/legalContent.js`(약관·방침 정본)에 `tests/legal.test.mjs` 12케이스 추가 — 조항 누락·제목 중복·초안 상태가 조용히 사라지는 것·법정 필수 항목(수집·목적·보유·권리·책임자) 누락·임의 KPI 수치 혼입(§13-3)·화면이 정본 대신 자체 문안을 품는 것을 막는다.
-  - 검증: `tests/coverage.test.mjs` 21케이스(분류·참조 추출·유령/낡은 예외·`.jsx`가 `.js`로 잘리던 정규식 회귀·실제 저장소 통합 검사 포함). 전체 `node --test "tests/*.test.mjs"` **723/723 통과**.
+  - 발견: 워크플로 파일이 `d-ars-repo/dars/.github/workflows/ci.yml` 에 있었다 — GitHub Actions 는 **저장소 루트의 `.github/workflows/` 만** 읽으므로 이 파일은 한 번도 실행된 적이 없다(26회차에 "CI 에 테스트를 넣었다"고 남은 기록은 실제로는 dormant). 옛 파일은 삭제하지 않고 상단에 미실행 사유를 명시했고, 실제 CI 는 루트로 옮겼다. 두 상태 모두 테스트가 감시한다.
+  - 검증: `tests/coverage.test.mjs` 22케이스(분류·참조 추출·유령/낡은 예외·`.jsx`가 `.js`로 잘리던 정규식 회귀·실제 저장소 통합 검사 포함). 전체 `node --test "tests/*.test.mjs"` **723/723 통과**.
   - 한계(정직하게): 이 게이트는 **줄 단위 커버리지가 아니라 모듈 도달 여부**다. 퍼센트로 인용하면 안 된다. CI 에서 `next build` 는 돌리지 않는다(빌드 환경변수 주입이 필요) — 빌드 검증은 Vercel 배포가 담당.
 
 ## D-ARS 전용 (준비도 ~63%)

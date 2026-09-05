@@ -142,6 +142,23 @@ test('예외 목록의 모든 항목에는 사유 문자열이 붙어 있다', (
   }
 });
 
+test('CI 워크플로는 저장소 루트에 있고, 실행되지 않는 옛 워크플로는 dormant 로 표시돼 있다', () => {
+  // GitHub Actions 는 저장소 루트의 .github/workflows 만 읽는다. 하위 경로에 둔 워크플로는
+  // 파일이 존재한다는 이유로 "CI 가 돈다"고 오해되기 쉬워, 표시를 강제한다.
+  const repoRoot = path.resolve(ROOT, '..', '..');
+  if (!fs.existsSync(path.join(repoRoot, '.git'))) return; // 저장소 밖 체크아웃이면 검사 생략
+  const rootWf = path.join(repoRoot, '.github', 'workflows', 'ci.yml');
+  assert.ok(fs.existsSync(rootWf), '루트 .github/workflows/ci.yml 이 없다 — CI 가 돌지 않는다');
+  const wf = fs.readFileSync(rootWf, 'utf8');
+  for (const cmd of ['npm test', 'npm run coverage:check']) {
+    assert.ok(wf.includes(cmd), `CI 가 '${cmd}' 를 실행하지 않는다`);
+  }
+  const nested = path.join(ROOT, '.github', 'workflows', 'ci.yml');
+  if (fs.existsSync(nested)) {
+    assert.ok(fs.readFileSync(nested, 'utf8').includes('dormant'), '하위 경로 워크플로에 미실행 표시가 없다');
+  }
+});
+
 test('package.json 에 coverage:check 스크립트가 배선돼 있다(CI 가 부르는 이름)', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   assert.equal(pkg.scripts['coverage:check'], 'node scripts/coverage-check.mjs');
