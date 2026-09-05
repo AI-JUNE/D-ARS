@@ -10,7 +10,8 @@
     "lint": "next lint",
     "db:setup": "node scripts/db-setup.mjs",
     "test": "node scripts/run-tests.mjs",
-    "backup:check": "node scripts/backup-check.mjs"
+    "backup:check": "node scripts/backup-check.mjs",
+    "coverage:check": "node scripts/coverage-check.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

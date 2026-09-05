@@ -28,7 +28,12 @@
   - 근거: `RUNBOOK.md`(데이터 자산표·백업 수단·사고 유형 A/B/C 분기 복구 절차·리허설 6단계·롤백·금지선). 문서가 썩는 것을 막기 위해 **복구 확인 대상 표 목록을 코드로 단일화** — `lib/backupCheck.js`의 `COVERED_TABLES` 와 `db/*.sql` 실선언을 `tests/backupcheck.test.mjs` 가 **양방향** 대조(새 표 추가 시 누락·삭제 후 유령 항목 모두 실패) → 표가 늘거나 줄면 런북 갱신이 강제된다. 리허설 기록은 `docs/restore-rehearsal.json` 에 누적하고 `rehearsalStatus()` 가 `none|incomplete|stale|ok` 로 판정(부분 수행을 근거로 삼지 않음 · 유효기간 90일은 분기 점검 관례 기준값이지 실측 지표 아님). 행수 대조 `compareRowCounts()` 는 **감소를 무조건 실패**로 본다. 점검 CLI `npm run backup:check`(읽기 전용 · DB 무접속). 검증: `tests/backupcheck.test.mjs` 21케이스
   - 한계: **복구 리허설 자체는 미실시**(상태 `none`) — 실제 Neon 복구·`DATABASE_URL` 교체는 자동화가 하지 않는다 **[승인 필요]**. RPO/RTO 목표값은 요금제·계약 종속이라 임의 수치를 적지 않고 미확정으로 남겼다. 논리 백업(pg_dump) 주기·보관처도 미결 **[승인 필요]**
 - [ ] **약관·개인정보 처리방침 확정본 반영** (현재 초안, 문안은 사람이 확정)
-- [ ] **테스트** 핵심 로직 커버리지 확보, CI에서 실행
+- [x] **테스트** 핵심 로직 커버리지 확보, CI에서 실행
+  - 근거: CI `.github/workflows/ci.yml` — push·PR 마다 Node **20·22 두 버전**에서 `npm ci` → `npm test`(`scripts/run-tests.mjs`) → `npm run coverage:check` → `npm run backup:check` 를 돌린다(읽기 전용 · 시크릿·DB·배포 없음). 지금까지 테스트 게이트는 사람이 `deploy.bat` 을 돌릴 때만 걸렸고, 로컬에서 건너뛰면 깨진 채 push 될 수 있었다.
+  - 커버리지 게이트: `lib/coverage.js` + `scripts/coverage-check.mjs`. 파일명 규칙(`lib/foo.js` ↔ `tests/foo.test.mjs`) 대조가 아니라 **테스트 소스가 그 모듈을 실제로 참조하는지**로 판정한다 — 이름만 맞춘 빈 테스트로는 통과하지 못한다. 예외 목록(`COVERAGE_EXEMPT`)은 **현재 비어 있고**, 유령(파일이 사라진 예외)·낡음(테스트가 생겼는데 남은 예외) 양쪽을 자동으로 실패시켜 목록이 썩지 않는다. 현재 **로직 모듈 48/48 참조됨**. 훅 7·컴포넌트 12 는 렌더 환경이 필요해 게이트 대상에서 빼되 **수를 숨기지 않고 함께 출력**한다.
+  - 함께 메운 공백: 유일하게 어떤 테스트도 부르지 않던 로직 모듈 `lib/legalContent.js`(약관·방침 정본)에 `tests/legal.test.mjs` 12케이스 추가 — 조항 누락·제목 중복·초안 상태가 조용히 사라지는 것·법정 필수 항목(수집·목적·보유·권리·책임자) 누락·임의 KPI 수치 혼입(§13-3)·화면이 정본 대신 자체 문안을 품는 것을 막는다.
+  - 검증: `tests/coverage.test.mjs` 21케이스(분류·참조 추출·유령/낡은 예외·`.jsx`가 `.js`로 잘리던 정규식 회귀·실제 저장소 통합 검사 포함). 전체 `node --test "tests/*.test.mjs"` **723/723 통과**.
+  - 한계(정직하게): 이 게이트는 **줄 단위 커버리지가 아니라 모듈 도달 여부**다. 퍼센트로 인용하면 안 된다. CI 에서 `next build` 는 돌리지 않는다(빌드 환경변수 주입이 필요) — 빌드 검증은 Vercel 배포가 담당.
 
 ## D-ARS 전용 (준비도 ~63%)
 - [ ] AUTH_ENFORCE 실인증 전환 준비 — 운영 계정·역할 매핑 문서화 **[승인 후 ON]**
