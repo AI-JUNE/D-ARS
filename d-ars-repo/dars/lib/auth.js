@@ -19,6 +19,11 @@ const ROUTE_MIN = {
   '/docs': 'operator',
   '/templates': 'operator',
 };
+// 경로-최소역할 매핑의 **단일 출처**를 밖으로 내보낸다(복사본을 반환 — 호출측 변형이 원본을 못 건드린다).
+// 운영 계정 발급 문서(docs/AUTH_ROLLOUT.md)의 표가 이 값과 어긋나면 테스트가 실패한다.
+export function routeRoleMatrix() {
+  return { ...ROUTE_MIN };
+}
 export function minRoleFor(pathname) {
   for (const p in ROUTE_MIN) if (pathname === p || pathname.startsWith(p + '/')) return ROUTE_MIN[p];
   return 'viewer';
