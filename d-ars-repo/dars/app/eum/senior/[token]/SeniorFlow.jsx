@@ -25,7 +25,7 @@ import {
   buildPreferences,
   storageKey,
 } from '@/lib/eumSenior';
-import { S, Notice } from './ui.jsx';
+import { S, Notice, FocusStyles } from './ui.jsx';
 
 function stepFromLocation() {
   try {
@@ -45,6 +45,24 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
   const [left, setLeft] = useState(() => Math.max(0, Number(expiresAt) - Date.now()));
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
+  const headingRef = useRef(null);
+  const mountedRef = useRef(false);
+
+  // 단계가 바뀌면 제목으로 포커스를 옮긴다.
+  // 이유: 이 화면은 주소만 바뀌고 문서는 그대로라, 스크린리더 사용자는 화면이 넘어간 것을 모른 채
+  // 이전 위치에 남는다. 제목(tabIndex=-1)에 포커스를 주면 새 제목이 낭독되고 이어지는 Tab 이
+  // 새 선택지에서 시작한다. 첫 렌더에는 옮기지 않는다 — 사용자가 아직 아무 조작도 하지 않았다.
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    try {
+      headingRef.current?.focus();
+    } catch {
+      /* 포커스 불가 환경 — 화면 동작에는 영향 없다 */
+    }
+  }, [step]);
 
   // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·새로고침 대비).
   useEffect(() => {
@@ -146,10 +164,11 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
 
   return (
     <main style={S.page}>
+      <FocusStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
-        <h1 style={S.h1}>{STEP_TITLE[step]}</h1>
-        <p style={S.note} role="status">{stepLabel}</p>
+        <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
+        <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
 
         {soon ? (
           <p style={S.warn}>
@@ -166,6 +185,7 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
                 key={o.k}
                 type="button"
                 style={S.choice}
+                className="eum-focus"
                 aria-pressed={activity === o.k}
                 onClick={() => chooseActivity(o.k)}
               >
@@ -183,6 +203,7 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
                   key={o.k}
                   type="button"
                   style={S.choice}
+                  className="eum-focus"
                   aria-pressed={timeslot === o.k}
                   onClick={() => chooseTimeslot(o.k)}
                 >
@@ -190,7 +211,7 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
                 </button>
               ))}
             </div>
-            <a href="?step=1" style={S.back} onClick={back}>앞 화면으로</a>
+            <a href="?step=1" className="eum-focus" style={S.back} onClick={back}>앞 화면으로</a>
           </>
         ) : null}
 
@@ -198,11 +219,11 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
           <>
             <p style={S.summary}>{summaryText({ activity, timeslot })}</p>
             <div style={S.list}>
-              <button type="button" style={S.primary} onClick={submit} disabled={busy}>
+              <button type="button" className="eum-focus" style={S.primary} onClick={submit} disabled={busy}>
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
             </div>
-            <a href="?step=2" style={S.back} onClick={back}>다시 고르기</a>
+            <a href="?step=2" className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
           </>
         ) : null}
 
