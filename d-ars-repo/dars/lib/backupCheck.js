@@ -16,9 +16,14 @@
 // 미적용 DDL(create table … 예시)이 선언으로 잘못 잡히는 것을 막는다.
 // 문자열 리터럴 안의 '--' 까지 구분하지는 않는다(스키마 파일에 그런 사례가 없고, 보수적으로
 // 주석 취급해도 테이블명을 놓칠 뿐 없는 표를 만들어 내지는 않는다).
+//
+// CRLF 주의(2026-09-09 수정): 이전 구현은 `/--.*$/` 였다. JS 정규식에서 `.` 는 `\r` 을 매칭하지
+//   않고, `m` 플래그 없는 `$` 는 문자열 끝에서만 맞으므로 **CRLF 파일에서는 주석이 하나도
+//   제거되지 않았다**(db/schema.sql 이 CRLF). 오류 없이 조용히 no-op 이 되는 종류의 버그다.
+//   `[^\n]` 은 `\r` 을 포함하므로 개행 방식과 무관하게 동작한다.
 export function stripSqlComments(sql) {
   if (typeof sql !== 'string' || !sql) return '';
-  return sql.split('\n').map((l) => l.replace(/--.*$/, '')).join('\n');
+  return sql.split('\n').map((l) => l.replace(/--[^\n]*$/, '')).join('\n');
 }
 
 // SQL 에서 `create table [if not exists] <name>` 로 선언된 테이블 이름을 사전순·중복 제거로 반환.

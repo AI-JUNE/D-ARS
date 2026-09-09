@@ -11,6 +11,7 @@
     "db:setup": "node scripts/db-setup.mjs",
     "test": "node scripts/run-tests.mjs",
     "backup:check": "node scripts/backup-check.mjs",
+    "retention:check": "node scripts/retention-check.mjs",
     "auth:check": "node scripts/auth-check.mjs",
     "coverage:check": "node scripts/coverage-check.mjs",
     "conformance:aicc": "node scripts/aicc-conformance.mjs"

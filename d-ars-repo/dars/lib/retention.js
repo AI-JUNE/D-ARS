@@ -6,11 +6,14 @@
 //   실제 실행은 scripts/retention-purge.mjs 가 DRY-RUN(미실행) 기본으로만 다룬다.
 //   파기(비가역)는 운영자가 명시적으로 승인해야 한다.
 
-// 개인정보(PII)를 담는 컬럼 = 전화번호. 보관기간 경과분은 행 삭제 대신 '전화번호 익명화(NULL)'로
-// 처리하여 통계(집계)는 보존하고 식별정보만 제거한다.
+// 보관기간 경과분은 행 삭제 대신 '식별 컬럼 익명화(NULL)'로 처리하여
+// 통계(집계)는 보존하고 식별정보만 제거한다.
+// call_id 는 교환기가 발급한 통화 식별자로, 통신사 원장과 대조하면 개인이 재식별될 수 있어
+// 전화번호와 같은 기준으로 파기한다(장애 추적 목적의 보존은 보관기간 안에서만 유효).
 export const PII_TABLES = [
-  { table: 'visual_sessions', dateCol: 'started_at', piiCol: 'phone', label: '상담 세션' },
-  { table: 'ums_log',         dateCol: 'sent_at',    piiCol: 'phone', label: 'UMS 발송로그' },
+  { table: 'visual_sessions', dateCol: 'started_at', piiCol: 'phone',   label: '상담 세션(전화번호)' },
+  { table: 'visual_sessions', dateCol: 'started_at', piiCol: 'call_id', label: '상담 세션(통화 식별자)' },
+  { table: 'ums_log',         dateCol: 'sent_at',    piiCol: 'phone',   label: 'UMS 발송로그(전화번호)' },
 ];
 
 // 기본 보관기간(일). 운영자는 RETENTION_DAYS 환경변수로 조정한다.
