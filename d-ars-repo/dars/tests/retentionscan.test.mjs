@@ -230,6 +230,7 @@ test('[통합] retention-check CLI 는 읽기 전용이다(파기·쓰기 호출
   const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
   assert.doesNotMatch(code, /@neondatabase|neon\s*\(/, 'DB 에 접속하지 않는다');
   assert.doesNotMatch(code, /writeFileSync|appendFileSync|rmSync|unlinkSync/, '파일을 쓰지 않는다');
-  assert.doesNotMatch(code, /purgePlan|--commit/, '파기 계획을 만들지도 실행하지도 않는다');
+  // (안내 문구에는 --commit 이 나올 수 있으므로 실행 경로만 본다)
+  assert.doesNotMatch(code, /purgePlan|\.query\(|retention-purge/, '파기 계획을 만들지도 실행하지도 않는다');
   assert.match(code, /process\.exit/);
 });
