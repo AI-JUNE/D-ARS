@@ -2,6 +2,8 @@ import { hasDB, sql } from '@/lib/db';
 import { buildHealth } from '@/lib/health';
 import { captureError } from '@/lib/monitor';
 import { logRequest, requestIdFrom, startTimer } from '@/lib/log';
+import { auditStats } from '@/lib/audit';
+import { auditReadiness, auditDepStatus } from '@/lib/auditReadiness';
 
 // ★ route.js 에서는 HTTP 메서드(GET/POST/...)와 Next 설정 export 외에
 //   **어떤 것도 export 하지 않는다**(빌드 실패 원인). 헬퍼는 파일 내부 상수로만 둔다.
@@ -19,7 +21,15 @@ const VERSION = '0.1.0'; // package.json 과 동기화(런타임 JSON import 회
 //   required 는 지정하지 않는다 — 미도입 상태에서 503 을 유발하면 안 된다.
 function configuredDeps() {
   const set = (v) => typeof v === 'string' && v.trim().length > 0;
+  // 감사 영속화만은 '설정 유무'가 아니라 **실제로 남고 있는가**를 본다.
+  //   AUDIT_DB=1 인데 DB 가 없거나 적재가 계속 실패하면 status='error' 로 드러난다.
+  //   required 는 붙이지 않는다 — 감사 적재 실패로 서비스 전체를 503 으로 만들지 않는다.
+  const s = auditStats();
+  const audit = auditReadiness({
+    env: process.env, hasDB, failures: s.failed, persisted: s.persisted,
+  });
   return [
+    { name: 'audit-persist', status: auditDepStatus(audit) },
     { name: 'cpaas', status: set(process.env.CPAAS_API_KEY) ? 'ok' : 'not-configured' },
     { name: 'sms-gateway', status: set(process.env.SMS_GATEWAY_URL) ? 'ok' : 'not-configured' },
     { name: 'callbot', status: set(process.env.CALLBOT_CALLBACK_URL) ? 'ok' : 'not-configured' },

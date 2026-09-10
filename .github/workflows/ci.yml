@@ -64,6 +64,11 @@ jobs:
       - name: env matrix
         run: npm run env:check
 
+      # 감사 영속화가 "켜졌는데 남지 않는" 상태인지(DB 무접속·값 미출력).
+      # CI 환경은 콘솔 모드가 기본이라 통과한다 — 운영 구성에서의 오설정을 잡는 게 목적이다.
+      - name: audit persistence
+        run: npm run audit:check
+
       # ── AICC-Core 채널 계약(§5.3) ────────────────────────────────────────
       # D-ARS 가 Core 를 실제로 소비하므로, Core 의 적합성 스위트를 이 저장소 포트에 대고 돌린다.
       # 드라이런 전용이라 고객 화면으로 아무것도 나가지 않는다(ci/aicc-port.mjs 는 transport 미주입).

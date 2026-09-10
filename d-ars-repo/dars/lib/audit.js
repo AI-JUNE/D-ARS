@@ -95,6 +95,38 @@ export function auditLine(entry) {
   return '[AUDIT] ' + JSON.stringify(entry);
 }
 
+// ── 적재 관측(인스턴스 로컬 카운터) ──────────────
+// 왜 필요한가: 적재 실패는 무해화 계약상 **조용히 삼켜진다**(감사 기록이 로그인 요청을 실패시키면
+//   안 되므로 옳은 동작이다). 그런데 그 조용함 때문에 `db/audit.sql` 미적용 같은 사고가
+//   "감사 0건"으로만 보인다 — 사고 조사 시점에야 비어 있는 것을 알게 된다.
+//   그래서 시도/성공/실패를 세어 /api/health 와 점검 CLI 가 읽을 수 있게 한다.
+// 한계(정직하게): 서버리스 인스턴스 로컬 메모리다. 인스턴스가 재활용되면 0으로 돌아가고,
+//   인스턴스마다 값이 다르다. "최근 이 인스턴스에서 적재가 되고 있는가"의 신호이지 총계가 아니다.
+const stats = { attempted: 0, persisted: 0, failed: 0, lastFailedAt: null };
+
+// 관측값 복사본(외부에서 수정하지 못하게). 오류 메시지 원문은 담지 않는다(PII·내부정보 유출 방어).
+export function auditStats() {
+  return { ...stats };
+}
+
+// 테스트 전용 초기화(운영 코드에서 호출하지 않는다).
+export function resetAuditStats() {
+  stats.attempted = 0;
+  stats.persisted = 0;
+  stats.failed = 0;
+  stats.lastFailedAt = null;
+}
+
+// 적재 실패를 에러 모니터로 한 번 올린다(무해화 — 실패해도 무시).
+// 동적 import 로만 부른다: 정상 경로의 모듈 그래프를 바꾸지 않기 위해서다(엣지 번들 영향 회피).
+async function escalate(e) {
+  try {
+    const { captureError } = await import('./monitor.js');
+    // await 하지 않는다 — 모니터 지연이 본 요청을 늦추면 안 된다(captureError 는 reject 하지 않는다).
+    captureError(e, { level: 'error', source: 'lib/audit', context: { stage: 'persist' } });
+  } catch {}
+}
+
 // ── 기록(부수효과 — 무해화 계약: 어떤 입력에도 throw 하지 않는다) ──────────────
 // 반환: 기록됨 true / 거부·실패 false (호출측은 반환값을 무시해도 된다).
 export async function audit(event, { actor, role, ip, detail } = {}) {
@@ -103,10 +135,25 @@ export async function audit(event, { actor, role, ip, detail } = {}) {
     if (!entry) return false;
     console.log(auditLine(entry));
     if (process.env.AUDIT_DB === '1') {           // [승인 필요] DB 영속화 게이트 — 기본 OFF
+      stats.attempted += 1;
       const { hasDB, sql } = await import('./db.js');
       if (hasDB) {
-        await sql`insert into audit_events (ts, event, actor, role, ip, detail)
-                  values (${entry.ts}, ${entry.event}, ${entry.actor}, ${entry.role}, ${entry.ip}, ${JSON.stringify(entry.detail)}::jsonb)`;
+        try {
+          await sql`insert into audit_events (ts, event, actor, role, ip, detail)
+                    values (${entry.ts}, ${entry.event}, ${entry.actor}, ${entry.role}, ${entry.ip}, ${JSON.stringify(entry.detail)}::jsonb)`;
+          stats.persisted += 1;
+        } catch (e) {
+          // 여기서 삼키는 이유: 감사 적재 실패가 본 요청(로그인·쓰기)을 실패시키면 안 된다.
+          // 대신 **세고, 올린다** — 조용히 사라지지 않게.
+          stats.failed += 1;
+          stats.lastFailedAt = entry.ts;
+          try { console.error('audit persist fail:', e?.message); } catch {}
+          escalate(e);
+        }
+      } else {
+        // 스위치는 켰는데 DB 가 없다 = 영속화가 전혀 일어나지 않는 상태(auditReadiness 의 db-blind).
+        stats.failed += 1;
+        stats.lastFailedAt = entry.ts;
       }
     }
     return true;
