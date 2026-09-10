@@ -3,6 +3,7 @@
 import { verifyLink, notifyCallbot } from '@/lib/cpaas';
 import { invalidJson, unauthorized, gone, badRequest } from '@/lib/apiError';
 import { consume, ipKey } from '@/lib/apiLimits';
+import { decideRelay, fallbackEnvelope } from '@/lib/ivrFallback';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
@@ -22,5 +23,7 @@ export async function POST(req) {
   if (over) return over;
   const action = b.action || 'unknown';
   const relay = await notifyCallbot({ sessionId, action, value: b.value ?? null, at: new Date().toISOString() });
-  return Response.json({ ok: true, sessionId, action, relayed: relay });
+  // 릴레이 실패(재시도 소진)는 성공으로 위장하지 않는다 — fallback.mode:'ivr'(RELAY_FAILED) 로 화면이
+  // "말씀으로 계속 진행" 을 안내할 수 있게 한다(lib/ivrFallback 계약).
+  return Response.json({ ok: true, sessionId, action, relayed: relay, ...fallbackEnvelope(decideRelay(relay)) });
 }

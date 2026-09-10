@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
+import { pollInitial, pollNext, SCREEN_LOST_MESSAGE } from '@/lib/ivrFallback';
 
 // 보이는 ARS 고객 화면 데모 — 통화 중 화면 동반 안내 시연
 // 콜봇 events node 키(합의안): SHOW_WELFARE_FORM · SHOW_TRIO_MATCH · SHOW_SAFETY_CHECK
@@ -29,6 +30,9 @@ export default function Visual() {
   const [gen, setGen] = useState('senior');
   const [playing, setPlaying] = useState(false);
   const [live, setLive] = useState(false);
+  // 실시간 연동 중 서버 상태 조회가 연속 실패하면 true — 화면이 조용히 멈추는 대신
+  // "음성 안내로 계속" 을 알린다(장애 폴백 계약 · lib/ivrFallback). 성공 1회로 즉시 복구.
+  const [lost, setLost] = useState(false);
   const runId = useRef(0);
   const boxRef = useRef(null);
   const scale = (GENS.find((g) => g.k === gen) || GENS[0]).scale;
@@ -65,12 +69,16 @@ export default function Visual() {
     if (!s) return;               // 세션 토큰 없으면 데모 모드
     setLive(true);
     let lastNode = null;
+    let health = pollInitial();
+    const mark = (ok) => { health = pollNext(health, ok); if (alive) setLost(health.lost); };
     const poll = async () => {
       try {
         const r = await fetch(`/api/visual/state?s=${encodeURIComponent(s)}`, { cache: 'no-store' });
-        if (!r.ok) return;
+        if (!r.ok) { mark(false); return; }
         const d = await r.json();
-        if (!alive || !d.ok) return;
+        if (!alive) return;
+        if (!d.ok) { mark(false); return; }
+        mark(true);
         if (d.node && d.node !== lastNode) {   // 콜봇이 새 노드를 push하면 화면 전환
           lastNode = d.node;
           if (NODE_STEP[d.node] != null) setStep(NODE_STEP[d.node]);
@@ -78,7 +86,7 @@ export default function Visual() {
         }
         if (d.gen && GK.includes(d.gen)) setGen((cur) => (cur === d.gen ? cur : d.gen));  // 통화 중 톤 전환
         if (d.status === '완료') setStep(4);
-      } catch { /* 네트워크 오류 무시(다음 폴링) */ }
+      } catch { mark(false); /* 네트워크 오류 — 연속 실패만 누적, 다음 폴링에서 재시도 */ }
     };
     poll();
     const timer = setInterval(poll, 2500);
@@ -137,6 +145,10 @@ export default function Visual() {
           </div>
           <div style={{ background: '#fff7f3', borderBottom: '1px solid #e6ddd7', color: '#8a5a44', fontSize: 11, padding: '7px 16px' }}>
             ℹ️ 본 상담은 생성형 AI가 함께 응대합니다 (AI 기본법 제31조 고지). · 본 화면은 데모이며 실제 고객 데이터가 아닙니다.</div>
+          {/* 장애 폴백 안내: 항상 DOM 에 두고(display:none 이면 aria-live 낭독이 누락된다) 끊겼을 때만 내용·높이를 채운다.
+              색 대비: #7a1f0a on #fdeae4 ≈ 7.9:1 (어르신 배율에도 S() 로 확대). */}
+          <div role="status" aria-live="assertive" style={{ background: '#fdeae4', borderBottom: lost ? '1px solid #f0c9bb' : 0, color: '#7a1f0a', fontSize: S(13), fontWeight: 700, padding: lost ? '9px 16px' : 0, lineHeight: 1.45 }}>
+            {lost ? `📞 ${SCREEN_LOST_MESSAGE}` : ''}</div>
           <div style={{ display: 'flex', gap: 6, padding: '9px 14px 4px', alignItems: 'center' }}>
             <span style={{ fontSize: 10.5, color: '#8a7a72', fontWeight: 700 }}>세대별 화면</span>
             {GENS.map((g) => (
