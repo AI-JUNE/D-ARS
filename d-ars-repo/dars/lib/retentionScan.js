@@ -162,6 +162,9 @@ export const PII_EXEMPT = [
   { table: 'audit_events',   column: 'actor',      reason: '적재 시점에 이미 마스킹된 값만 저장(lib/audit.js) — 원문 미보유' },
   { table: 'audit_events',   column: 'ip',         reason: '적재 시점에 이미 마스킹된 값만 저장(lib/audit.js) — 원문 미보유' },
   { table: 'docs',           column: 'name',       reason: '서류 종류 이름(예: 가족관계증명서) — 사람 이름 아님' },
+  { table: 'organizations',  column: 'name',       reason: '고객사 법인명 — 사람 이름 아님(db/partner.sql)' },
+  { table: 'partner_attributions', column: 'attributed_by', reason: '귀속을 기록한 운영자 표시명. 정산 분쟁 시 근거 추적에 필요(계정 원문·연락처 저장 금지)' },
+  { table: 'partners',       column: 'name',       reason: '파트너 법인명 — 사람 이름 아님(db/partner.sql)' },
   { table: 'scenarios',      column: 'name',       reason: '시나리오 이름 — 사람 이름 아님' },
   { table: 'scenarios',      column: 'updated_by', reason: '운영자 표시명. 고객 개인정보 아니며 변경 이력 추적에 필요(운영자 퇴사 시 처리는 AUTH_ROLLOUT 계정 회수 절차)' },
 ];

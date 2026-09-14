@@ -16,6 +16,9 @@
 | `ums_log` | Neon Postgres | 발송 이력 소실 → 분쟁 대응 불가 | **있음(phone)** |
 | `daily_stats` | Neon Postgres | 일별 집계 소실(원천에서 재계산 가능성 있음) | 없음 |
 | `audit_events` | Neon Postgres (`AUDIT_DB=1`일 때만) | 접근·감사 이력 소실 → 규제 대응 근거 상실 | 마스킹된 값만 |
+| `partners` | Neon Postgres (`db/partner.sql` 적용 후) | 파트너(채널) 목록 소실 → 정산 대상 불명 | 없음(법인명) |
+| `organizations` | Neon Postgres (`db/partner.sql` 적용 후) | 고객사·계약 주체 소실 → 매출 귀속 불가 | 없음(법인명) |
+| `partner_attributions` | Neon Postgres (`db/partner.sql` 적용 후) | 귀속 근거 이력 소실 → **정산 분쟁 시 근거 상실** | 운영자 표시명만 |
 | 애플리케이션 코드 | Git 원격 + Vercel 배포 이력 | 재배포로 복구 가능(별도 백업 불필요) | 없음 |
 | 환경변수·시크릿 | Vercel 프로젝트 설정 | 재주입 필요. **DB 백업에 포함되지 않는다** | 해당 |
 
@@ -28,7 +31,7 @@
   ```
   pg_dump "$DATABASE_URL" --no-owner --no-privileges -Fc -f dars-YYYYMMDD.dump
   ```
-- **스키마**: `db/schema.sql`·`db/audit.sql` 은 멱등(`create table if not exists`)이라 빈 DB 에 재적용할 수 있다. `npm run db:setup` 은 `schema.sql` + **`seed.sql`(데모 데이터)** 를 함께 적용하므로 **운영 복구에는 쓰지 않는다.**
+- **스키마**: `db/schema.sql`·`db/audit.sql`·`db/partner.sql` 은 멱등(`create table if not exists`)이라 빈 DB 에 재적용할 수 있다. `npm run db:setup` 은 `schema.sql` + **`seed.sql`(데모 데이터)** 를 함께 적용하므로 **운영 복구에는 쓰지 않는다.**
 - 현재 라이브(d-ars.vercel.app)는 데모 구성이며 운영 DB 백업 정책은 미확정이다(`docs/STAGING_OPERATIONS.md` 5장과 일치).
 
 ## 3. 목표값 (RPO/RTO)
@@ -57,14 +60,14 @@
 ### C. DB 전체 소실
 
 1. 새 Neon 프로젝트/브랜치를 만든다(가능하면 마지막 정상 시점에서 복구).
-2. 백업이 시점 복구가 아니라 덤프뿐이면: 빈 DB 에 `psql "$NEW_URL" -f db/schema.sql` → `psql "$NEW_URL" -f db/audit.sql` → `pg_restore --no-owner -d "$NEW_URL" dars-YYYYMMDD.dump`. **`db/seed.sql` 은 적용하지 않는다**(데모 데이터가 운영에 섞인다).
+2. 백업이 시점 복구가 아니라 덤프뿐이면: 빈 DB 에 `psql "$NEW_URL" -f db/schema.sql` → `psql "$NEW_URL" -f db/audit.sql` → `psql "$NEW_URL" -f db/partner.sql` → `pg_restore --no-owner -d "$NEW_URL" dars-YYYYMMDD.dump`. **`db/seed.sql` 은 적용하지 않는다**(데모 데이터가 운영에 섞인다).
 3. 확인 대상 표 전부의 존재·행수를 확인한다.
 4. Vercel 의 `DATABASE_URL` 을 새 값으로 교체한다. **사람이 대시보드에서 직접 한다. [승인 필요]**
 5. 재배포 후 `/api/health` 가 200·`db=connected` 인지 확인한다.
 
 ### 확인 대상 표 (복구 완료 판정 기준)
 
-`scenarios` · `docs` · `visual_sessions` · `ums_log` · `daily_stats` · `audit_events`
+`scenarios` · `docs` · `visual_sessions` · `ums_log` · `daily_stats` · `audit_events` · `partners` · `organizations` · `partner_attributions`
 
 이 목록은 `lib/backupCheck.js`의 `COVERED_TABLES` 와 동일해야 하며, `tests/backupcheck.test.mjs` 가 `db/*.sql` 선언과 양방향으로 대조한다(표가 늘거나 줄면 테스트가 실패해 이 문서 갱신을 강제한다).
 
@@ -123,4 +126,4 @@
 - `docs/STAGING_OPERATIONS.md` — 환경 분리·승격 절차·환경변수 매트릭스
 - `docs/PRIVACY_RETENTION.md` — 개인정보 보관·파기 정책
 - `MONITORING_GUIDE.md` — 장애 감지·알림
-- `db/schema.sql` · `db/audit.sql` — 재적용 가능한 스키마(멱등)
+- `db/schema.sql` · `db/audit.sql` · `db/partner.sql` — 재적용 가능한 스키마(멱등)

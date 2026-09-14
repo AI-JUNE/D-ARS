@@ -47,6 +47,9 @@ export const COVERED_TABLES = [
   'audit_events',    // db/audit.sql — 감사 이벤트(AUDIT_DB=1 일 때만 적재)
   'daily_stats',     // db/schema.sql — 일별 집계
   'docs',            // db/schema.sql — 서류 마스터
+  'organizations',   // db/partner.sql — 고객사(계약 주체 · partner_id NULL=직접 계약)
+  'partner_attributions', // db/partner.sql — 매출 귀속 근거(추가 전용 이력)
+  'partners',        // db/partner.sql — 파트너(채널)
   'scenarios',       // db/schema.sql — 시나리오
   'ums_log',         // db/schema.sql — UMS 발송로그(PII: phone)
   'visual_sessions', // db/schema.sql — 상담 세션(PII: phone)

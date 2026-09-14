@@ -34,6 +34,9 @@
 | `audit_events.actor` | 적재 시점에 이미 마스킹된 값만 저장(`lib/audit.js`) — 원문 미보유 |
 | `audit_events.ip` | 적재 시점에 이미 마스킹된 값만 저장(`lib/audit.js`) — 원문 미보유 |
 | `docs.name` | 서류 종류 이름(예: 가족관계증명서) — 사람 이름 아님 |
+| `organizations.name` | 고객사 법인명 — 사람 이름 아님(`db/partner.sql`) |
+| `partner_attributions.attributed_by` | 귀속을 기록한 운영자 표시명. 정산 분쟁 시 근거 추적에 필요(계정 원문·연락처 저장 금지). `reason` 자유 서술란은 `lib/partner.js` 가 전화번호·이메일 기재를 거부한다 |
+| `partners.name` | 파트너 법인명 — 사람 이름 아님(`db/partner.sql`) |
 | `scenarios.name` | 시나리오 이름 — 사람 이름 아님 |
 | `scenarios.updated_by` | 운영자 표시명. 고객 개인정보가 아니며 변경 이력 추적에 필요(퇴사자 처리는 `docs/AUTH_ROLLOUT.md` 계정 회수 절차) |
 
