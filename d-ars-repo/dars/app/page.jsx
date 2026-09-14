@@ -190,7 +190,7 @@ footer a:hover{color:#fff}
     <div class="phone"><div class="screen">
       <div class="st">● 통화 연결됨 · 00:12</div>
       <div class="avatar"><svg aria-hidden="true" viewBox="0 0 24 24" width="26" fill="#fff"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" stroke-width="1.6" fill="none"/></svg></div>
-      <div class="num">AI 상담 · 1600-1234</div>
+      <div class="num">AI 상담 · 데모 회선</div>
       <div class="chatb">안녕하세요, 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.</div>
       <div class="wave"><i style="animation-delay:0s"></i><i style="animation-delay:.1s"></i><i style="animation-delay:.2s"></i><i style="animation-delay:.15s"></i><i style="animation-delay:.05s"></i><i style="animation-delay:.25s"></i><i style="animation-delay:.12s"></i><i style="animation-delay:.3s"></i></div>
       <div class="callend"><svg aria-hidden="true" viewBox="0 0 24 24" width="18" fill="#fff"><path d="M21 15.5c-1.2 0-2.4-.2-3.5-.6-.35-.1-.75 0-1 .27l-1.5 1.5a15 15 0 0 1-6.6-6.6l1.5-1.5c.27-.27.36-.66.26-1A11 11 0 0 1 9 4.5 1 1 0 0 0 8 3.5H4.5A1 1 0 0 0 3.5 4.5 17.5 17.5 0 0 0 21 22a1 1 0 0 0 1-1v-3.5a1 1 0 0 0-1-1z"/></svg></div>
