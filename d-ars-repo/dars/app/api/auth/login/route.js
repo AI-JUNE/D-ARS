@@ -21,7 +21,7 @@ export async function POST(req) {
     return unauthorized('아이디 또는 비밀번호가 올바르지 않습니다.');
   }
   await audit('AUTH_LOGIN', { actor: u.u, role: u.role, ip });     // 감사(P0-7)
-  const token = await signToken({ u: u.u, role: u.role, name: u.name });
+  const token = await signToken({ u: u.u, role: u.role, name: u.name, ...(u.partnerId ? { partnerId: u.partnerId } : {}) }); // 파트너 범위는 세션에 서명해 싣는다
   const res = NextResponse.json({ ok: true, role: u.role, name: u.name });
   res.cookies.set(COOKIE, token, {
     httpOnly: true, sameSite: 'lax', path: '/', maxAge: SESSION_HOURS * 3600,

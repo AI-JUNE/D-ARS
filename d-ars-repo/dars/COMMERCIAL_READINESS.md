@@ -147,7 +147,11 @@
 - [x] **매출 귀속 근거** — 어떤 고객사가 어느 파트너를 통해 유입됐는지 기록(유입 경로·계약일·담당자). 정산 분쟁을 예방하는 핵심
   - 근거: `partner_attributions`(추가 전용 이력 · `org_id`·`partner_id`·`channel`·`contracted_at`·`attributed_by`·`reason`). 정정은 갱신이 아니라 새 행이며 최신 행이 유효(`lib/partner.currentAttribution` · 동률은 id 큰 쪽). 채널은 입력값이 아니라 **`partner_id` 에서 유도**(`attributionOf`)해 "파트너 id 는 있는데 직접 계약" 같은 모순 행을 저장 전에 `CHANNEL_MISMATCH` 로 거부(`attributionProblems` 8종 코드). 담당자는 운영자 **표시명**만, 자유 서술란에 전화번호·이메일이 들어오면 `REASON_HAS_CONTACT` 로 거부(파기 대상 밖 컬럼으로의 개인정보 유입 방어)
   - 한계: 기록 화면·API 는 없다(다음 항목 파트너 역할과 함께 배선). 이력이 비어 있으면 '직접 계약'으로 **단정하지 않고** null 을 돌려준다(귀속 미기록과 직접 계약을 구분)
-- [ ] **파트너 역할 권한** — 파트너 담당자는 자기가 유치한 고객사만 조회. 기존 RBAC에 `partner_admin` 역할 추가(활성화는 승인)
+- [x] **파트너 역할 권한** — 파트너 담당자는 자기가 유치한 고객사만 조회. 기존 RBAC에 `partner_admin` 역할 추가(활성화는 승인)
+  - 근거: `lib/auth.js` — `partner_admin` 은 직원 사다리(`ROLES` 불변) **밖**의 범위 제한 역할. 열람 등급은 viewer 와 같아 `/admin`·`/ums`·`/scenarios` 등 operator↑ 경로는 미들웨어·`guardWrite` 에서 그대로 막힌다. 데이터 범위는 `partnerScopeOf(user)` 한 함수가 판정 — 직원 `null`(전체) · 파트너 `partnerId` · 판정 불가(역할 미상·스위치 OFF·id 없음/형식 불량) `''` → `lib/partner.scopeOrganizations/scopeSql` 이 **빈 결과**를 돌려준다(판정 실패를 전체 공개로 넘기지 않음). `partnerId` 는 로그인 시 `findUser` 가 검증해 세션에 서명해 싣고, `verifyToken` 은 파트너 역할 세션에서만 복원(직원 토큰에 섞인 값은 폐기).
+  - 활성화 게이트: `PARTNER_ROLE_ENABLE=1`(정확히 '1') — 기본 OFF 이며 OFF 면 파트너 계정은 **로그인·권한 판정 모두 거부**. 등록부(`lib/envMatrix`)·`docs/STAGING_OPERATIONS.md` 에 게이트로 등록, 어느 프로필에서도 '켜라'고 적지 않았다. `npm run auth:check` 는 `partner_admin` 계정의 `partnerId` 누락을 blocker, 스위치 ON 을 warning 으로 보고(계정·id 원문 미출력). 문서 `docs/AUTH_ROLLOUT.md` 2·4장, `docs/PARTNER_CHANNEL.md`.
+  - 검증: `tests/partnerrole.test.mjs` 11케이스(OFF 기본·오타값 불활성·경로 게이트 결합·범위 판정 실패 → 빈 결과·토큰 왕복·로그인 라우트 소스 가드·문서/등록부 대조) · 전체 `node --test "tests/*.test.mjs"` 926/926.
+  - 한계: 테넌트 조회 **화면·API 배선은 아직 없다**(조직 표 자체가 아직 운영 DB 에 없음) — `partnerScopeOf` 를 끼워 넣을 자리만 확정. 켜기 전에 배선을 마쳐야 하며 켜는 것은 **[승인 필요]**
 - [ ] **정산 리포트** — 파트너별 계약·이용 실적·수수료 산출 근거를 조회·내보내기. 수수료율은 설정값으로 분리(하드코딩 금지)
 - [ ] **2계층 확장 여지 확보** — 테넌트 조회 경로에 파트너 필터가 나중에 끼어들 수 있도록 쿼리 계층 정리. 지금 화이트라벨은 구현하지 않음
 

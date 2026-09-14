@@ -16,7 +16,7 @@
 // 판정 등급: blocker(이 상태로 켜면 안 된다) / warning(켜도 되지만 남는 위험).
 // ============================================================================
 
-import { ROLES } from './auth.js';
+import { ROLES, PARTNER_ROLE, isValidPartnerId } from './auth.js';
 
 // lib/auth.js 에 하드코딩된 데모 값. 운영에서 이 값이 그대로면 인증은 장식이다.
 export const DEMO_SECRET = 'dars-demo-secret-v1';
@@ -65,7 +65,9 @@ export function parseUsersSpec(raw) {
     if (!u) { problems.push({ code: 'user_no_id' }); continue; }
     if (seen.has(u)) problems.push({ code: 'user_duplicate', account });
     seen.add(u);
-    if (!ROLES.includes(role)) problems.push({ code: 'user_bad_role', account });
+    if (!ROLES.includes(role) && role !== PARTNER_ROLE) problems.push({ code: 'user_bad_role', account });
+    // 파트너 계정은 partnerId 가 없으면 범위를 정할 수 없다 — 로그인 자체가 거부되므로 등록해 봐야 무의미하다.
+    if (role === PARTNER_ROLE && !isValidPartnerId(e.partnerId)) problems.push({ code: 'user_partner_no_id', account });
     if (!p) problems.push({ code: 'user_no_password', account });
     else if (DEMO_PASSWORDS.includes(p)) problems.push({ code: 'user_demo_password', account });
     else if (p.length < MIN_PASSWORD_LEN) problems.push({ code: 'user_weak_password', account });
@@ -85,7 +87,9 @@ const ISSUE = {
   users_no_admin: ['blocker', 'admin 역할 계정이 없다 — 관리 화면에 아무도 들어갈 수 없다'],
   user_no_id: ['blocker', '아이디(u)가 없는 항목'],
   user_duplicate: ['blocker', '아이디 중복 — 뒤 항목이 무시된다'],
-  user_bad_role: ['blocker', '역할이 viewer/operator/admin 중 하나가 아니다 — 권한 판정에서 항상 탈락한다'],
+  user_bad_role: ['blocker', '역할이 viewer/operator/admin/partner_admin 중 하나가 아니다 — 권한 판정에서 항상 탈락한다'],
+  user_partner_no_id: ['blocker', 'partner_admin 계정에 partnerId(영문 대문자·숫자·하이픈 3~32자)가 없다 — 로그인이 거부된다'],
+  partner_role_enabled: ['warning', 'PARTNER_ROLE_ENABLE=1 — 파트너 계정이 로그인할 수 있다. 테넌트 조회 경로의 범위 배선을 확인한다'],
   user_no_password: ['blocker', '비밀번호(p)가 없다'],
   user_demo_password: ['blocker', '저장소에 공개된 데모 비밀번호를 그대로 쓴다'],
   user_demo_account: ['blocker', '데모 계정(아이디+비밀번호)이 그대로 남아 있다'],
@@ -128,6 +132,7 @@ export function checkAuthEnv(env) {
   if (!s(e.INGEST_KEY)) found.push({ code: 'ingest_key_missing' });
   if (s(e.AUDIT_DB) !== '1') found.push({ code: 'audit_console_only' });
   if (!s(e.RBAC_SESSION_SECRET)) found.push({ code: 'rbac_secret_missing' });
+  if (s(e.PARTNER_ROLE_ENABLE) === '1') found.push({ code: 'partner_role_enabled' });
 
   const blockers = [];
   const warnings = [];

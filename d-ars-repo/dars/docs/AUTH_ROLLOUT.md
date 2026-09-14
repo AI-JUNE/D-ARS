@@ -21,8 +21,11 @@
 | `viewer` | 고객사 열람 담당 | 대시보드·통계 열람 |
 | `operator` | 상담 운영자 | 시나리오·서류·UMS 등 운영 데이터 편집 |
 | `admin` | 고원 운영 관리자 | 위 전부 + 감사 로그·런처 등 관리 기능 |
+| `partner_admin` | 파트너(채널) 담당자 | 열람 등급은 viewer 와 같되 **자기가 유치한 고객사만**. 운영 편집·관리 불가 |
 
-등급은 `viewer < operator < admin` 누적이다(`lib/auth.roleAtLeast`). 역할은 이 3종뿐이며,
+등급은 `viewer < operator < admin` 누적이다(`lib/auth.roleAtLeast`). `partner_admin` 은 사다리 밖의
+범위 제한 역할로, 계정에 `partnerId`(영문 대문자·숫자·하이픈 3~32자)가 반드시 있어야 하며
+`PARTNER_ROLE_ENABLE=1` 이 아니면 **로그인과 권한 판정 모두 거부**된다(기본 OFF · 켜는 것은 **[승인 필요]**).
 목록에 없는 값을 넣으면 **모든 권한 판정에서 탈락**한다(점검 CLI 가 blocker 로 잡는다).
 
 ## 3. 경로별 최소 역할 (코드와 동기화됨)
@@ -50,6 +53,7 @@
    [{ "u": "아이디", "p": "비밀번호", "role": "admin", "name": "표시이름" }]
    ```
    비밀번호는 12자 이상, 데모 비밀번호 재사용 금지, 계정마다 다른 값.
+   파트너 계정은 `"role": "partner_admin", "partnerId": "P-001"` 처럼 `partners.id` 를 함께 적는다(없으면 blocker).
 4. Vercel 환경변수에 주입한다(스테이징 → 운영 순서, 값은 환경별로 다르게). 환경 매트릭스는 `docs/STAGING_OPERATIONS.md` 2장.
 5. `npm run auth:check` 로 **차단 사유 0건**을 확인한다(값은 출력되지 않는다 — 설정 여부·길이·마스킹된 계정만).
 6. 마지막에 `AUTH_ENFORCE=1` 을 켜고, 로그인·역할 게이트·401/403 을 스테이징에서 확인한 뒤 운영에 승격한다.
