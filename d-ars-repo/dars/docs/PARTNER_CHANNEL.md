@@ -29,6 +29,8 @@
 - `partner_admin` 역할(`lib/auth.js`): 열람 등급은 viewer, 데이터 범위는 `partnerScopeOf(user)` → `scopeOrganizations` 로
   자기 파트너 고객사만. `PARTNER_ROLE_ENABLE=1` 이 아니면 로그인·권한 판정 모두 거부(기본 OFF **[승인 필요]**).
   계정 형식은 `docs/AUTH_ROLLOUT.md` 2·4장.
-- 화면·API 배선(테넌트 조회 경로에 `partnerScopeOf` 끼워 넣기)과 정산 리포트는 후속 항목(`COMMERCIAL_READINESS.md`).
+- 정산 리포트: `GET /api/admin/settlement`(admin) — 귀속 **이력** 기준 · 수수료율은 `PARTNER_COMMISSION_RATES` 설정값 · 근거 동반 · CSV(`docs/PARTNER_SETTLEMENT.md`).
+  이용 실적 원천(과금 원장)은 아직 없어 청구액은 `amount_missing` 으로 남는다.
+- 화면·API 배선(테넌트 조회 경로에 `partnerScopeOf` 끼워 넣기)과 정산 화면은 후속 항목(`COMMERCIAL_READINESS.md`).
 - 운영 DB 적용(`psql "$DATABASE_URL" -f db/partner.sql`)은 사람이 한다 **[승인 필요]**. `npm run db:setup` 은 이 파일을 적용하지 않는다.
 - 실제 정산·청구는 계약서 확정 후.

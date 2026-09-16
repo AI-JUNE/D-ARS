@@ -152,7 +152,19 @@
   - 활성화 게이트: `PARTNER_ROLE_ENABLE=1`(정확히 '1') — 기본 OFF 이며 OFF 면 파트너 계정은 **로그인·권한 판정 모두 거부**. 등록부(`lib/envMatrix`)·`docs/STAGING_OPERATIONS.md` 에 게이트로 등록, 어느 프로필에서도 '켜라'고 적지 않았다. `npm run auth:check` 는 `partner_admin` 계정의 `partnerId` 누락을 blocker, 스위치 ON 을 warning 으로 보고(계정·id 원문 미출력). 문서 `docs/AUTH_ROLLOUT.md` 2·4장, `docs/PARTNER_CHANNEL.md`.
   - 검증: `tests/partnerrole.test.mjs` 11케이스(OFF 기본·오타값 불활성·경로 게이트 결합·범위 판정 실패 → 빈 결과·토큰 왕복·로그인 라우트 소스 가드·문서/등록부 대조) · 전체 `node --test "tests/*.test.mjs"` 926/926.
   - 한계: 테넌트 조회 **화면·API 배선은 아직 없다**(조직 표 자체가 아직 운영 DB 에 없음) — `partnerScopeOf` 를 끼워 넣을 자리만 확정. 켜기 전에 배선을 마쳐야 하며 켜는 것은 **[승인 필요]**
-- [ ] **정산 리포트** — 파트너별 계약·이용 실적·수수료 산출 근거를 조회·내보내기. 수수료율은 설정값으로 분리(하드코딩 금지)
+- [x] **정산 리포트** — 파트너별 계약·이용 실적·수수료 산출 근거를 조회·내보내기. 수수료율은 설정값으로 분리(하드코딩 금지)
+  - 근거: `lib/settlement.js`(순수 로직 · 무저장) + `GET /api/admin/settlement?month=YYYY-MM[&format=csv]`(admin 이중 게이트 · GET 전용).
+    줄마다 **귀속 근거**(이력 id·기록일·담당 표시명·근거 문구)와 산식을 싣는다. 귀속은 `organizations.partner_id` 가 아니라
+    `partner_attributions` 의 **정산월 말일 기준 최신 행**으로 판정(다음 달 정정은 소급하지 않음) · 이력 없는 고객사는 어느 파트너에도
+    넣지 않고 `unattributed` 로 보고(근거 없는 정산 금지). 수수료율은 `PARTNER_COMMISSION_RATES`(JSON · 퍼센트 · `*` 기본율) 에서만 —
+    코드에 율 숫자 없음(테스트 가드) · 미설정이면 0 이 아니라 `null`+`rate_missing`. 금액은 정수 연산(bp)·원 미만 half-up.
+    CSV 는 `lib/export` 규약(BOM·수식 인젝션 방지) · 합계 행 없음. 개인정보는 화이트리스트로 차단. 등록부(`lib/envMatrix`)·
+    `docs/STAGING_OPERATIONS.md` 갱신. 문서 `docs/PARTNER_SETTLEMENT.md`(산식·상태 코드는 테스트로 코드와 대조).
+  - 검증: `tests/settlement.test.mjs` 22케이스(율 파싱 정상/실패 · half-up·부동소수 무오차 · 소급 금지 · 결정성 · PII 미유출 · CSV ·
+    하드코딩/라우트 export/등록부 가드)
+  - 한계(정직하게): **이용 실적(세션수·청구액)의 원천이 없다** — `visual_sessions` 는 고객사와 연결돼 있지 않고 과금 원장도 없어
+    라이브 리포트의 모든 줄은 `amount_missing`(`usageSource:'none'`). 원장 연결·청구액 기준은 계약서 확정 후 **[승인 필요]**.
+    운영 DB 에 `db/partner.sql` 미적용 → 라이브는 파트너 0 의 빈 리포트(오류 아님). 실수수료율 주입 **[승인 필요]**. 화면은 후속.
 - [ ] **2계층 확장 여지 확보** — 테넌트 조회 경로에 파트너 필터가 나중에 끼어들 수 있도록 쿼리 계층 정리. 지금 화이트라벨은 구현하지 않음
 
 > 원칙: 파트너 관련 기능도 **코드는 만들되 활성화는 승인**. 실제 정산·청구는 계약서 확정 후.

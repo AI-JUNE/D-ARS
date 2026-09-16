@@ -42,6 +42,7 @@
 | `RBAC_SESSION_SECRET`🔒 | RBAC 미들웨어 무동작(하위호환) | 미설정 | 필수 | 필수 | AUTH_SECRET 과 같은 값을 재사용하지 않는다 |
 | `EUM_TOKEN_SECRET`🔒 | AUTH_SECRET → 없으면 데모 기본값 | 미설정 | 필수 | 필수 | 이음 어르신 신청 1회용 링크 서명(lib/eumToken.js). 실링크 발급 전 전용 값 필수 |
 | `PARTNER_ROLE_ENABLE` | OFF(파트너 계정 로그인·권한 판정 거부) | 미설정 | 미설정 | 미설정 | partner_admin 역할 활성화. 테넌트 범위 배선 확인 후 사람이 켠다 **[승인 필요]** |
+| `PARTNER_COMMISSION_RATES` | 수수료 미산출(rate_missing · 0 으로 꾸미지 않음) | 미설정 | 자유 | 자유 | 파트너 수수료율 JSON(퍼센트 · 키=파트너 id 또는 *). 계약서 확정값만 넣는다(lib/settlement.js) |
 | `AUDIT_DB` | OFF(콘솔 구조화 로그만) | 미설정 | 1 | 1 | db/audit.sql 선적용 필요 **[승인 필요]** |
 | `INGEST_KEY`🔒 | 수집 API 무검사 통과 | 미설정 | 필수 | 필수 | AUTH_ENFORCE=1 + 키 설정 시에만 검사 **[승인 필요]** |
 | `DEMO_MODE` | 시뮬레이터 허용 | 미설정 | 0 | 0 | /api/dev/simulate 가드 |
