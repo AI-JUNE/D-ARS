@@ -196,6 +196,18 @@ async function auditGranted(req, need, user = null) {
   } catch { /* 감사 실패가 본 요청을 실패시키면 안 된다 */ }
 }
 
+// 요청자의 **데이터 범위**(126회차 — 2계층 확장 여지). 테넌트 조회 라우트는 이 값을 그대로
+// lib/tenantQuery.selectTenantRows 의 scope 로 넘긴다. 반환은 partnerScopeOf 와 같은 3값 규약:
+//   null = 전체(고원 직원) · 파트너 id = 그 파트너 · '' = 빈 결과(판정 실패).
+// 비강제(데모) 모드에서 신원이 없으면 **전체**다 — 그 모드는 인증 자체가 없어 범위 제한이
+// 성립하지 않는다(라이브 무붕괴 계약 · guardWrite 가 통과시키는 것과 같은 이유). 반면 강제
+// 모드에서 신원이 없으면 게이트 밖 호출이므로 빈 결과로 닫는다. 어떤 입력에도 throw 하지 않는다.
+export async function viewerScope(req) {
+  const user = await identityOf(req);
+  if (user) return partnerScopeOf(user);
+  return isEnforced() ? PARTNER_SCOPE_NONE : null;
+}
+
 // 쓰기 API 가드. 기본(비강제) 모드에서는 통과(null 반환)하여 라이브 데모 무붕괴.
 // 운영자가 AUTH_ENFORCE=1 을 켰을 때만 실제 인증/역할 검사를 수행하고,
 // 미인증 → 401, 역할 부족 → 403 Response 를 반환한다(호출측은 값이 있으면 즉시 return).

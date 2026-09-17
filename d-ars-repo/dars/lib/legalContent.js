@@ -12,7 +12,21 @@ export const LEGAL_META = {
   contactEmail: 'gowonceo@gmail.com',
   effectiveDate: '2026-08-01',
   status: 'draft', // 'draft' → 법무 검토 후 'published'
+  // ↓ 확정본에 반드시 들어가야 하는데 **아직 비어 있는** 항목들(사람이 채운다 [승인 필요]).
+  //   빈 문자열을 그대로 두는 것이 목적이다 — lib/legalReadiness.js 가 빈 값을 차단 사유로
+  //   보고하므로, 채워지지 않은 채 status 가 'published' 로 넘어가는 일을 기계가 막는다.
+  //   임의로 지어내지 않는다(사업자등록증·법무 검토 결과가 유일한 출처).
+  businessNumber: '',      // 사업자등록번호 — 사업자등록증 기준
+  address: '',             // 사업장 주소 — 사업자등록증 기준
+  privacyOfficer: '',      // 개인정보 보호책임자 성명·직책
+  retentionNotice: '',     // 보유기간 확정 문구(예: 항목별 기간). 미확정이면 빈 값
 };
+
+// 개인정보 처리위탁 수탁자 공개 목록(개인정보 보호법 §26 — 수탁자·위탁업무 내용을 방침에 공개해야 한다).
+//   { name, task, region } — 비어 있으면 방침 5장이 "위탁할 수 있다"는 일반론에 머문다는 뜻이다.
+//   저장소 구성상 후보(DB·호스팅)가 무엇인지는 docs/LEGAL_READINESS.md 에 참고로 적어 두었으나,
+//   **무엇을 공개할지는 계약·법무 확정 사항**이라 코드가 임의로 채우지 않는다 [승인 필요].
+export const SUBPROCESSORS = [];
 
 // 이용약관 ───────────────────────────────────────────────────────────────────
 export const TERMS_SECTIONS = [

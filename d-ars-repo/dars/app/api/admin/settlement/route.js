@@ -10,9 +10,10 @@
 // 저장·전송 없음(GET 전용).
 
 import { hasDB, sql, safe } from '@/lib/db';
-import { guardWrite } from '@/lib/auth';
+import { guardWrite, viewerScope } from '@/lib/auth';
 import { ok, badRequest } from '@/lib/apiError';
 import { parseCommissionRates, parseMonth, buildSettlement, settlementCsv } from '@/lib/settlement';
+import { selectTenantRows } from '@/lib/tenantQuery';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,18 +32,22 @@ export async function GET(req) {
   if (!parseMonth(month)) return badRequest('month must be YYYY-MM');
   const format = sp.get('format') === 'csv' ? 'csv' : 'json';
 
-  const partners = await safe(() => sql`select id, name, status from partners order by id`, []);
-  const organizations = await safe(() => sql`select id, name, contracted_at, status from organizations order by id`, []);
-  const attributions = await safe(
-    () => sql`select id, org_id, partner_id, channel, contracted_at, attributed_by, reason, created_at
-              from partner_attributions order by id`,
-    [],
-  );
+  // 테넌트 표는 **쿼리 계층(lib/tenantQuery)** 을 통해서만 읽는다 — 파트너 범위가 끼어드는 단일 지점이다.
+  // scope 는 명시 필수(빠뜨리면 전체가 아니라 빈 결과). 이 라우트는 admin 게이트를 이미 통과했고
+  // partner_admin 은 viewer 등급이라 여기까지 올 수 없지만, 범위는 요청자에게서 받아 온다 —
+  // 게이트 구성이 바뀌어도 이 줄이 알아서 좁아지도록 두는 편이 안전하다.
+  const scope = await viewerScope(req);
+  const io = { sql, safe };
+  const partners = await selectTenantRows(io, 'partners', { scope, columns: ['id', 'name', 'status'] });
+  const organizations = await selectTenantRows(io, 'organizations', {
+    scope, columns: ['id', 'name', 'contracted_at', 'status'],
+  });
+  const attributions = await selectTenantRows(io, 'partner_attributions', { scope });
 
   const { rates, problems: rateProblems } = parseCommissionRates(process.env.PARTNER_COMMISSION_RATES);
   const report = buildSettlement({
     month,
-    partners: partners || [], organizations: organizations || [], attributions: attributions || [],
+    partners, organizations, attributions,   // selectTenantRows 는 어떤 실패에도 배열을 보장한다
     usage: [],                 // 과금 원장 미연결 — 입력 없음
     rates,
   });
