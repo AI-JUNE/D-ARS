@@ -86,7 +86,9 @@ test('전 라우트: req.json() 은 try/catch 또는 readJson 경유', () => {
     }
     // readJson 을 쓰는 라우트는 실패(null) 처리를 반드시 한다.
     if (/readJson\(/.test(code)) {
-      assert.ok(/if\s*\(!\w+\)\s*return\s+\w*[bB]adRequest/.test(code), `${name}: readJson 실패(null) 시 400 처리 누락`);
+      // 400 헬퍼는 badRequest 계열과 invalidJson(둘 다 lib/apiError 의 400) 을 인정한다.
+      const handled = /if\s*\(!\w+\)\s*return\s+(?:\w+\()?\s*\w*(?:[bB]adRequest|invalidJson)/.test(code);
+      assert.ok(handled, `${name}: readJson 실패(null) 시 400 처리 누락`);
     }
   }
 });
@@ -115,6 +117,8 @@ const MUST_LIMIT = [
   'dev/simulate/route.js', 'sessions/route.js', 'visual/action/route.js', 'visual/state/route.js',
   'docs/route.js', 'scenarios/route.js', 'ums/route.js', 'multimodal/route.js',
   'stats/route.js', 'notifications/route.js',
+  // 어르신은 로그인하지 않는다 — 링크만 있으면 누구나 닿는 경로다.
+  'eum/senior/preferences/route.js',
 ];
 test('공개 API: rate limit 적용 누락 없음', () => {
   const byName = new Map(ROUTES.map((r) => [r.name, r.src]));

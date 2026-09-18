@@ -43,6 +43,10 @@ export const LIMIT_POLICY = {
   login:        { windowMs: 5 * 60_000, max: 10 },  // 로그인 브루트포스 완화
   cpaasEvents:  { windowMs: 60_000, max: 120 },     // 통화 중 STT·TTS·node 이벤트는 잦다
   cpaasVoice:   { windowMs: 60_000, max: 30 },      // 인입콜 웹훅 — SMS 발송 남용 방어
+  // 이음 어르신 신청 제출: IP 단위. 어르신 한 분은 링크 하나로 한 번 제출한다(1회용) —
+  // 정상 사용은 1회지만, 손이 떨려 여러 번 누르거나 실패 후 다시 누르는 경우를 감안한 여유값.
+  // 복지관 등 공유 IP 에서 여러 어르신이 잇따라 신청하는 상황도 막지 않아야 한다.
+  eumSubmit:    { windowMs: 60_000, max: 30 },
 };
 
 const limiters = new Map();

@@ -11,7 +11,10 @@
 //  - 새로고침으로 선택이 사라진 채 ?step=3 으로 들어오면 clampStep 이 1단계로 되돌린다.
 //  - 한 화면 버튼 4개 이내: 선택지 4개인 화면에는 버튼을 더 두지 않고, 되돌아가기는 **링크**로 둔다
 //    (href 가 있어 자바스크립트 없이도 동작하고, 눌렀을 때는 히스토리 뒤로가 선택을 보존한다).
-//  - 제출은 이음 API 실연결 전이므로 **콘솔 로그 + 로컬 저장**까지만 한다(EUM_INTEGRATION.md).
+//  - 제출은 **서버(POST /api/eum/senior/preferences)가 판정**한다. 예전에는 이 화면이 혼자
+//    localStorage 에 쓰고 성공이라 말했는데, 그러면 담당자는 신청을 볼 수 없고 같은 링크로
+//    몇 번이고 다시 신청할 수 있었다. 이제 1회용 판정·토큰 재검증은 서버가 하고, 로컬 저장은
+//    어르신 단말에 남는 **보조 사본**일 뿐이다. 이음 API 실전송은 여전히 **[승인 필요]**.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -35,7 +38,7 @@ function stepFromLocation() {
   }
 }
 
-export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
+export default function SeniorFlow({ sid, token = '', initialStep = 1, expiresAt = 0 }) {
   const [activity, setActivity] = useState('');
   const [timeslot, setTimeslot] = useState('');
   const [done, setDone] = useState(false);
@@ -43,6 +46,8 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [left, setLeft] = useState(() => Math.max(0, Number(expiresAt) - Date.now()));
+  // 서버가 만료라고 판정한 경우 — 클라이언트 시계가 느려 화면은 아직 유효해 보일 수 있다.
+  const [expiredByServer, setExpiredByServer] = useState(false);
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
   const headingRef = useRef(null);
@@ -121,7 +126,21 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
     }
   }
 
-  function submit() {
+  // 서버가 접수를 판정한 뒤에만 완료 화면으로 넘어간다.
+  function finishSubmitted(body) {
+    // 보조 사본 — 담당자 확인용 기록은 서버 쪽이 원본이다. 여기서 실패해도 접수는 유효하므로
+    // 사용자를 붙잡지 않는다(예전에는 이 저장 실패가 곧 제출 실패였다).
+    try {
+      const key = storageKey(sid);
+      if (key) window.localStorage.setItem(key, JSON.stringify(body));
+    } catch {
+      /* 로컬 저장 불가(시크릿 모드·용량 초과) — 접수 자체에는 영향 없다 */
+    }
+    setDone(true);
+    go(4, { activity, timeslot, done: true });
+  }
+
+  async function submit() {
     if (busy) return;
     setError('');
     const body = buildPreferences({ sid, activity, timeslot });
@@ -131,31 +150,47 @@ export default function SeniorFlow({ sid, initialStep = 1, expiresAt = 0 }) {
       return;
     }
     setBusy(true);
-    // [승인 필요] 이음 API 실연결 전 — 전송하지 않고 콘솔 로그 + 브라우저 로컬 저장까지만 한다.
-    // 실연결 시 이 자리에서 POST {EUM_API}/seniors/{id}/preferences (토큰 검증 동반) 로 바꾼다.
-    let saved = false;
+    let res;
     try {
-      // eslint-disable-next-line no-console
-      console.log('[EUM] POST /seniors/{id}/preferences (미연동 · 로컬 저장)', body);
-      const key = storageKey(sid);
-      if (key) {
-        window.localStorage.setItem(key, JSON.stringify(body));
-        saved = true;
-      }
+      res = await fetch('/api/eum/senior/preferences', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token, activity, timeslot }),
+      });
     } catch {
-      saved = false;
-    }
-    setBusy(false);
-    if (!saved) {
       // 오류를 삼키지 않는다 — 사용자가 실패한 줄 모른 채 떠나면 안 된다(QUALITY_BAR §3).
-      setError('신청을 저장하지 못했습니다. 아래 단추를 한 번 더 눌러 주세요.');
+      setBusy(false);
+      setError('연결이 끊겼습니다. 아래 단추를 한 번 더 눌러 주세요.');
       return;
     }
-    setDone(true);
-    go(4, { activity, timeslot, done: true });
+    setBusy(false);
+
+    if (res.ok) {
+      finishSubmitted(body);
+      return;
+    }
+    // 이미 접수된 링크(409): 실패가 아니라 **이미 성공한 것**이다. 어르신에게 오류를 내밀지 않고
+    // 완료 화면을 보여 준다 — 중복 신청은 서버가 막았고, 원하던 결과는 이미 이뤄져 있다.
+    if (res.status === 409) {
+      finishSubmitted(body);
+      return;
+    }
+    if (res.status === 410) {
+      setExpiredByServer(true);
+      return;
+    }
+    if (res.status === 401) {
+      setError('링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요.');
+      return;
+    }
+    if (res.status === 429) {
+      setError('잠시 후 다시 눌러 주세요.');
+      return;
+    }
+    setError('신청을 접수하지 못했습니다. 아래 단추를 한 번 더 눌러 주세요.');
   }
 
-  if (!done && Number(expiresAt) > 0 && left <= 0) {
+  if (!done && (expiredByServer || (Number(expiresAt) > 0 && left <= 0))) {
     return <Notice title="링크가 만료되었습니다" body="링크가 만료되었습니다. 담당자에게 다시 요청해 주세요" />;
   }
 

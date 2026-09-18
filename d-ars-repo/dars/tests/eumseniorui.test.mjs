@@ -117,8 +117,17 @@ test('개인정보를 화면에 그리지 않는다(sid 는 전송 본문에만 
   }
 });
 
-test('이음 API 실연결 전이므로 제출은 콘솔 로그 + 로컬 저장까지만 한다', () => {
-  assert.ok(!/\bfetch\s*\(/.test(flow), '실연결 승인 전에는 외부 전송 금지');
-  assert.match(flow, /localStorage\.setItem/);
+// 예전 계약은 "fetch 자체 금지"였다. 지금은 **자기 서버**로는 제출하고(1회용 판정·토큰 재검증을
+// 브라우저에 맡길 수 없다), **이음 쪽 외부 전송만** 승인 전까지 막는다. 지켜야 할 선은
+// "외부로 보내지 않는다"이지 "아무 데도 보내지 않는다"가 아니었다.
+test('제출은 자기 서버까지만 간다 — 이음 등 외부로의 직접 전송은 승인 전까지 금지', () => {
+  const targets = [...flow.matchAll(/fetch\(\s*([`'"])([^`'"]*)\1/g)].map((m) => m[2]);
+  assert.ok(targets.length > 0, '제출이 서버를 거치지 않으면 1회용 판정이 성립하지 않는다');
+  for (const t of targets) {
+    assert.ok(t.startsWith('/api/'), `같은 오리진 API 만 허용: ${t}`);
+  }
+  assert.equal(/https?:\/\//.test(flow), false, '절대 URL 로의 외부 전송 금지');
+  assert.equal(/EUM_API/.test(flow), false, '이음 실연결은 서버 라우트의 일이고, 아직 승인 전이다');
+  assert.match(flow, /localStorage\.setItem/, '보조 사본은 유지한다');
   assert.match(flow, /\[승인 필요\]/, '실연결 전 상태임을 소스에 남긴다');
 });

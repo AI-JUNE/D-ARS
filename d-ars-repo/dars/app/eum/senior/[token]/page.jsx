@@ -37,6 +37,7 @@ export default async function EumSeniorPage({ params, searchParams }) {
   return (
     <SeniorFlow
       sid={result.payload.sid}
+      token={params.token}
       initialStep={parseStep(searchParams?.step)}
       expiresAt={result.payload.exp}
     />
