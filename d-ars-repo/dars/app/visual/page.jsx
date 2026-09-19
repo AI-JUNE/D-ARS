@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect } from 'react';
-import { pollInitial, pollNext, SCREEN_LOST_MESSAGE } from '@/lib/ivrFallback';
+import { pollInitial, pollNext, SCREEN_LOST_MESSAGE, SCREEN_POLL_INTERVAL_MS, SCREEN_POLL_TIMEOUT_MS } from '@/lib/ivrFallback';
+import { fetchOnce } from '@/lib/fetchJson';
 
 // 보이는 ARS 고객 화면 데모 — 통화 중 화면 동반 안내 시연
 // 콜봇 events node 키(합의안): SHOW_WELFARE_FORM · SHOW_TRIO_MATCH · SHOW_SAFETY_CHECK
@@ -73,8 +74,12 @@ export default function Visual() {
     const mark = (ok) => { health = pollNext(health, ok); if (alive) setLost(health.lost); };
     const poll = async () => {
       try {
-        const r = await fetch(`/api/visual/state?s=${encodeURIComponent(s)}`, { cache: 'no-store' });
-        if (!r.ok) { mark(false); return; }
+        // 시간 상한 필수: 응답 없는 폴링은 성공도 실패도 보고하지 않아 아래 연속 실패
+        // 카운터를 멈춰 세우고, 장애 폴백(SCREEN_LOST_MESSAGE)이 영영 켜지지 않게 만든다.
+        const { res: r, failure } = await fetchOnce(`/api/visual/state?s=${encodeURIComponent(s)}`, {
+          cache: 'no-store', timeout: SCREEN_POLL_TIMEOUT_MS,
+        });
+        if (failure || !r.ok) { mark(false); return; }
         const d = await r.json();
         if (!alive) return;
         if (!d.ok) { mark(false); return; }
@@ -89,7 +94,7 @@ export default function Visual() {
       } catch { mark(false); /* 네트워크 오류 — 연속 실패만 누적, 다음 폴링에서 재시도 */ }
     };
     poll();
-    const timer = setInterval(poll, 2500);
+    const timer = setInterval(poll, SCREEN_POLL_INTERVAL_MS);
     return () => { alive = false; clearInterval(timer); };
     // 최초 마운트 시 1회만 폴링 셋업(언마운트에서 clearInterval). push 는 의도적으로 최신 클로저를
     // 다시 구독하지 않는 run-once 이펙트 → deps 를 비워둔다.

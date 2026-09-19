@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommandPalette from './CommandPalette';
 import { restoreFocus } from '@/lib/focusTrap';
 import { OfflineBanner } from '@/lib/ErrorBanner';
-import { getJSON } from '@/lib/fetchJson';
+import { getJSON, fetchOnce } from '@/lib/fetchJson';
 import { aggUrl } from '@/lib/aggregate';
 import { readSessionAgg } from '@/lib/sessionsAgg';
 import { activeSessions } from '@/lib/kpi';
@@ -95,8 +95,11 @@ export default function PortalLayout({ children }) {
     return () => { stopped = true; clearInterval(t); window.removeEventListener(CHANGE_EVENT, pn); };
   }, []);
 
-  useEffect(() => { fetch('/api/auth/me').then(r=>r.json()).then(setMe).catch(()=>{}); }, [path]);
-  const logout = async () => { try { await fetch('/api/auth/logout',{method:'POST'}); } catch {} window.location.href='/login'; };
+  useEffect(() => { getJSON('/api/auth/me').then(({ data }) => { if (data) setMe(data); }); }, [path]);
+  // 로그아웃은 서버 응답을 기다리되 **무한정은 아니다** — 상한이 없으면 응답 없는 서버에서
+  // 버튼을 눌러도 아무 일도 일어나지 않는 것처럼 보인다. 실패해도 로그인 화면으로는 간다
+  // (쿠키 만료는 서버가 하지만, 사용자를 붙잡아 두는 쪽이 더 나쁘다).
+  const logout = async () => { await fetchOnce('/api/auth/logout', { method: 'POST' }); window.location.href = '/login'; };
   const roleLabel = { admin:'관리자', operator:'상담 운영자', viewer:'뷰어' };
   const openCmdk = () => window.dispatchEvent(new Event('dars:cmdk'));
 

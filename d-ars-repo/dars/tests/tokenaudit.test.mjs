@@ -110,13 +110,65 @@ test('auditToken — 만료 없음/과도한 수명을 잡아낸다', () => {
   assert.ok(auditToken(tooLong, {}, 'production').blockers.some((b) => b.code === 'TOKEN_TTL_TOO_LONG'));
 });
 
-test('auditToken — 1회용 요건 미구현은 항상 경고로 드러난다', () => {
-  const spec = TOKEN_SPECS.find((s) => s.name === 'eum-link');
+// 1회용은 참/거짓이 아니라 **수준**이다. 예전에는 불리언 하나였고, `lib/eumConsume` 가 들어온
+// 뒤에도 값이 false 로 남아 판정이 "미구현" 이라 **거짓 보고**를 했다. 세 수준 각각이 정확히
+// 무엇을 말하는지 여기서 고정한다 — 과장도, 과소도 회귀로 잡힌다.
+test('auditToken — 1회용 미구현(none)은 항상 경고로 드러난다', () => {
+  const base = TOKEN_SPECS.find((s) => s.name === 'eum-link');
+  const spec = { ...base, oneTime: 'none' };
   for (const p of ['demo', 'staging', 'production']) {
     const r = auditToken(spec, { EUM_TOKEN_SECRET: STRONG }, p);
     const w = r.warnings.find((x) => x.code === 'TOKEN_NOT_ONE_TIME');
     assert.ok(w, `${p} 에서 1회용 미구현이 보고돼야 한다`);
     assert.match(w.msg, /\[승인 필요\]/);
+  }
+});
+
+test('auditToken — 1회용 구현(local)은 미구현이라 말하지 않되, 로컬 한계를 감추지도 않는다', () => {
+  const spec = TOKEN_SPECS.find((s) => s.name === 'eum-link');
+  assert.equal(spec.oneTime, 'local', '이음 링크는 lib/eumConsume 로 소진된다');
+  for (const p of ['demo', 'staging', 'production']) {
+    const r = auditToken(spec, { EUM_TOKEN_SECRET: STRONG }, p);
+    assert.ok(
+      !r.warnings.some((w) => w.code === 'TOKEN_NOT_ONE_TIME'),
+      '이미 한 일을 안 했다고 보고하면 남은 위험이 묻힌다',
+    );
+    const w = r.warnings.find((x) => x.code === 'TOKEN_ONE_TIME_LOCAL');
+    assert.ok(w, `${p} 에서 소진 기록의 로컬 한계가 보고돼야 한다`);
+    assert.match(w.msg, /\[승인 필요\]/);
+    assert.equal(r.oneTime, 'local');
+  }
+});
+
+test('auditToken — 공유 저장소(durable)면 1회용 경고가 사라진다', () => {
+  const spec = { ...TOKEN_SPECS.find((s) => s.name === 'eum-link'), oneTime: 'durable' };
+  const r = auditToken(spec, { EUM_TOKEN_SECRET: STRONG }, 'production');
+  assert.deepEqual(r.warnings.filter((w) => w.code.startsWith('TOKEN_ONE_TIME') || w.code === 'TOKEN_NOT_ONE_TIME'), []);
+});
+
+test('auditToken — 모르는 구현 수준은 보수적으로 미구현으로 본다', () => {
+  for (const bad of ['yes', true, null, undefined, 1]) {
+    const spec = { ...TOKEN_SPECS.find((s) => s.name === 'eum-link'), oneTime: bad };
+    const r = auditToken(spec, { EUM_TOKEN_SECRET: STRONG }, 'production');
+    assert.ok(r.warnings.some((w) => w.code === 'TOKEN_NOT_ONE_TIME'), `모르는 값(${String(bad)})은 달성으로 치지 않는다`);
+  }
+});
+
+test('[통합] 선언한 1회용 수준이 실제 소진 배선과 일치한다(판정이 코드보다 앞서거나 뒤처지지 않게)', () => {
+  const spec = TOKEN_SPECS.find((s) => s.name === 'eum-link');
+  const route = fs.readFileSync(path.join(root, 'app', 'api', 'eum', 'senior', 'preferences', 'route.js'), 'utf8');
+  const store = fs.readFileSync(path.join(root, 'lib', 'eumConsume.js'), 'utf8');
+  const wired = /consumeStore\(\)\.claim\(/.test(route);
+  assert.equal(wired, spec.oneTime !== 'none',
+    wired ? '서버가 링크를 소진하는데 명세는 미구현이라 말한다' : '소진 배선이 없는데 명세는 구현됐다고 말한다');
+  if (spec.oneTime === 'local') {
+    // 'local' 의 근거는 "기록이 프로세스 메모리에 있다" 이다. 공유 저장소로 바뀌면 이 단언이
+    // 먼저 깨져 명세를 'durable' 로 올리도록 강제한다.
+    assert.match(store, /new Map\(\)/, '인메모리 기록이 아니면 수준을 다시 판정해야 한다');
+    // 주석은 불변식이 아니다 — 문서가 "Redis 도입은 [승인 필요]" 라고 적는 것과 코드가 Redis 를
+    // 실제로 쓰는 것은 다르다. 실행되는 줄만 본다.
+    const code = store.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+    assert.equal(/neon\s*\(|DATABASE_URL|redis/i.test(code), false, '공유 저장소를 쓰면 durable 로 올려야 한다');
   }
 });
 
@@ -146,8 +198,9 @@ test('auditTokens — 강한 전용 키를 모두 주면 운영에서도 차단 
   const r = auditTokens(env, 'production');
   assert.deepEqual(r.blockers, []);
   assert.equal(r.ok, true);
-  // 구조적 한계(1회용 미구현·URL 전달)는 여전히 경고로 남아야 한다
-  assert.ok(r.warnings.some((w) => w.code === 'TOKEN_NOT_ONE_TIME'));
+  // 구조적 한계(소진 기록의 로컬 한계·URL 전달)는 여전히 경고로 남아야 한다
+  assert.ok(r.warnings.some((w) => w.code === 'TOKEN_ONE_TIME_LOCAL'));
+  assert.ok(r.warnings.some((w) => w.code === 'TOKEN_IN_URL'));
 });
 
 test('auditTokens — 결과 어디에도 비밀값이 담기지 않는다', () => {

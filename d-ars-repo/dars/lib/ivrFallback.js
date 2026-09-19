@@ -38,6 +38,17 @@ export const SCREEN_LOST_MESSAGE = '화면 연결이 끊겼습니다. 전화 음
 // 실측 지표가 아니라 운영 기준값이다.
 export const SCREEN_LOST_AFTER = 4;
 
+// 폴링 주기와 **요청 하나의 시간 상한**. 상한이 주기보다 짧아야 한다는 것이 이 두 값의 존재 이유다.
+//
+// 상한이 없던 동안 무슨 일이 일어났나: 서버가 응답하지 않고 연결만 살아 있으면(모바일 음영·
+// 콜드스타트) `fetch` 는 성공도 실패도 하지 않는다. 그러면 위 연속 실패 카운터는 **한 번도
+// 올라가지 않고**, SCREEN_LOST_MESSAGE 는 영영 뜨지 않는다. 즉 "응답 없음"이 "무장애"로
+// 취급되어, 콜봇이 "화면을 보세요" 라고 안내한 뒤 고객은 멈춘 화면 앞에 남는다.
+// 상한을 주기보다 짧게 두면 멈춘 요청은 다음 폴링 전에 반드시 실패로 확정되고,
+// 응답 없는 요청이 겹겹이 쌓이지도 않는다.
+export const SCREEN_POLL_INTERVAL_MS = 2500;
+export const SCREEN_POLL_TIMEOUT_MS = 2000;
+
 function isObj(v) { return !!v && typeof v === 'object'; }
 
 /** 판정 결과 객체를 만든다(항상 같은 모양). */

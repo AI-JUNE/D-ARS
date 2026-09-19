@@ -37,7 +37,13 @@ export function secretStrength(value) {
 // 발급 토큰 목록(단일 출처). 문서 `docs/TOKEN_SECURITY.md` 와 양방향 대조된다.
 //   transport 'cookie' — httpOnly 쿠키(스크립트 접근 불가 · 로그에 남지 않음)
 //   transport 'url'    — 경로 세그먼트(문자 메시지로 전달 · 로그·리퍼러 노출 위험 → 짧은 TTL 로 상쇄)
-//   oneTimeRequired    — 요건상 1회용이어야 하는가(구현 여부는 oneTimeImplemented)
+//   oneTimeRequired    — 요건상 1회용이어야 하는가(구현 수준은 oneTime)
+//   oneTime            — 1회용 구현 수준. 예전에는 참/거짓 하나였는데, 그 모양으로는 지금 상태를
+//                        말할 수 없다. 이음 링크는 `lib/eumConsume` 로 **구현됐지만** 소진 기록이
+//                        인스턴스 로컬 메모리라 절대 보장이 아니다. 참이라 하면 과장이고
+//                        거짓이라 하면(예전 값) 이미 한 일을 안 했다고 말하는 셈이라 둘 다 틀렸다.
+export const ONE_TIME_LEVELS = Object.freeze(['none', 'local', 'durable']);
+
 export const TOKEN_SPECS = [
   {
     name: 'auth-session',
@@ -50,7 +56,7 @@ export const TOKEN_SPECS = [
     fallbackEnv: null,
     hasDemoFallback: true,
     oneTimeRequired: false,     // 세션은 재사용이 전제다 — 1회용이 요건이 아니다
-    oneTimeImplemented: false,
+    oneTime: 'none',
     carriesPii: false,
   },
   {
@@ -64,7 +70,7 @@ export const TOKEN_SPECS = [
     fallbackEnv: null,
     hasDemoFallback: false,     // 미설정이면 아예 무동작(데모 키로 서명하지 않는다)
     oneTimeRequired: false,
-    oneTimeImplemented: false,
+    oneTime: 'none',
     carriesPii: false,
   },
   {
@@ -78,7 +84,10 @@ export const TOKEN_SPECS = [
     fallbackEnv: 'AUTH_SECRET',
     hasDemoFallback: true,
     oneTimeRequired: true,      // 요건(가이드 §6-2)은 1회용이다
-    oneTimeImplemented: false,  // 실제로는 TTL 안에서 재사용 가능한 베어러 — 6장 참조
+    // 'local': lib/eumConsume 가 첫 제출에서 링크를 소진하고 재제출을 409 로 막는다.
+    // 다만 기록이 **인스턴스 로컬 메모리**라 서버리스 인스턴스가 여럿이면 다른 인스턴스로 간
+    // 재제출은 걸러지지 않는다 — 실질적 보장이지 절대 보장이 아니다(3장 참조).
+    oneTime: 'local',
     carriesPii: false,
   },
 ];
@@ -134,9 +143,17 @@ export function auditToken(spec, env = {}, profile = 'demo') {
   }
 
   // ── 1회용 ──
-  if (spec.oneTimeRequired && !spec.oneTimeImplemented) {
-    push(warnings, 'TOKEN_NOT_ONE_TIME',
-      `${spec.name}: 요건은 1회용이지만 실제로는 만료 전까지 재사용 가능한 베어러다 — 무상태 구조상 사용 이력 저장소가 필요하다 [승인 필요]`);
+  // 요건이 아닌 토큰(세션)은 아무 말도 하지 않는다. 요건인 토큰만 구현 수준을 그대로 보고한다 —
+  // 과장(달성했다)도 과소(아무것도 안 했다)도 하지 않는 것이 이 판정의 존재 이유다.
+  if (spec.oneTimeRequired) {
+    const level = ONE_TIME_LEVELS.includes(spec.oneTime) ? spec.oneTime : 'none';
+    if (level === 'none') {
+      push(warnings, 'TOKEN_NOT_ONE_TIME',
+        `${spec.name}: 요건은 1회용이지만 실제로는 만료 전까지 재사용 가능한 베어러다 — 사용 이력 저장소가 필요하다 [승인 필요]`);
+    } else if (level === 'local') {
+      push(warnings, 'TOKEN_ONE_TIME_LOCAL',
+        `${spec.name}: 1회용 소진은 구현됐으나 기록이 인스턴스 로컬 메모리다 — 인스턴스가 여럿이거나 재배포되면 걸러지지 않는 재제출이 남는다. 공유 저장소(DB·Redis) 영속화 [승인 필요]`);
+    }
   }
 
   // ── 전달 경로 ──
@@ -145,7 +162,11 @@ export function auditToken(spec, env = {}, profile = 'demo') {
       `${spec.name}: 토큰이 URL 에 실린다 — 접근로그·리퍼러·메신저 미리보기로 새어나갈 수 있다(짧은 TTL 로 완화)`);
   }
 
-  return { name: spec.name, secretSource: sec.source, strength: sec.level, blockers, warnings };
+  return {
+    name: spec.name, secretSource: sec.source, strength: sec.level,
+    oneTime: spec.oneTimeRequired ? (ONE_TIME_LEVELS.includes(spec.oneTime) ? spec.oneTime : 'none') : null,
+    blockers, warnings,
+  };
 }
 
 // 전체 판정. 반환 어디에도 비밀값이 들어가지 않는다.

@@ -28,6 +28,7 @@ import {
   buildPreferences,
   storageKey,
 } from '@/lib/eumSenior';
+import { fetchOnce } from '@/lib/fetchJson';
 import { S, Notice, FocusStyles } from './ui.jsx';
 
 function stepFromLocation() {
@@ -150,20 +151,24 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, expiresAt
       return;
     }
     setBusy(true);
-    let res;
-    try {
-      res = await fetch('/api/eum/senior/preferences', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, activity, timeslot }),
-      });
-    } catch {
+    // 시간 상한(fetchOnce)이 필요한 이유: 맨 fetch 에는 상한이 없어, 서버가 응답하지 않으면
+    // 이 화면은 "신청하는 중…" 인 채 **영영 멈춰 있었다**. 단추는 disabled 라 다시 누를 수도
+    // 없고, 그 사이 5분 만료가 지나 링크까지 죽는다 — 어르신은 무엇이 잘못됐는지 알 길이 없다.
+    const { res, failure } = await fetchOnce('/api/eum/senior/preferences', {
+      method: 'POST',
+      body: { token, activity, timeslot },
+    });
+    setBusy(false);
+
+    if (failure) {
       // 오류를 삼키지 않는다 — 사용자가 실패한 줄 모른 채 떠나면 안 된다(QUALITY_BAR §3).
-      setBusy(false);
-      setError('연결이 끊겼습니다. 아래 단추를 한 번 더 눌러 주세요.');
+      // 상한을 넘겨 우리가 끊은 경우 요청이 서버에 닿았을 수도 있다. 그래도 다시 눌러도 안전하다 —
+      // 이미 접수된 링크는 아래에서 409 로 돌아오고, 오류가 아니라 **완료 화면**이 된다.
+      setError(failure === 'offline'
+        ? '인터넷 연결이 끊겼습니다. 연결을 확인하고 다시 눌러 주세요.'
+        : '연결이 원활하지 않습니다. 아래 단추를 한 번 더 눌러 주세요.');
       return;
     }
-    setBusy(false);
 
     if (res.ok) {
       finishSubmitted(body);

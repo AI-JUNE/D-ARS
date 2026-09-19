@@ -168,7 +168,8 @@ const FLOW = readFileSync(
 );
 
 test('화면: 제출은 서버 라우트를 거친다(브라우저 단독 성공 판정 금지)', () => {
-  assert.match(FLOW, /fetch\(\s*['"]\/api\/eum\/senior\/preferences['"]/);
+  // `fetch` 든 `fetchOnce` 든 상관없다 — 지켜야 할 선은 "제출 판정을 서버가 한다" 이다.
+  assert.match(FLOW, /fetch(Once)?\(\s*['"]\/api\/eum\/senior\/preferences['"]/);
   // 로컬 저장은 남아 있어도 되지만, 그것만으로 완료 화면에 가서는 안 된다.
   const submitBody = FLOW.slice(FLOW.indexOf('async function submit'));
   assert.equal(/setDone\(true\)/.test(submitBody), false, 'submit 이 서버 응답 없이 완료로 넘어가면 안 된다');

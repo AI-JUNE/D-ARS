@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { getJSON } from '@/lib/fetchJson';
 
 const FAQ = [
   ['보이는 ARS(Visual ARS)란 무엇인가요?',
@@ -25,7 +26,8 @@ const LINKS = [
 export default function Help() {
   const [health, setHealth] = useState(null);
   useEffect(() => {
-    fetch('/api/health').then(r=>r.json()).then(setHealth).catch(()=>setHealth({ ok:false }));
+    // 상한 없는 맨 fetch 였다 — 서버가 응답하지 않으면 상태가 null 에 머물러 "확인 중"이 끝나지 않는다.
+    getJSON('/api/health').then(({ data }) => setHealth(data || { ok: false }));
   }, []);
   return (
     <>

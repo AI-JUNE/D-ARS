@@ -64,6 +64,76 @@ export function isOffline(nav) {
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// fetchOnce — **시간 상한이 걸린 단발 요청**. 응답(Response)을 그대로 돌려준다.
+//
+// 왜 requestJSON 과 따로 두나: requestJSON 은 본문까지 JSON 으로 정규화해 돌려주므로
+// 상태코드별로 다르게 안내해야 하는 화면(409=이미 접수, 410=만료)이나 실패 본문의
+// 메시지를 그대로 써야 하는 화면(로그인)에서는 쓸 수 없다. 그런 화면들은 지금까지
+// **맨 fetch** 를 썼고, 맨 fetch 에는 시간 상한이 없다.
+//
+// 상한 없는 fetch 가 실제로 만드는 사고(관측된 것):
+//   - 제출 버튼이 `disabled` 인 채 "신청하는 중…" 에서 **영영 멈춘다**. 사용자는 실패한
+//     줄도 모르고, 다시 누를 수도 없다(QUALITY_BAR §1 "멈춘 것처럼 보이지 않는다").
+//   - 폴링 루프에서는 더 나쁘다 — 멈춘 요청은 성공도 실패도 보고하지 않으므로
+//     **연속 실패 카운터가 올라가지 않고 장애 폴백이 영영 켜지지 않는다**. 응답 없음이
+//     곧 무장애로 취급된다(QUALITY_BAR §3 "오류를 삼키고 아무 일 없는 척").
+//
+// 계약: **절대 throw 하지 않는다**. `{ res, failure }` 를 돌려주며 둘 중 하나만 채워진다.
+//   failure: 'timeout'(상한 초과로 우리가 끊음) · 'offline'(브라우저가 오프라인) ·
+//            'network'(연결 실패·중단) · null(응답 도착 — 상태코드 판정은 호출부의 몫)
+// 상태코드는 실패로 보지 않는다. 4xx/5xx 도 "응답이 도착한 것"이므로 `res` 로 넘긴다.
+export const FETCH_FAILURE_MESSAGE = {
+  timeout: '응답이 늦어 요청을 중단했습니다. 다시 시도해 주세요.',
+  offline: OFFLINE_MESSAGE,
+  network: '네트워크 오류로 요청을 보내지 못했습니다. 연결을 확인해 주세요.',
+};
+
+// 실패 사유 → 사용자 메시지. 모르는 값은 network 로 보수적으로 안내한다(빈 문자열 금지 —
+// 안내가 비면 화면은 다시 "아무 일도 없는 척" 하게 된다).
+export function failureMessage(failure) {
+  return FETCH_FAILURE_MESSAGE[failure] || FETCH_FAILURE_MESSAGE.network;
+}
+
+export async function fetchOnce(url, opts = {}) {
+  const {
+    method = 'GET', body, headers, cache,
+    timeout = DEFAULT_TIMEOUT, fetchImpl, navigatorImpl,
+  } = opts;
+
+  if (isOffline(navigatorImpl)) return { res: null, failure: 'offline' };
+
+  const f = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
+  if (!f) return { res: null, failure: 'network' };
+
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  // 우리가 끊은 것인지(timeout) 바깥에서 끊긴 것인지(network) 구분한다 — 두 경우의
+  // 안내 문구가 다르고, 사용자가 다음에 할 일도 다르다.
+  let timedOut = false;
+  const timer = ctrl && timeout > 0
+    ? setTimeout(() => { timedOut = true; try { ctrl.abort(); } catch { /* noop */ } }, timeout)
+    : null;
+
+  const sendsBody = body !== undefined && body !== null;
+  try {
+    const res = await f(url, {
+      method,
+      cache,
+      headers: sendsBody ? { 'content-type': 'application/json', ...(headers || {}) } : (headers || undefined),
+      body: sendsBody ? JSON.stringify(body) : undefined,
+      signal: ctrl ? ctrl.signal : undefined,
+    });
+    if (!res) return { res: null, failure: 'network' };
+    return { res, failure: null };
+  } catch (err) {
+    if (timedOut) return { res: null, failure: 'timeout' };
+    if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) return { res: null, failure: 'timeout' };
+    return { res: null, failure: 'network' };
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 // 단발 요청: 절대 throw 하지 않고 { data, error, status } 반환.
 // timeout(ms) 초과 시 AbortController 로 중단 → 화면이 무한 로딩에 갇히지 않는다.
 async function attemptOnce(url, { method, body, timeout, fetchImpl }) {

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { fetchOnce, getJSON } from '@/lib/fetchJson';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -10,25 +11,36 @@ export default function LoginPage() {
   const [info, setInfo] = useState({ enforced: false, demo: true });
 
   useEffect(() => {
-    fetch('/api/auth/me').then(r => r.json()).then(d => setInfo({ enforced: !!d.enforced, demo: !!d.demo })).catch(() => {});
+    getJSON('/api/auth/me').then(({ data: d }) => { if (d) setInfo({ enforced: !!d.enforced, demo: !!d.demo }); });
   }, []);
 
   const submit = async (e) => {
     e.preventDefault();
     setErr(''); setBusy(true);
-    try {
-      const r = await fetch('/api/auth/login', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      const d = await r.json();
-      if (!d.ok) { setErr(d.error || '로그인에 실패했습니다.'); setBusy(false); return; }
-      const params = new URLSearchParams(window.location.search);
-      const next = params.get('next') || '/dashboard';
-      window.location.href = next.startsWith('/') ? next : '/dashboard';
-    } catch {
-      setErr('네트워크 오류로 로그인하지 못했습니다.'); setBusy(false);
+    // 시간 상한이 필요한 이유: 예전에는 맨 fetch 라 서버가 응답하지 않으면 버튼이
+    // disabled 인 채 "확인 중…" 에서 영영 멈췄다. 실패했다는 말도, 다시 누를 방법도 없었다.
+    const { res, failure } = await fetchOnce('/api/auth/login', {
+      method: 'POST', body: { username: username.trim(), password },
+    });
+    if (failure) {
+      setErr(failure === 'offline'
+        ? '오프라인 상태입니다. 네트워크 연결을 확인해 주세요.'
+        : '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+      setBusy(false); return;
     }
+    // 응답이 JSON 이 아닐 수 있다(게이트웨이 오류 페이지 등). 예전에는 여기서 던진 예외가
+    // catch 로 흘러 "네트워크 오류" 라고 잘못 안내됐다 — 연결은 멀쩡했는데도.
+    let d = null;
+    try { d = await res.json(); } catch { d = null; }
+    if (!d || !d.ok) {
+      setErr((d && d.error) || (res.status >= 500
+        ? '서버 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+        : '로그인에 실패했습니다.'));
+      setBusy(false); return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get('next') || '/dashboard';
+    window.location.href = next.startsWith('/') ? next : '/dashboard';
   };
 
   const fill = (u) => { setUsername(u); setPassword('dars2026!'); setErr(''); };

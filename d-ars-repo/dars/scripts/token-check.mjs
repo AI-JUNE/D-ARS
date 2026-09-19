@@ -18,7 +18,12 @@ console.log(`서명 비밀 권장 기준: ${MIN_SECRET_LENGTH}자 이상 · 반�
 for (const spec of TOKEN_SPECS) {
   const row = r.rows.find((x) => x.name === spec.name);
   const ttlMin = Math.round(spec.ttlMs / 60000);
-  const oneTime = spec.oneTimeRequired ? (spec.oneTimeImplemented ? '1회용' : '1회용 요건·미구현') : '재사용(설계상 정상)';
+  const ONE_TIME_LABEL = {
+    none: '1회용 요건·미구현',
+    local: '1회용 구현(소진 기록 인스턴스 로컬)',
+    durable: '1회용 구현(공유 저장소)',
+  };
+  const oneTime = spec.oneTimeRequired ? (ONE_TIME_LABEL[spec.oneTime] || ONE_TIME_LABEL.none) : '재사용(설계상 정상)';
   console.log(`  ${spec.name} — ${spec.label}`);
   console.log(`    수명 ${ttlMin}분 · 전달 ${spec.transport} · ${oneTime}`);
   console.log(`    서명 비밀 출처 ${row.secretSource} · 강도 ${row.strength}`);
