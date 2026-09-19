@@ -1,5 +1,20 @@
 // D-ARS 랜딩 — TOBE 블루 디자인(통합 최상급). 원본 HTML을 손실 없이 렌더.
 export const dynamic = 'force-static';
+
+// 루트 metadata 는 운영 포털 기준('D-ARS · 보이는 ARS 관리자')이라 공개 랜딩에 그대로 쓰면
+// 제품 소개 화면이 '관리자'로 표기된다. 이 페이지에서만 제품 기준 제목·설명으로 덮어쓴다.
+export const metadata = {
+  title: 'D-ARS · 보이는 ARS 솔루션',
+  description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
+  openGraph: {
+    title: 'D-ARS · 보이는 ARS 솔루션',
+    description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
+  },
+  twitter: {
+    title: 'D-ARS · 보이는 ARS 솔루션',
+    description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
+  },
+};
 const LP = `<style>
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
 :root{
@@ -123,7 +138,9 @@ footer h5{color:#fff;font-size:14px;font-weight:800;margin-bottom:14px}
 footer a{display:block;color:#9fb2d4;font-size:14px;margin-bottom:9px}
 footer a:hover{color:#fff}
 .fbottom{border-top:1px solid rgba(255,255,255,.08);margin-top:34px;padding-top:20px;font-size:13px;color:#6b7f9e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
-.badge-ai{display:inline-flex;gap:6px;font-size:12px;color:var(--mut)}
+.badge-ai{display:inline-flex;gap:6px;font-size:12px;color:var(--mut);flex-wrap:wrap}
+.badge-ai .flink{display:inline;margin:0;font-size:12px;color:#9fb2d4;text-decoration:underline}
+.badge-ai .flink:hover{color:#fff}
 @media(max-width:900px){.hero-in,.sol{grid-template-columns:1fr}.stats,.cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr 1fr}.hero h1{font-size:38px}.h2{font-size:30px}.viz{height:360px}}
 /* 121회차 모바일 실측 QA: 900px 아래 단계가 없어 720px 미만에서 헤더 가로 넘침·2열 카드 압착이 발생 → 단계 보강(무붕괴·무오버랩) */
 @media(max-width:720px){
@@ -329,7 +346,7 @@ footer a:hover{color:#fff}
     <div><h5>회사</h5><a>회사 소개</a><a>뉴스룸</a><a>파트너</a><a>채용</a></div>
     <div><h5>지원</h5><a>고객센터</a><a>도입 문의</a><a>FAQ</a><a>자료실</a></div>
   </div>
-  <div class="fbottom"><span>© 2026 D-ARS. All rights reserved.</span><span class="badge-ai">개인정보처리방침 · 이용약관 · 본 서비스는 생성형 AI가 함께 응대합니다 (AI기본법 제31조)</span></div>
+  <div class="fbottom"><span>© 2026 D-ARS. All rights reserved.</span><span class="badge-ai"><a href="/legal/privacy" class="flink">개인정보처리방침</a> · <a href="/legal/terms" class="flink">이용약관</a> · 본 서비스는 생성형 AI가 함께 응대합니다 (AI기본법 제31조)</span></div>
 </div></footer>`;
 export default function Home() {
   return <main suppressHydrationWarning dangerouslySetInnerHTML={{ __html: LP }} />;

@@ -57,6 +57,22 @@ D-ARS 를 **「이음 어르신 신청」 화면 하나로 축소**한 별도 �
   해당 라우트와 `lib/eumTheme.js` 를 검사해 경고·오류 0건을 확인했다. 실배포 빌드는 Vercel 이 판정한다.
 - 375px 실제 렌더 확인은 유효 토큰 링크가 필요해 소스 불변식(테스트)으로 대신했다.
 
+## 검증 메모(2026-09-19)
+- `node --test "tests/*.test.mjs"` **1034/1034 통과**(직전 1005 → 신규 `tests/fetchonce.test.mjs` 14건 ·
+  `tests/nohang.test.mjs` 11건 · `tests/tokenaudit.test.mjs` +4건). coverage 게이트 로직 **63/63** ·
+  env/auth/backup/retention/token/legal/audit CLI 이상 없음 · ESLint(next 설정) 변경 파일 경고 0.
+- **제출 화면의 무한 대기를 없앴다.** 제출이 상한 없는 맨 `fetch` 였다 — 서버가 응답하지 않으면
+  단추가 `disabled` 인 채 "신청하는 중…" 에서 영영 멈추고, 그 사이 5분 만료가 지나 링크까지 죽는다.
+  어르신에게는 아무 안내도 없고 다시 누를 방법도 없었다. `lib/fetchJson.fetchOnce` 로 바꾸고
+  오프라인·지연을 나눠 안내한다. 상한을 넘겨 우리가 끊은 요청이 사실 서버에 닿았더라도 안전하다 —
+  다시 누르면 이미 접수된 링크는 409 로 돌아오고 **완료 화면**이 된다(기존 계약 그대로).
+- **1회용 판정이 코드보다 뒤처져 있던 것을 정정했다.** `token:check` 가 `lib/eumConsume` 도입 뒤에도
+  "요건은 1회용이지만 실제로는 재사용 가능한 베어러" 라고 보고했다. `oneTime: none|local|durable`
+  세 수준으로 바꾸고 `local`(구현됐으나 기록이 인스턴스 로컬) 경고를 따로 냈다 — 위 「알려진 한계」와
+  같은 사실을 같은 강도로 말한다. 공유 저장소 영속화는 **[승인 필요]** 그대로.
+- 낡은 소스 가드 2건을 고쳤다 — `fetch(` 리터럴을 찾던 계약을 `fetch(`/`fetchOnce(` 둘 다 받도록
+  넓혔다. 지켜야 할 선은 "제출 판정을 서버가 한다 · 외부로 직접 보내지 않는다" 이지 특정 함수 이름이 아니다.
+
 ## 검증 메모(2026-09-18)
 - `node --test "tests/*.test.mjs"` **1005/1005 통과**(직전 984 → 신규 `tests/eumconsume.test.mjs` 21건).
   coverage 게이트 로직 **63/63** · `npm run env:check`·`auth:check` 이상 없음 ·
