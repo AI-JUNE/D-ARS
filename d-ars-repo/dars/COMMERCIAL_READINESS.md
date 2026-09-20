@@ -20,6 +20,19 @@
 - [x] **rate limit** 공개 API 적용
   - 근거: `lib/apiLimits.js` 정책표(`LIMIT_POLICY` 9종)로 한도를 단일화하고 `consume(policy, key)` 한 줄로 배선 — **공개 라우트 13개 전부 적용**(login·cpaas/events·cpaas/voice·dev/simulate·sessions·visual/action·visual/state·docs·scenarios·ums·multimodal·stats·notifications). 기존에 라우트마다 흩어져 있던 `createRateLimiter` 3곳은 **값 변경 없이** 정책표로 이관하고, 라우트 내 자체 리미터 생성은 가드로 금지. **키 설계**: 서명토큰이 유효하면 세션 단위(`sessionId`), 검증 실패만 IP 단위(`tokenFail`) — CGNAT 공유 IP 환경에서 한 명의 과다요청이 같은 통신사 이용자를 함께 막는 무고한 차단을 피한다. 한도는 클라이언트 폴링 주기에서 역산한 여유값(실측 KPI 아님). 비상구 `RATE_LIMIT_DISABLED=1`(정확히 '1'일 때만 해제, 기본은 적용). 검증: `tests/apilimits.test.mjs` 16케이스(키 격리·정책 강도 역전 방지·비상구 오타 내성 포함) + `tests/routecontract.test.mjs`에 공개 API 누락 가드 3케이스 추가
   - 한계: 인메모리·인스턴스 로컬 → 서버리스 인스턴스가 늘면 실효 한도도 함께 늘어난다. 멀티노드 정합(Redis 등 공유 스토어)은 **[승인 필요]**
+  - 정정(2026-09-21) — 위 「키 설계」는 **한 라우트에서 지켜지지 않고 있었다**. 이음 어르신 신청 제출
+    (`/api/eum/senior/preferences`)만 토큰 검증보다 **먼저** IP 로 조여, 서명이 유효한 요청도 IP 단위로
+    셌다. 하필 공유 IP 가 가장 흔한 경로다 — 복지관·경로당에서 담당자가 여러 어르신을 한 자리에 모아
+    놓고 링크를 하나씩 보내는 것이 이 기능의 전형적인 사용 장면이고, 그 방은 공유기 하나 뒤에 있어
+    공인 IP 가 하나다. 앞사람들의 재시도(손이 떨려 여러 번 누르는 것까지)가 한도를 채우면 **아무 잘못도
+    하지 않은 뒷사람이** 「잠시 후 다시 눌러 주세요」만 보다가 5분 링크를 잃는다. 정책표 주석은
+    "공유 IP 에서 잇따라 신청하는 상황도 막지 않아야 한다" 고 적고 있었지만, IP 를 키로 쓰는 한
+    그것은 **코드가 보장할 수 없는 서술**이었다(CGNAT 를 피하려 만든 규칙을 스스로 어긴 셈이다).
+    이제 검증을 먼저 하고, 유효한 링크는 `consumeKey`(토큰 서명 부분 — 소진 기록과 **같은 키**)로,
+    검증 실패만 `tokenFail`(IP 단위)로 센다. 한도 값·응답 형태는 그대로다. 재발 방지: 검증이 한도보다
+    앞서는 순서, 유효 경로에 `ipKey` 가 되살아나지 않는 것, 키 생성 실패 시 무제한 통과가 아니라 IP 로
+    물러서는 것을 테스트가 고정한다(`tests/apilimits.test.mjs` +4케이스 — 같은 IP·다른 링크가 서로
+    막지 않음을 실제 리미터로 확인).
 - [x] **접근·감사 로그** — 관리 기능 접근 이력
   - 근거: 기존에는 **거부·인증 이벤트만** 남아 "누가 관리 기능을 썼는가"가 비어 있었다. `lib/auth.guardWrite` 통과 경로에 성공 기록을 추가 — 관리 API(`/api/admin/*`)는 `ADMIN_ACCESS`, 그 외 보호 API 는 `WRITE_OK`(`lib/audit.accessEventFor` 순수 분류 · 접두어 오인 `/api/administration` 방지). `detail`에 `path·method·need·enforced` 만 담고 **쿼리스트링은 폐기**(PII 유입 방어), 계정·IP 는 기존 마스킹 계약 그대로. 비강제(데모) 모드에서도 `identityOf`로 신원만 확인해 이력을 남기되 **차단 판정은 하지 않는다**(라이브 무붕괴). 화면 `/admin/audit`에 두 이벤트 라벨·필터 추가.
   - 검증: `tests/auditaccess.test.mjs` 10케이스(통과/401/403 판정 불변 · 위조 서명은 계정 미기록 · `req` 이상 객체에도 무throw · 쿼리스트링 미기록) + `tests/audit.test.mjs` +4케이스(`accessEventFor`)
