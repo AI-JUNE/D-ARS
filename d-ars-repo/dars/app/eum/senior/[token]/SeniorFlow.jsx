@@ -11,6 +11,9 @@
 //  - 새로고침으로 선택이 사라진 채 ?step=3 으로 들어오면 clampStep 이 1단계로 되돌린다.
 //  - 한 화면 버튼 4개 이내: 선택지 4개인 화면에는 버튼을 더 두지 않고, 되돌아가기는 **링크**로 둔다
 //    (href 가 있어 자바스크립트 없이도 동작하고, 눌렀을 때는 히스토리 뒤로가 선택을 보존한다).
+//  - 남은 시간은 서버가 준 **기간**을 받아 기기 안에서의 **경과**로만 센다(lib/eumCountdown.js).
+//    예전에는 절대 만료시각을 받아 `Date.now()` 와 비교했는데, 그러면 기기 시계가 앞선 어르신은
+//    멀쩡한 링크에서도 곧바로 만료 화면을 보고, 재발급을 받아도 같은 일이 되풀이됐다.
 //  - 제출은 **서버(POST /api/eum/senior/preferences)가 판정**한다. 예전에는 이 화면이 혼자
 //    localStorage 에 쓰고 성공이라 말했는데, 그러면 담당자는 신청을 볼 수 없고 같은 링크로
 //    몇 번이고 다시 신청할 수 있었다. 이제 1회용 판정·토큰 재검증은 서버가 하고, 로컬 저장은
@@ -28,6 +31,16 @@ import {
   buildPreferences,
   storageKey,
 } from '@/lib/eumSenior';
+import {
+  EUM_SOON_MESSAGE,
+  elapsedSince,
+  initialLeftMs,
+  isExpired,
+  isSoon,
+  leftAfter,
+  nowTick,
+  secondsLeft,
+} from '@/lib/eumCountdown';
 import { fetchOnce } from '@/lib/fetchJson';
 import { S, Notice, FocusStyles } from './ui.jsx';
 
@@ -39,15 +52,19 @@ function stepFromLocation() {
   }
 }
 
-export default function SeniorFlow({ sid, token = '', initialStep = 1, expiresAt = 0 }) {
+export default function SeniorFlow({ sid, token = '', initialStep = 1, remainingMs = 0 }) {
   const [activity, setActivity] = useState('');
   const [timeslot, setTimeslot] = useState('');
   const [done, setDone] = useState(false);
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [left, setLeft] = useState(() => Math.max(0, Number(expiresAt) - Date.now()));
-  // 서버가 만료라고 판정한 경우 — 클라이언트 시계가 느려 화면은 아직 유효해 보일 수 있다.
+  // 서버가 판정한 남은 기간과, 그것을 받은 시점의 단조 눈금. 둘의 차이로만 남은 시간을 센다.
+  const [initialLeft] = useState(() => initialLeftMs(remainingMs));
+  const [baseTick] = useState(() => nowTick());
+  const [left, setLeft] = useState(initialLeft);
+  // 서버가 만료라고 판정한 경우 — 화면은 전송 지연만큼 너그럽게 세므로 아직 유효해 보일 수 있다.
+  // 어긋나면 **서버 쪽이 맞다**(최종 판정자).
   const [expiredByServer, setExpiredByServer] = useState(false);
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
@@ -92,11 +109,12 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, expiresAt
 
   // 남은 시간(1초 간격). 제출이 끝났으면 더 세지 않는다 — 완료 화면이 만료로 덮이지 않게.
   useEffect(() => {
-    const exp = Number(expiresAt);
-    if (!Number.isFinite(exp) || exp <= 0 || done) return undefined;
-    const id = setInterval(() => setLeft(Math.max(0, exp - Date.now())), 1000);
+    if (initialLeft === null || done) return undefined;
+    const id = setInterval(() => {
+      setLeft(leftAfter(initialLeft, elapsedSince(baseTick)));
+    }, 1000);
     return () => clearInterval(id);
-  }, [expiresAt, done]);
+  }, [initialLeft, baseTick, done]);
 
   const go = useCallback((next, draft) => {
     const want = clampStep(next, draft || draftRef.current);
@@ -195,11 +213,13 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, expiresAt
     setError('신청을 접수하지 못했습니다. 아래 단추를 한 번 더 눌러 주세요.');
   }
 
-  if (!done && (expiredByServer || (Number(expiresAt) > 0 && left <= 0))) {
+  // 화면이 스스로 만료를 선언하는 것은 **남은 시간을 실제로 알 때뿐**이다(isExpired 는 null 에
+  // 대해 false). 값이 없으면 계속 쓰게 두고 판정은 제출 시점의 서버(410)에 맡긴다.
+  if (!done && (expiredByServer || isExpired(left))) {
     return <Notice title="링크가 만료되었습니다" body="링크가 만료되었습니다. 담당자에게 다시 요청해 주세요" />;
   }
 
-  const soon = !done && left > 0 && left <= 60000;
+  const soon = !done && isSoon(left);
   const stepLabel = step <= 3 ? `${step}단계 / 3단계` : '완료';
 
   return (
@@ -210,9 +230,14 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, expiresAt
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
         <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
 
+        {/* 만료 임박 안내는 스크린리더도 들어야 한다 — 예전에는 눈으로만 보이는 문단이라
+            보이지 않는 사용자는 화면이 곧 닫힌다는 것을 끝내 알 수 없었다. 문단 자체를 낭독
+            영역으로 두되, **매초 바뀌는 초 숫자는 aria-hidden** 으로 빼 둔다. 넣어 두면 1초마다
+            낭독이 끊기고 처음부터 다시 읽혀 오히려 문장을 들을 수 없다. */}
         {soon ? (
-          <p style={S.warn}>
-            잠시 후 이 화면이 닫힙니다. 남은 시간 {Math.ceil(left / 1000)}초
+          <p style={S.warn} role="status" aria-live="polite">
+            {EUM_SOON_MESSAGE}
+            <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
           </p>
         ) : null}
 

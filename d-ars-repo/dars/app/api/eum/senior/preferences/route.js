@@ -43,16 +43,35 @@ export async function POST(req) {
     return res;
   };
 
-  // 공개 경로다(어르신은 로그인하지 않는다) → 한도를 먼저 건다.
-  const over = consume('eumSubmit', ipKey(req));
-  if (over) return finish(over, 'rate_limited');
-
   const body = await readJson(req);
   if (!body) return finish(invalidJson(), 'invalid_json');
 
   const token = typeof body.token === 'string' ? body.token : '';
   const verdict = await verifyEumToken(token);
-  if (!verdict.ok) return finish(tokenFailure(verdict.reason), `token_${verdict.reason}`);
+
+  // ── 한도의 **키** ── 이 라우트가 지켜야 할 선은 lib/apiLimits 헤더에 이미 적혀 있다:
+  // 서명이 유효하면 그 서명 단위로, 검증 실패만 IP 단위로 조인다. 그런데 여기만 그 규칙을
+  // 따르지 않고 처음부터 IP 로 조이고 있었다 — 하필 공유 IP 가 가장 흔한 경로에서.
+  //   복지관·경로당에서 담당자가 여러 어르신을 한 자리에 모아 놓고 링크를 하나씩 보내는 것이
+  //   이 기능이 쓰이는 전형적인 모습이다. 그 방은 공유기 하나 뒤에 있어 공인 IP 가 하나다.
+  //   손이 떨려 여러 번 누르는 것까지 세면 몇 분 안에 한도에 닿고, 그 뒤에 신청하려던 어르신은
+  //   자기가 아무 잘못도 하지 않았는데 「잠시 후 다시 눌러 주세요」만 보다가 5분 링크가 죽는다.
+  //   정책표 주석은 "공유 IP 에서 잇따라 신청하는 상황도 막지 않아야 한다" 고 적어 두었지만,
+  //   IP 를 키로 쓰는 한 그것은 코드가 보장할 수 없는 서술이었다.
+  // 그래서 유효한 링크는 **링크 단위**로 센다(consumeKey = 서명 부분 · 페이로드 복원 불가).
+  // 한 어르신의 재시도가 옆자리 어르신에게 전이되지 않는다. 위조 토큰 홍수는 아래 tokenFail
+  // (IP 단위)이 그대로 막는다 — 실제 위협만 겨냥한다는 원칙은 그대로다.
+  if (!verdict.ok) {
+    const flood = consume('tokenFail', ipKey(req));
+    if (flood) return finish(flood, 'rate_limited');
+    return finish(tokenFailure(verdict.reason), `token_${verdict.reason}`);
+  }
+
+  const linkKey = consumeKey(token);
+  // 서명 형식이 깨져 키를 못 만들면(검증을 통과했으므로 정상적으로는 오지 않는 경로)
+  // 링크 단위로 셀 수 없다 → IP 로 물러선다. 한도 없이 통과시키지는 않는다.
+  const over = consume('eumSubmit', linkKey || ipKey(req));
+  if (over) return finish(over, 'rate_limited');
 
   // 선택값 검증은 화면과 같은 규칙(lib/eumSenior)을 쓴다 — 화면을 우회한 제출도 같은 잣대.
   const prefs = buildPreferences({
@@ -63,8 +82,7 @@ export async function POST(req) {
   if (!prefs) return finish(badRequest('invalid selection'), 'invalid_selection');
 
   // 1회용 소진 — 여기까지 와서 처음 쓰이는 링크여야 접수한다.
-  const key = consumeKey(token);
-  const claim = consumeStore().claim(key, verdict.payload.exp);
+  const claim = consumeStore().claim(linkKey, verdict.payload.exp);
   if (!claim.ok) {
     // 이미 접수된 링크: 409. 실패가 아니라 **이미 성공했음**을 뜻하므로 화면이 구분해 안내한다.
     if (claim.reason === 'used') {

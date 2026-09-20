@@ -5,6 +5,10 @@
 // 하고, 실패하면 사유에 맞는 안내 화면만 보여 준다(빈 화면·무반응 금지).
 //
 // 기존 D-ARS 제품 화면과 완전히 분리된 라우트다. 로고·도입사례·요금표를 표시하지 않는다.
+//
+// 화면에는 절대 만료시각(exp)이 아니라 **남은 기간(remainingMs)** 만 넘긴다. 절대 시각을 주면
+// 화면이 그것을 어르신 **기기 시계**와 비교하게 되고, 기기 시계가 몇 분만 앞서도 서버가 유효하다고
+// 판정한 링크가 첫 렌더에서 만료로 덮인다(재발급해도 같은 결과 — lib/eumCountdown.js 참조).
 
 import { verifyEumToken, tokenMessage } from '@/lib/eumToken';
 import { parseStep } from '@/lib/eumSenior';
@@ -39,7 +43,7 @@ export default async function EumSeniorPage({ params, searchParams }) {
       sid={result.payload.sid}
       token={params.token}
       initialStep={parseStep(searchParams?.step)}
-      expiresAt={result.payload.exp}
+      remainingMs={result.remainingMs}
     />
   );
 }
