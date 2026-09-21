@@ -122,14 +122,22 @@ export function FocusStyles() {
 
 // 만료·오류 안내 패널. 되돌릴 방법이 없는 상태이므로 **버튼을 두지 않고** 다음 행동만 알려 준다
 // (담당자에게 다시 요청 — 어르신이 스스로 재발급할 수단이 없기 때문).
-export function Notice({ title, body }) {
+//
+//  - detail: 이미 접수된 링크로 들어왔을 때 **무엇이 접수됐는지** 한 줄로 보여 준다. 모르면
+//    넘기지 않는다 — 빈 칸을 그리는 대신 아예 그리지 않는다(지어내지 않는다).
+//  - foot: 마무리 안내. 기본은 만료 안내지만, 상황에 따라 맞는 문장이 다르다
+//    (이미 신청이 끝난 사람에게 "5분이 지나면 닫힙니다" 는 할 말이 아니다).
+export const EUM_NOTICE_FOOT = '이 화면은 안전을 위해 5분이 지나면 닫힙니다.';
+
+export function Notice({ title, body, detail = '', foot = EUM_NOTICE_FOOT }) {
   return (
     <main style={S.page}>
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
         <h1 style={S.h1}>{title}</h1>
         <p style={S.body} role="status">{body}</p>
-        <p style={S.note}>이 화면은 안전을 위해 5분이 지나면 닫힙니다.</p>
+        {detail ? <p style={S.summary}>{detail}</p> : null}
+        {foot ? <p style={S.note}>{foot}</p> : null}
       </div>
     </main>
   );

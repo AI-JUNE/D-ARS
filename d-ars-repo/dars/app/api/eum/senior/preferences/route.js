@@ -82,11 +82,22 @@ export async function POST(req) {
   if (!prefs) return finish(badRequest('invalid selection'), 'invalid_selection');
 
   // 1회용 소진 — 여기까지 와서 처음 쓰이는 링크여야 접수한다.
-  const claim = consumeStore().claim(linkKey, verdict.payload.exp);
+  // 무엇이 접수됐는지를 기록에 함께 남긴다(선택 코드 2개뿐 · 개인정보 없음). 아래 409 응답이
+  // 그것을 돌려주고, 화면은 「방금 고른 것」이 아니라 「실제로 접수된 것」을 보여 준다.
+  const claim = consumeStore().claim(linkKey, verdict.payload.exp, Date.now(), {
+    activity: prefs.activity,
+    timeslot: prefs.timeslot,
+  });
   if (!claim.ok) {
     // 이미 접수된 링크: 409. 실패가 아니라 **이미 성공했음**을 뜻하므로 화면이 구분해 안내한다.
     if (claim.reason === 'used') {
-      return finish(fail(consumeMessage('used'), 409, { code: 'already_submitted' }), 'already_submitted');
+      // 먼저 접수된 내용을 함께 돌려준다 — 없으면(다른 인스턴스·재시작·구기록) 아예 싣지 않는다.
+      // 빈 값이나 이번 요청의 선택으로 대신 채우면 화면이 일어나지 않은 일을 사실처럼 말하게 된다.
+      const prior = consumeStore().recordOf(linkKey);
+      return finish(fail(consumeMessage('used'), 409, {
+        code: 'already_submitted',
+        ...(prior.note ? { accepted: prior.note } : {}),
+      }), 'already_submitted');
     }
     if (claim.reason === 'expired') return finish(gone('expired'), 'token_expired');
     return finish(unauthorized('invalid link'), 'consume_unusable');

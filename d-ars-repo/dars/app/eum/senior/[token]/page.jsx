@@ -6,12 +6,19 @@
 //
 // 기존 D-ARS 제품 화면과 완전히 분리된 라우트다. 로고·도입사례·요금표를 표시하지 않는다.
 //
+// 이미 접수된 링크로 다시 들어오면 **여기서 바로** 알려 준다. 예전에는 소진 판정이 제출
+// 시점에만 있어, 이미 신청을 마친 어르신이 같은 링크를 다시 열면 멀쩡한 첫 화면이 나왔다.
+// 활동을 고르고 시간을 고르고 확인까지 마친 **뒤에야** 409 가 돌아온다 — 세 화면을 헛걸음한
+// 것이고, 그 사이 어르신은 신청을 바꾸고 있다고 믿는다(바뀌지 않는다). 첫 화면에서 말해 주면
+// 헛걸음도 오해도 생기지 않는다.
+//
 // 화면에는 절대 만료시각(exp)이 아니라 **남은 기간(remainingMs)** 만 넘긴다. 절대 시각을 주면
 // 화면이 그것을 어르신 **기기 시계**와 비교하게 되고, 기기 시계가 몇 분만 앞서도 서버가 유효하다고
 // 판정한 링크가 첫 렌더에서 만료로 덮인다(재발급해도 같은 결과 — lib/eumCountdown.js 참조).
 
 import { verifyEumToken, tokenMessage } from '@/lib/eumToken';
-import { parseStep } from '@/lib/eumSenior';
+import { parseStep, summaryText } from '@/lib/eumSenior';
+import { consumeKey, consumeStore, consumeMessage } from '@/lib/eumConsume';
 import { Notice } from './ui.jsx';
 import SeniorFlow from './SeniorFlow.jsx';
 
@@ -34,6 +41,22 @@ export default async function EumSeniorPage({ params, searchParams }) {
       <Notice
         title={expired ? '링크가 만료되었습니다' : '링크를 열 수 없습니다'}
         body={tokenMessage(result.reason)}
+      />
+    );
+  }
+
+  // 소진 기록은 인메모리·인스턴스 로컬이다(EUM_INTEGRATION.md 「알려진 한계」). 기록을 못 찾으면
+  // 이 안내를 건너뛸 뿐, 판정 자체가 사라지지는 않는다 — 제출은 여전히 라우트가 409 로 막는다.
+  // 즉 이 화면은 **빠른 안내**이지 보안 경계가 아니다.
+  const linkKey = consumeKey(params?.token);
+  const record = linkKey ? consumeStore().recordOf(linkKey) : { used: false, note: null };
+  if (record.used) {
+    return (
+      <Notice
+        title="이미 신청하셨습니다"
+        body={consumeMessage('used')}
+        detail={summaryText(record.note)}
+        foot="이제 이 화면을 닫으셔도 됩니다."
       />
     );
   }

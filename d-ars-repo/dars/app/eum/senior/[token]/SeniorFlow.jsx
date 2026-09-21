@@ -29,6 +29,7 @@ import {
   labelOf,
   summaryText,
   buildPreferences,
+  parseAccepted,
   storageKey,
 } from '@/lib/eumSenior';
 import {
@@ -66,6 +67,10 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
   // 서버가 만료라고 판정한 경우 — 화면은 전송 지연만큼 너그럽게 세므로 아직 유효해 보일 수 있다.
   // 어긋나면 **서버 쪽이 맞다**(최종 판정자).
   const [expiredByServer, setExpiredByServer] = useState(false);
+  // 이 링크로는 **이미 접수된 신청이 있다**(409). 완료 화면의 문구와 요약이 달라진다.
+  const [already, setAlready] = useState(false);
+  // 그때 실제로 접수된 선택. 서버가 알려 주지 못하면 null 이고, 화면은 요약을 그리지 않는다.
+  const [accepted, setAccepted] = useState(null);
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
   const headingRef = useRef(null);
@@ -146,17 +151,30 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
   }
 
   // 서버가 접수를 판정한 뒤에만 완료 화면으로 넘어간다.
-  function finishSubmitted(body) {
-    // 보조 사본 — 담당자 확인용 기록은 서버 쪽이 원본이다. 여기서 실패해도 접수는 유효하므로
-    // 사용자를 붙잡지 않는다(예전에는 이 저장 실패가 곧 제출 실패였다).
+  // 보조 사본 — 담당자 확인용 기록은 서버 쪽이 원본이다. 여기서 실패해도 접수는 유효하므로
+  // 사용자를 붙잡지 않는다(예전에는 이 저장 실패가 곧 제출 실패였다).
+  // record 가 null 이면 **아무것도 쓰지 않는다** — 무엇이 접수됐는지 모르는 경우이고, 그때
+  // 이번 선택을 적어 두면 단말에 남은 사본까지 사실과 어긋난다(먼저 접수된 내용이 원본이다).
+  function finishSubmitted(record) {
     try {
       const key = storageKey(sid);
-      if (key) window.localStorage.setItem(key, JSON.stringify(body));
+      if (key && record) window.localStorage.setItem(key, JSON.stringify(record));
     } catch {
       /* 로컬 저장 불가(시크릿 모드·용량 초과) — 접수 자체에는 영향 없다 */
     }
     setDone(true);
     go(4, { activity, timeslot, done: true });
+  }
+
+  // 409 본문에서 「먼저 접수된 선택」을 읽는다. 읽지 못하면 null — 모른다고 말하는 편이
+  // 그럴듯하게 채우는 것보다 낫다. 본문이 JSON 이 아니어도 던지지 않는다.
+  async function acceptedFrom(res) {
+    try {
+      const data = await res.json();
+      return parseAccepted(data && data.accepted);
+    } catch {
+      return null;
+    }
   }
 
   async function submit() {
@@ -194,8 +212,17 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
     }
     // 이미 접수된 링크(409): 실패가 아니라 **이미 성공한 것**이다. 어르신에게 오류를 내밀지 않고
     // 완료 화면을 보여 준다 — 중복 신청은 서버가 막았고, 원하던 결과는 이미 이뤄져 있다.
+    //
+    // 다만 그 화면이 보여 줄 내용은 **방금 고른 것이 아니라 먼저 접수된 것**이다. 이 경로는
+    // 연결이 끊겨 다시 시도하는 사이에 흔히 밟힌다 — 첫 요청이 서버에 닿은 줄 모르고 되돌아가
+    // 다른 활동을 고르는 것. 예전에는 그럴 때 **새 선택**을 요약에 그려 놓고 "접수되었습니다"
+    // 라고 말했다. 담당자에게 간 것은 첫 선택인데 어르신은 바뀐 줄 믿고, 약속 날 서로 다른
+    // 것을 기대한 채 만난다. 어긋난 줄 아는 사람이 아무도 없다는 것이 이 오류의 성질이다.
     if (res.status === 409) {
-      finishSubmitted(body);
+      const prior = await acceptedFrom(res);
+      setAlready(true);
+      setAccepted(prior);
+      finishSubmitted(prior ? { ...body, ...prior } : null);
       return;
     }
     if (res.status === 410) {
@@ -215,7 +242,14 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
 
   // 화면이 스스로 만료를 선언하는 것은 **남은 시간을 실제로 알 때뿐**이다(isExpired 는 null 에
   // 대해 false). 값이 없으면 계속 쓰게 두고 판정은 제출 시점의 서버(410)에 맡긴다.
-  if (!done && (expiredByServer || isExpired(left))) {
+  //
+  // 제출이 **진행 중일 때도 선언하지 않는다**(!busy). 화면의 눈금은 전송 지연만큼 너그럽게
+  // 세도록 만들어져 있지만, 남은 시간이 얼마 없을 때 누른 제출은 응답을 기다리는 동안 0 에
+  // 닿는다. 그 순간 만료 화면으로 덮으면, 서버가 방금 접수한 신청을 어르신은 「링크가
+  // 만료되었습니다」로 읽는다 — 되돌릴 단추가 없는 화면이라 그대로 포기하거나, 이미 접수된
+  // 신청 위에 담당자에게 새 링크를 조르게 된다. 응답은 곧 도착하고, 만료의 최종 판정자는
+  // 언제나 서버다(410 → expiredByServer).
+  if (!done && !busy && (expiredByServer || isExpired(left))) {
     return <Notice title="링크가 만료되었습니다" body="링크가 만료되었습니다. 담당자에게 다시 요청해 주세요" />;
   }
 
@@ -292,14 +326,34 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
           </>
         ) : null}
 
+        {/* 완료 화면은 **실제로 접수된 것**만 말한다. 세 경우가 서로 다르다.
+            ① 방금 접수됨 → 이번 선택을 그대로 요약한다.
+            ② 이미 접수돼 있었고 그 내용을 안다 → 그 내용을 요약하고, 바꾸는 길을 알려 준다.
+            ③ 이미 접수돼 있으나 내용을 모른다 → 요약을 그리지 않는다. 빈 칸을 지어 채우거나
+               이번 선택으로 대신하면 그 자리에서 거짓이 된다. */}
         {step === 4 ? (
           <>
             <p style={S.body} role="status">
-              신청이 접수되었습니다. 담당자가 곧 전화로 안내해 드립니다.
+              {already
+                ? '이미 접수된 신청이 있습니다. 담당자가 곧 전화로 안내해 드립니다.'
+                : '신청이 접수되었습니다. 담당자가 곧 전화로 안내해 드립니다.'}
             </p>
-            <p style={S.summary}>
-              {labelOf(ACTIVITIES, activity)} · {labelOf(TIMESLOTS, timeslot)}
-            </p>
+            {already ? (
+              accepted ? (
+                <>
+                  <p style={S.summary}>
+                    {labelOf(ACTIVITIES, accepted.activity)} · {labelOf(TIMESLOTS, accepted.timeslot)}
+                  </p>
+                  <p style={S.body}>바꾸고 싶으시면 담당자에게 말씀해 주세요.</p>
+                </>
+              ) : (
+                <p style={S.body}>접수된 내용은 담당자에게 확인해 주세요.</p>
+              )
+            ) : (
+              <p style={S.summary}>
+                {labelOf(ACTIVITIES, activity)} · {labelOf(TIMESLOTS, timeslot)}
+              </p>
+            )}
             <p style={S.note}>이제 이 화면을 닫으셔도 됩니다.</p>
           </>
         ) : null}

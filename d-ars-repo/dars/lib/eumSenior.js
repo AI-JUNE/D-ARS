@@ -98,6 +98,16 @@ export function buildPreferences(draft, now = Date.now()) {
   };
 }
 
+// 서버가 409(이미 접수됨)와 함께 돌려준 「먼저 접수된 선택」을 화면이 믿어도 되는 값으로 좁힌다.
+// 규격 밖(알 수 없는 코드·형태 불량·값 없음)이면 null — 화면은 모를 때 요약을 그리지 않는다.
+// 모르는 것을 그럴듯하게 채우면, 접수된 적 없는 내용을 접수됐다고 말하게 된다.
+export function parseAccepted(value) {
+  const a = value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  if (!a) return null;
+  if (!isActivity(a.activity) || !isTimeslot(a.timeslot)) return null;
+  return { activity: a.activity, timeslot: a.timeslot };
+}
+
 // 로컬 보관 키 — 이음 API 실연결 전까지 제출 내용을 브라우저에 남겨 담당자가 확인할 수 있게 한다.
 export function storageKey(sid) {
   const s = typeof sid === 'string' ? sid.trim() : '';
