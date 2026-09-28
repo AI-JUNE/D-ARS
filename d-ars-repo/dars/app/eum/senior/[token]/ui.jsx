@@ -125,11 +125,14 @@ export function FocusStyles() {
 //
 //  - detail: 이미 접수된 링크로 들어왔을 때 **무엇이 접수됐는지** 한 줄로 보여 준다. 모르면
 //    넘기지 않는다 — 빈 칸을 그리는 대신 아예 그리지 않는다(지어내지 않는다).
+//  - hint: 다음에 무엇을 하면 되는지 한 줄(예: 바꾸려면 담당자에게). detail 과 마찬가지로
+//    모르면 넘기지 않는다. 이 문장이 없으면 되돌릴 단추가 없는 화면이 **막다른 길**이 된다 —
+//    어르신은 담당자에게 새 링크를 청하고, 그 링크로 낸 신청이 중복 접수가 된다.
 //  - foot: 마무리 안내. 기본은 만료 안내지만, 상황에 따라 맞는 문장이 다르다
 //    (이미 신청이 끝난 사람에게 "5분이 지나면 닫힙니다" 는 할 말이 아니다).
 export const EUM_NOTICE_FOOT = '이 화면은 안전을 위해 5분이 지나면 닫힙니다.';
 
-export function Notice({ title, body, detail = '', foot = EUM_NOTICE_FOOT }) {
+export function Notice({ title, body, detail = '', hint = '', foot = EUM_NOTICE_FOOT }) {
   return (
     <main style={S.page}>
       <div style={S.wrap}>
@@ -137,6 +140,7 @@ export function Notice({ title, body, detail = '', foot = EUM_NOTICE_FOOT }) {
         <h1 style={S.h1}>{title}</h1>
         <p style={S.body} role="status">{body}</p>
         {detail ? <p style={S.summary}>{detail}</p> : null}
+        {hint ? <p style={S.body}>{hint}</p> : null}
         {foot ? <p style={S.note}>{foot}</p> : null}
       </div>
     </main>

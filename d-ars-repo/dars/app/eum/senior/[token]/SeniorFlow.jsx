@@ -42,6 +42,7 @@ import {
   nowTick,
   secondsLeft,
 } from '@/lib/eumCountdown';
+import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumConsume';
 import { fetchOnce } from '@/lib/fetchJson';
 import { S, Notice, FocusStyles } from './ui.jsx';
 
@@ -344,10 +345,10 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
                   <p style={S.summary}>
                     {labelOf(ACTIVITIES, accepted.activity)} · {labelOf(TIMESLOTS, accepted.timeslot)}
                   </p>
-                  <p style={S.body}>바꾸고 싶으시면 담당자에게 말씀해 주세요.</p>
+                  <p style={S.body}>{EUM_CONSUME_CHANGE_HINT}</p>
                 </>
               ) : (
-                <p style={S.body}>접수된 내용은 담당자에게 확인해 주세요.</p>
+                <p style={S.body}>{EUM_CONSUME_UNKNOWN_HINT}</p>
               )
             ) : (
               <p style={S.summary}>

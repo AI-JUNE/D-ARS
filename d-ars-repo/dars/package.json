@@ -15,6 +15,7 @@
     "env:check": "node scripts/env-check.mjs",
     "audit:check": "node scripts/audit-check.mjs",
     "token:check": "node scripts/token-check.mjs",
+    "eum:link": "node scripts/eum-link.mjs",
     "auth:check": "node scripts/auth-check.mjs",
     "legal:check": "node scripts/legal-check.mjs",
     "coverage:check": "node scripts/coverage-check.mjs",

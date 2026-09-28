@@ -32,6 +32,7 @@ const ROUTE = read('../app/api/eum/senior/preferences/route.js');
 const PAGE = read('../app/eum/senior/[token]/page.jsx');
 const FLOW = read('../app/eum/senior/[token]/SeniorFlow.jsx');
 const UI = read('../app/eum/senior/[token]/ui.jsx');
+const CONSUME = read('../lib/eumConsume.js');
 
 // ── 기록: 무엇이 접수됐는지 ────────────────────────────────────────────────
 test('소진 기록이 접수된 선택을 함께 들고 있다', () => {
@@ -153,10 +154,45 @@ test('진입 화면: 소진 판정은 서버 라우트가 최종이라는 사실
   assert.match(PAGE, /인스턴스 로컬/, '인메모리 한계를 숨기지 않는다');
 });
 
-test('안내 패널: 상세·마무리 문구를 선택적으로 받되 기본은 그대로다', () => {
-  assert.match(UI, /export function Notice\(\{ title, body, detail = '', foot = EUM_NOTICE_FOOT \}\)/);
+test('안내 패널: 상세·다음 행동·마무리 문구를 선택적으로 받되 기본은 그대로다', () => {
+  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = EUM_NOTICE_FOOT \}\)/);
   assert.match(UI, /\{detail \? <p style=\{S\.summary\}>\{detail\}<\/p> : null\}/,
     '모를 때는 빈 칸을 그리지 않는다');
+  assert.match(UI, /\{hint \? <p style=\{S\.body\}>\{hint\}<\/p> : null\}/,
+    '다음 행동이 없으면 되돌릴 단추가 없는 화면이 막다른 길이 된다');
+});
+
+// ── 진입 안내와 완료 화면이 같은 말을 한다 ─────────────────────────────────
+//
+// 왜 이것이 중요한가: 「이미 접수됐다」는 사실을 두 화면이 보여 준다(링크를 다시 열었을 때 ·
+// 제출이 409 로 돌아왔을 때). 그런데 「바꾸려면 담당자에게」는 완료 화면에만 있었고, 진입
+// 화면은 사실만 알리고 끝났다. 마음을 바꾼 어르신에게 그 화면은 단추가 없는 막다른 길이라
+// 담당자에게 **새 링크**를 청하게 되고, 새 링크는 소진 키가 달라 재신청이 실제로 통한다
+// (설계상 정상 — 막아야 하는 것은 같은 링크의 재사용이지 그 어르신의 재신청이 아니다).
+// 결과는 담당자 명단의 중복 두 건이다. 중복을 막으려고 만든 화면이 문장 하나가 없어서
+// 중복을 만든다.
+test('진입 안내: 다음에 무엇을 하면 되는지 알려 준다(막다른 길을 만들지 않는다)', () => {
+  const notice = PAGE.slice(PAGE.indexOf('record.used'));
+  assert.match(notice, /hint=\{summary \? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT\}/,
+    '접수 내용을 아는지에 따라 할 말이 다르다');
+  assert.match(PAGE, /EUM_CONSUME_CHANGE_HINT/);
+});
+
+test('진입 안내와 완료 화면의 문구는 단일 출처다(한쪽만 고쳐지는 일을 없앤다)', () => {
+  for (const c of ['EUM_CONSUME_CHANGE_HINT', 'EUM_CONSUME_UNKNOWN_HINT']) {
+    assert.match(CONSUME, new RegExp(`export const ${c} = '`), `${c} 가 lib/eumConsume 에 없다`);
+    assert.match(PAGE, new RegExp(c), `진입 화면이 ${c} 를 쓰지 않는다`);
+    assert.match(FLOW, new RegExp(c), `완료 화면이 ${c} 를 쓰지 않는다`);
+  }
+  // 리터럴로 되돌아가면 두 화면이 다시 갈라진다.
+  assert.equal(/'바꾸고 싶으시면/.test(FLOW) || />바꾸고 싶으시면/.test(FLOW), false);
+});
+
+test('클라이언트 화면은 eumConsume 에서 **문구만** 가져온다(소진 판정은 서버의 일이다)', () => {
+  const line = (FLOW.match(/import \{[^}]*\} from '@\/lib\/eumConsume';/) || [''])[0];
+  assert.ok(line, '완료 화면이 문구 단일 출처를 쓰지 않는다');
+  assert.equal(/consumeStore|createConsumeStore|claim|recordOf/.test(line), false,
+    '브라우저가 1회용을 판정한다고 믿게 하면 안 된다 — 판정은 라우트 한 곳뿐이다');
 });
 
 // ── 완료 화면: 실제로 접수된 것만 말한다 ───────────────────────────────────
@@ -172,11 +208,11 @@ test('완료 화면: 409 면 서버가 알려 준 「먼저 접수된 선택」�
 test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 문장이 다르다', () => {
   assert.match(FLOW, /이미 접수된 신청이 있습니다/);
   assert.match(FLOW, /신청이 접수되었습니다/);
-  assert.match(FLOW, /바꾸고 싶으시면 담당자에게 말씀해 주세요/, '바꾸는 길을 알려 준다');
+  assert.match(FLOW, /\{EUM_CONSUME_CHANGE_HINT\}/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
 });
 
 test('완료 화면: 접수 내용을 모르면 요약을 아예 그리지 않는다', () => {
-  assert.match(FLOW, /접수된 내용은 담당자에게 확인해 주세요/);
+  assert.match(FLOW, /\{EUM_CONSUME_UNKNOWN_HINT\}/);
   assert.match(FLOW, /accepted \?/, 'accepted 가 null 인 경우를 나눠야 한다');
   assert.match(FLOW, /labelOf\(ACTIVITIES, accepted\.activity\)/);
 });

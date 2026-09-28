@@ -18,7 +18,13 @@
 
 import { verifyEumToken, tokenMessage } from '@/lib/eumToken';
 import { parseStep, summaryText } from '@/lib/eumSenior';
-import { consumeKey, consumeStore, consumeMessage } from '@/lib/eumConsume';
+import {
+  consumeKey,
+  consumeStore,
+  consumeMessage,
+  EUM_CONSUME_CHANGE_HINT,
+  EUM_CONSUME_UNKNOWN_HINT,
+} from '@/lib/eumConsume';
 import { Notice } from './ui.jsx';
 import SeniorFlow from './SeniorFlow.jsx';
 
@@ -51,11 +57,17 @@ export default async function EumSeniorPage({ params, searchParams }) {
   const linkKey = consumeKey(params?.token);
   const record = linkKey ? consumeStore().recordOf(linkKey) : { used: false, note: null };
   if (record.used) {
+    // 완료 화면(SeniorFlow)과 **같은 말**을 한다. 예전에는 여기서 "이미 접수됐다" 까지만 말하고
+    // 끝나, 마음을 바꾼 어르신에게는 막다른 길이었다 — 화면에 단추가 없으니 담당자에게 새 링크를
+    // 청하고, 새 링크는 소진 키가 달라 재신청이 통한다. 중복 접수를 막으려고 만든 화면이 중복을
+    // 만들던 셈이다. 무엇이 접수됐는지 아는지에 따라 할 말이 다르다(요약은 지어내지 않는다).
+    const summary = summaryText(record.note);
     return (
       <Notice
         title="이미 신청하셨습니다"
         body={consumeMessage('used')}
-        detail={summaryText(record.note)}
+        detail={summary}
+        hint={summary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}
         foot="이제 이 화면을 닫으셔도 됩니다."
       />
     );
