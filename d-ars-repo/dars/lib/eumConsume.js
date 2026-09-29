@@ -14,7 +14,14 @@
 //     이유가 없고, 메모리도 무한히 자라지 않는다.
 //   - 상한(EUM_CONSUME_MAX)을 두고, 넘치면 **가장 먼저 만료될 항목부터** 버린다.
 //     항목을 버리면 그 링크는 다시 제출 가능해지므로, 버린 수를 감추지 않고 세어 둔다
-//     (조용한 손실 금지 — 라우트가 로그로 드러낼 수 있게 한다).
+//     (조용한 손실 금지).
+//     정정: 여기까지가 예전 상태였다 — 수를 **세어 두기만 하고 아무도 읽지 않았다**
+//     (`stats()` 를 부르는 애플리케이션 코드가 한 줄도 없었고 테스트만 불렀다).
+//     그러면 "조용한 손실 금지" 는 이 파일 안에서만 참인 말이 된다. 1회용 보장이 실제로
+//     깨진 순간에 그것을 아는 사람이 아무도 없고, 담당자 명단에 중복이 생긴 뒤에도
+//     원인을 되짚을 근거가 남지 않는다. 그래서 두 곳에서 읽게 했다 —
+//     버리는 **그 순간**은 라우트가 경고 로그로(claim 이 버린 수를 돌려준다),
+//     **지금 상태**는 /api/health 의 `eum-onetime` 의존성이(consumeDepStatus).
 //   - throw 하지 않는다. 판정 불가는 예외가 아니라 `{ ok:false, reason }` 이다.
 //
 // 한계(정직하게): 인메모리·인스턴스 로컬이다. 서버리스에서 인스턴스가 여러 개면 다른 인스턴스로
@@ -67,14 +74,18 @@ export function createConsumeStore({ max = EUM_CONSUME_MAX } = {}) {
   }
 
   // 상한을 넘으면 가장 먼저 만료될 것부터 버린다(남은 수명이 짧은 쪽이 손실도 작다).
+  // 이번 호출에서 버린 수를 돌려준다 — 호출측(라우트)이 그 순간을 로그로 남길 수 있게.
   function trim() {
-    if (seen.size <= max) return;
+    if (seen.size <= max) return 0;
     const order = [...seen.entries()].sort((a, b) => a[1].exp - b[1].exp);
+    let dropped = 0;
     for (const [k] of order) {
       if (seen.size <= max) break;
       seen.delete(k);
       evicted += 1;
+      dropped += 1;
     }
+    return dropped;
   }
 
   return {
@@ -109,8 +120,11 @@ export function createConsumeStore({ max = EUM_CONSUME_MAX } = {}) {
       sweep(t);
       if (this.has(key, t)) return { ok: false, reason: 'used' };
       seen.set(key, { exp: Math.floor(exp), note: sanitizeNote(note) });
-      trim();
-      return { ok: true };
+      // 자리를 만드느라 버린 기록이 있으면 **이번 응답에 실어 알린다**. 버려진 링크는
+      // 다시 제출할 수 있게 되므로, 이 수가 0 이 아닌 순간이 곧 1회용 보장이 깨진 순간이다.
+      // 접수 자체는 정상이므로 실패로 만들지 않는다 — 말하지 않는 것만 하지 않는다.
+      const dropped = trim();
+      return dropped ? { ok: true, evicted: dropped } : { ok: true };
     },
 
     // 관측용 — 숨기지 않는다.
@@ -124,6 +138,33 @@ let shared = null;
 export function consumeStore() {
   if (!shared) shared = createConsumeStore();
   return shared;
+}
+
+// ── 지금 1회용 판정이 실제로 서 있는가 ────────────────────────────────────
+//
+// /api/health 의 `deps` 한 줄로 내보낸다(lib/audit 의 `audit-persist` 와 같은 방식이다 —
+// "켰다" 와 "실제로 남는다" 가 다른 상태를 사람 눈이 아니라 기계가 말하게 한다).
+//
+// 어휘는 lib/health.DEP_STATUSES 를 따른다. 여기서는 'error' 를 쓰지 않는다 —
+// 소진 기록이 모자라도 서비스는 정상 동작하고(토큰 검증·만료는 그대로다), 이 한 줄 때문에
+// 헬스체크가 503 이 되면 부가 신호가 전체를 죽이는 셈이 된다. required 도 붙이지 않는다.
+//
+// 임계값 90% 는 "곧 버리게 된다" 를 버리기 **전에** 알리기 위한 운영 기준값이며 실측 지표가 아니다.
+export const EUM_CONSUME_NEAR_FULL = 0.9;
+
+export function consumeDepStatus(stats) {
+  const s = stats && typeof stats === 'object' ? stats : {};
+  const evicted = Number(s.evicted);
+  const size = Number(s.size);
+  const max = Number(s.max);
+  // 판정할 수 없으면 'degraded' — 모르는 것을 'ok' 라고 말하지 않는다(닫히는 쪽이 기본).
+  if (!Number.isFinite(evicted) || !Number.isFinite(size) || !Number.isFinite(max) || max <= 0) {
+    return 'degraded';
+  }
+  // 한 건이라도 버렸다면 그 링크들은 다시 제출 가능해졌다 — 이미 깨진 적이 있다는 뜻이다.
+  if (evicted > 0) return 'degraded';
+  if (size >= Math.floor(max * EUM_CONSUME_NEAR_FULL)) return 'degraded';
+  return 'ok';
 }
 
 // 사유별 안내문 — 화면이 고르게(만료 vs 이미 신청함) 하기 위한 단일 출처.

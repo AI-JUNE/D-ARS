@@ -17,7 +17,7 @@
 // 판정한 링크가 첫 렌더에서 만료로 덮인다(재발급해도 같은 결과 — lib/eumCountdown.js 참조).
 
 import { verifyEumToken, tokenMessage } from '@/lib/eumToken';
-import { parseStep, summaryText } from '@/lib/eumSenior';
+import { parseDraft, parseStep, summaryText } from '@/lib/eumSenior';
 import {
   consumeKey,
   consumeStore,
@@ -73,11 +73,15 @@ export default async function EumSeniorPage({ params, searchParams }) {
     );
   }
 
+  // 고른 것도 주소에서 되살린다 — 탭이 되살아나며 다시 불러와져도 처음부터 고르지 않게.
+  // 주소는 누구나 고칠 수 있으므로 parseDraft 가 화이트리스트로 거르고(규격 밖은 빈 값),
+  // 화면의 clampStep 이 남은 선택만큼으로 단계를 되돌린다. 완료 상태는 주소에 없다.
   return (
     <SeniorFlow
       sid={result.payload.sid}
       token={params.token}
       initialStep={parseStep(searchParams?.step)}
+      initialDraft={parseDraft(searchParams)}
       remainingMs={result.remainingMs}
     />
   );

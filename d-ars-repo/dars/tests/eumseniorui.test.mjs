@@ -92,10 +92,30 @@ test('375px: 폭 100% 요소가 border-box 라 가로 스크롤이 생기지 않
 
 test('한 화면 버튼 4개 이내: 되돌아가기는 링크(a)로 둔다', () => {
   // 선택지 4개인 1·2단계에 버튼을 더 두면 요건을 넘는다 → 뒤로가기는 <a>.
-  assert.match(flow, /<a href="\?step=1"/);
-  assert.match(flow, /<a href="\?step=2"/);
+  // href 는 고른 것을 함께 실은 주소다(stepQuery) — 자바스크립트 없이 눌러도, 새 탭으로 열어도
+  // 선택이 남는다. 예전처럼 "?step=1" 만 적어 두면 그 링크를 따라간 순간 고른 것이 사라진다.
+  assert.match(flow, /<a href=\{stepQuery\(1, \{ activity, timeslot \}\)\}/);
+  assert.match(flow, /<a href=\{stepQuery\(2, \{ activity, timeslot \}\)\}/);
   const buttonsInJsx = [...flow.matchAll(/<button\b/g)].length;
   assert.ok(buttonsInJsx <= 3, `버튼 정의가 너무 많다: ${buttonsInJsx}`);
+});
+
+// 고른 것이 주소에 남는다는 계약을 화면 쪽에서도 고정한다(순수 로직은 tests/eumsenior.test.mjs).
+test('고른 것을 주소에 유지한다 — 주소 조립은 stepQuery 한 곳만 쓴다', () => {
+  assert.match(page, /parseDraft\(searchParams\)/, '진입 시 주소에서 선택을 복원해야 한다');
+  assert.match(flow, /initialDraft/, '복원한 선택을 화면이 받아야 한다');
+  // 주소를 손으로 붙이면 파라미터 이름·화이트리스트가 두 곳으로 갈라진다.
+  const handmade = [...flow.matchAll(/`\?step=/g)].length;
+  assert.equal(handmade, 0, `주소를 손으로 조립한 자리가 있다: ${handmade}`);
+  assert.ok(/history\.(push|replace)State\([^)]*stepQuery\(/.test(flow), '히스토리 기록도 stepQuery 를 써야 한다');
+});
+
+test('완료 상태는 주소에 싣지 않는다(주소로 완료 화면을 만들 수 없다)', () => {
+  // done 을 주소에 실으면 주소 한 줄로 「신청이 접수되었습니다」 화면이 만들어진다 —
+  // 접수된 적 없는 신청을 접수됐다고 말하는 화면이다. 완료 판정은 서버 응답에서만 온다.
+  assert.ok(!/done=/.test(code), '완료 상태가 주소에 실린다');
+  assert.ok(!/DRAFT_PARAM\s*=\s*\{[^}]*done/.test(code), '완료 상태가 주소 파라미터 목록에 있다');
+  assert.match(flow, /draftRef\.current\.done\)\s*\{\s*setStep\(4\)/, '완료 뒤 뒤로가기는 주소를 따르지 않는다');
 });
 
 test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', () => {

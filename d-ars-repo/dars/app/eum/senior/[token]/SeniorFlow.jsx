@@ -8,7 +8,13 @@
 //  - `step` 을 URL(?step=n)에 유지한다 — 콜봇(음성)과 화면이 어긋나지 않게 하기 위한 요건.
 //    다만 단계 이동에 Next 라우팅을 쓰면 서버 컴포넌트가 다시 그려지며 선택이 날아가므로,
 //    history.pushState 로 주소만 바꾸고 상태는 이 컴포넌트가 들고 있는다(뒤로가기 = popstate).
-//  - 새로고침으로 선택이 사라진 채 ?step=3 으로 들어오면 clampStep 이 1단계로 되돌린다.
+//  - **고른 것도 주소에 함께 둔다**(?a=·?t= · lib/eumSenior.stepQuery). 예전에는 단계만
+//    주소에 있고 선택은 이 컴포넌트의 메모리뿐이라, 화면이 한 번 다시 그려지면 고른 것이
+//    전부 사라지고 1단계로 돌아갔다. 문자를 다시 보려고 앱을 바꿨다 돌아오는 것만으로도
+//    모바일 브라우저는 탭을 다시 불러온다 — 링크 수명은 5분이고, 두어 번이면 링크가 먼저
+//    죽는다(lib/eumSenior.js 의 「고른 것을 주소에 남긴다」 참조).
+//  - 주소가 손으로 고쳐져 ?step=3 으로 들어와도 clampStep 이 **그 주소에 실린 선택만큼**으로
+//    되돌린다. 완료(done)는 주소에 싣지 않으므로 주소로는 완료 화면을 만들 수 없다.
 //  - 한 화면 버튼 4개 이내: 선택지 4개인 화면에는 버튼을 더 두지 않고, 되돌아가기는 **링크**로 둔다
 //    (href 가 있어 자바스크립트 없이도 동작하고, 눌렀을 때는 히스토리 뒤로가 선택을 보존한다).
 //  - 남은 시간은 서버가 준 **기간**을 받아 기기 안에서의 **경과**로만 센다(lib/eumCountdown.js).
@@ -30,6 +36,9 @@ import {
   summaryText,
   buildPreferences,
   parseAccepted,
+  parseDraft,
+  normalizeDraft,
+  stepQuery,
   storageKey,
 } from '@/lib/eumSenior';
 import {
@@ -46,19 +55,33 @@ import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumCons
 import { fetchOnce } from '@/lib/fetchJson';
 import { S, Notice, FocusStyles } from './ui.jsx';
 
-function stepFromLocation() {
+// 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
+// 여기서 던지면 뒤로가기 한 번에 신청 화면이 통째로 죽는다.
+function readLocation() {
   try {
-    return parseStep(new URLSearchParams(window.location.search).get('step'));
+    const q = new URLSearchParams(window.location.search);
+    return { step: parseStep(q.get('step')), ...parseDraft(q) };
   } catch {
-    return 1;
+    return { step: 1, activity: '', timeslot: '' };
   }
 }
 
-export default function SeniorFlow({ sid, token = '', initialStep = 1, remainingMs = 0 }) {
-  const [activity, setActivity] = useState('');
-  const [timeslot, setTimeslot] = useState('');
+export default function SeniorFlow({
+  sid,
+  token = '',
+  initialStep = 1,
+  initialDraft = null,
+  remainingMs = 0,
+}) {
+  // 첫 값은 **주소에서 복원한 선택**이다. 규격 밖 값은 normalizeDraft 가 빈 값으로 떨어뜨리고,
+  // 그러면 clampStep 이 단계도 함께 앞으로 되돌린다(주소를 손으로 고쳐도 건너뛸 수 없다).
+  const [restored] = useState(() => normalizeDraft(initialDraft));
+  const [activity, setActivity] = useState(restored.activity);
+  const [timeslot, setTimeslot] = useState(restored.timeslot);
   const [done, setDone] = useState(false);
-  const [step, setStep] = useState(1);
+  // 첫 렌더부터 복원한 단계로 그린다. 1 로 두고 효과에서 고치면 되살아난 탭이 첫 화면을
+  // 한 번 깜빡인 뒤 넘어가, 어르신에게는 "또 처음으로 갔다" 로 보인다.
+  const [step, setStep] = useState(() => clampStep(initialStep, { ...restored, done: false }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   // 서버가 판정한 남은 기간과, 그것을 받은 시점의 단조 눈금. 둘의 차이로만 남은 시간을 센다.
@@ -93,21 +116,33 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
     }
   }, [step]);
 
-  // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·새로고침 대비).
+  // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·탭 복원 대비).
+  // 기준은 **주소에서 복원한 선택**이다 — 예전에는 빈 선택으로 계산해, 주소에 고른 것이
+  // 그대로 실려 있어도 무조건 1단계로 떨어뜨렸다.
   useEffect(() => {
-    const want = clampStep(initialStep, { activity: '', timeslot: '', done: false });
+    const want = clampStep(initialStep, { ...restored, done: false });
     setStep(want);
     try {
-      window.history.replaceState({ step: want }, '', `?step=${want}`);
+      window.history.replaceState({ step: want }, '', stepQuery(want, restored));
     } catch {
       /* 히스토리 조작 불가 환경(구형 브라우저) — 화면 동작에는 영향 없다 */
     }
-  }, [initialStep]);
+  }, [initialStep, restored]);
 
-  // 뒤로가기/앞으로가기 → 주소의 step 을 현재 선택 상태에 맞게 잘라서 반영.
+  // 뒤로가기/앞으로가기 → 주소의 단계와 선택을 함께 되살린다.
   useEffect(() => {
     function onPop() {
-      setStep(clampStep(stepFromLocation(), draftRef.current));
+      // 제출이 끝난 뒤에는 주소가 어디를 가리키든 완료 화면에 머문다(중복 제출 방지).
+      // 이때 선택을 주소에서 다시 읽으면 안 된다 — 히스토리 앞쪽 항목에는 아직 고르기 전의
+      // 주소(?step=1)가 들어 있어, 방금 접수된 내용을 그린 요약이 빈 칸으로 덮인다.
+      if (draftRef.current.done) {
+        setStep(4);
+        return;
+      }
+      const at = readLocation();
+      setActivity(at.activity);
+      setTimeslot(at.timeslot);
+      setStep(clampStep(at.step, { ...at, done: false }));
     }
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -122,11 +157,15 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
     return () => clearInterval(id);
   }, [initialLeft, baseTick, done]);
 
+  // draft 는 **이동 직후의 실제 선택 상태**여야 한다 — 단계를 자르는 기준이면서 동시에
+  // 주소에 적히는 값이기 때문이다. 둘이 어긋나면 주소가 화면을 설명하지 못한다.
+  // clampStep 은 올리지 않고 자르기만 하므로, 실제 선택을 그대로 넘겨도 단계는 넘어가지 않는다.
   const go = useCallback((next, draft) => {
-    const want = clampStep(next, draft || draftRef.current);
+    const d = draft || draftRef.current;
+    const want = clampStep(next, d);
     setStep(want);
     try {
-      window.history.pushState({ step: want }, '', `?step=${want}`);
+      window.history.pushState({ step: want }, '', stepQuery(want, d));
     } catch {
       /* noop */
     }
@@ -134,7 +173,7 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
 
   function chooseActivity(k) {
     setActivity(k);
-    go(2, { activity: k, timeslot: '', done: false });
+    go(2, { activity: k, timeslot, done: false });
   }
 
   function chooseTimeslot(k) {
@@ -311,7 +350,7 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
                 </button>
               ))}
             </div>
-            <a href="?step=1" className="eum-focus" style={S.back} onClick={back}>앞 화면으로</a>
+            <a href={stepQuery(1, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>앞 화면으로</a>
           </>
         ) : null}
 
@@ -323,7 +362,7 @@ export default function SeniorFlow({ sid, token = '', initialStep = 1, remaining
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
             </div>
-            <a href="?step=2" className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
+            <a href={stepQuery(2, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
           </>
         ) : null}
 

@@ -103,6 +103,18 @@ export async function POST(req) {
     return finish(unauthorized('invalid link'), 'consume_unusable');
   }
 
+  // 소진 기록이 상한에 닿아 **다른 링크의 기록을 버리고** 자리를 만들었다면 그 순간을 남긴다.
+  // 버려진 링크는 다시 제출할 수 있게 되므로, 이 줄이 찍힌 시각이 곧 1회용 보장이 깨진 시각이다.
+  // 예전에는 버린 수를 세어 두기만 하고 아무도 읽지 않아, 깨져도 아는 사람이 없었다.
+  // 접수는 정상적으로 이뤄졌으므로 응답은 바꾸지 않는다 — 말하지 않는 것만 하지 않는다.
+  if (claim.evicted) {
+    logRequest({
+      requestId, method: 'POST', path: '/api/eum/senior/preferences',
+      level: 'warn', code: 'eum_consume_evicted',
+      msg: `1회용 소진 기록 ${claim.evicted}건 축출 — 해당 링크는 재제출 가능해졌다`,
+    });
+  }
+
   // [승인 필요] 이음 API 실연결 — 승인 전까지 **전송하지 않는다**.
   // 실연결 시 이 자리에서 POST {EUM_API}/seniors/{sid}/preferences 를 호출하고,
   // 전송 실패 시 위 소진 기록을 되돌릴지(재시도 허용) 여부를 함께 정해야 한다.

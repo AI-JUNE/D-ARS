@@ -4,6 +4,7 @@ import { captureError } from '@/lib/monitor';
 import { logRequest, requestIdFrom, startTimer } from '@/lib/log';
 import { auditStats } from '@/lib/audit';
 import { auditReadiness, auditDepStatus } from '@/lib/auditReadiness';
+import { consumeStore, consumeDepStatus } from '@/lib/eumConsume';
 
 // ★ route.js 에서는 HTTP 메서드(GET/POST/...)와 Next 설정 export 외에
 //   **어떤 것도 export 하지 않는다**(빌드 실패 원인). 헬퍼는 파일 내부 상수로만 둔다.
@@ -28,8 +29,13 @@ function configuredDeps() {
   const audit = auditReadiness({
     env: process.env, hasDB, failures: s.failed, persisted: s.persisted,
   });
+  // 「이음 어르신 신청」 1회용 판정도 같은 뜻에서 본다 — 기록이 상한에 닿아 버려지기 시작하면
+  // 그 링크들은 다시 제출 가능해진다(= 1회용이 실제로는 서지 않는다). 세어 두기만 하고
+  // 아무도 읽지 않으면 깨진 줄 아는 사람이 없다. required 는 붙이지 않는다.
+  // 감사 카운터와 같은 한계: **이 인스턴스의** 신호이지 전체 총계가 아니다.
   return [
     { name: 'audit-persist', status: auditDepStatus(audit) },
+    { name: 'eum-onetime', status: consumeDepStatus(consumeStore().stats()) },
     { name: 'cpaas', status: set(process.env.CPAAS_API_KEY) ? 'ok' : 'not-configured' },
     { name: 'sms-gateway', status: set(process.env.SMS_GATEWAY_URL) ? 'ok' : 'not-configured' },
     { name: 'callbot', status: set(process.env.CALLBOT_CALLBACK_URL) ? 'ok' : 'not-configured' },

@@ -12,8 +12,11 @@ import {
   createConsumeStore,
   consumeStore,
   consumeMessage,
+  consumeDepStatus,
   EUM_CONSUME_MESSAGE,
+  EUM_CONSUME_NEAR_FULL,
 } from '../lib/eumConsume.js';
+import { DEP_STATUSES, normalizeDep } from '../lib/health.js';
 import { issueEumToken, verifyEumToken } from '../lib/eumToken.js';
 
 const T0 = 1_760_000_000_000;
@@ -87,6 +90,74 @@ test('상한을 넘으면 가장 먼저 만료될 것부터 버리고, 버린 �
   assert.equal(st.evicted, 1, '버린 항목 수가 보고되어야 한다(조용한 손실 금지)');
   assert.equal(s.has('k-early-bbbbbbbbbbb', T0 + 1), false);
   assert.equal(s.has('k-late-aaaaaaaaaaaa', T0 + 1), true);
+});
+
+// ── 버린 것을 실제로 말하는가 ─────────────────────────────────────────────
+// 고친 결함: 버린 수를 세어 두기만 하고 **아무도 읽지 않았다**(`stats()` 를 부르는
+// 애플리케이션 코드가 한 줄도 없었다). 기록이 버려진 링크는 다시 제출할 수 있게 되므로,
+// 그 순간이 곧 1회용 보장이 깨진 순간인데 아는 사람이 없었다.
+
+test('claim: 자리를 만드느라 버렸으면 그 사실을 응답에 실어 돌려준다', () => {
+  const s = createConsumeStore({ max: 2 });
+  assert.deepEqual(s.claim('k-aaaaaaaaaaaaaaaa', T0 + 10_000, T0), { ok: true }, '버린 것이 없으면 조용하다');
+  assert.deepEqual(s.claim('k-bbbbbbbbbbbbbbbb', T0 + 20_000, T0), { ok: true });
+  // 세 번째가 들어오며 가장 먼저 만료될 하나를 버린다.
+  assert.deepEqual(s.claim('k-cccccccccccccccc', T0 + 30_000, T0), { ok: true, evicted: 1 });
+  assert.equal(s.has('k-aaaaaaaaaaaaaaaa', T0 + 1), false, '버려진 링크는 다시 제출 가능해진다');
+});
+
+test('claim: 버렸어도 접수 자체는 성공이다(말하지 않는 것만 하지 않는다)', () => {
+  const s = createConsumeStore({ max: 1 });
+  s.claim('k-dddddddddddddddd', T0 + 10_000, T0);
+  const r = s.claim('k-eeeeeeeeeeeeeeee', T0 + 20_000, T0, { activity: 'walk', timeslot: 'any' });
+  assert.equal(r.ok, true, '축출이 접수를 실패로 만들면 안 된다');
+  assert.ok(r.evicted >= 1);
+  assert.deepEqual(s.recordOf('k-eeeeeeeeeeeeeeee', T0 + 1).note, { activity: 'walk', timeslot: 'any' });
+});
+
+test('consumeDepStatus: 한 건이라도 버렸으면 degraded(이미 깨진 적이 있다)', () => {
+  assert.equal(consumeDepStatus({ size: 1, evicted: 0, max: 100 }), 'ok');
+  assert.equal(consumeDepStatus({ size: 1, evicted: 1, max: 100 }), 'degraded');
+});
+
+test('consumeDepStatus: 상한에 가까우면 버리기 전에 미리 알린다', () => {
+  const max = 100;
+  const near = Math.floor(max * EUM_CONSUME_NEAR_FULL);
+  assert.equal(consumeDepStatus({ size: near - 1, evicted: 0, max }), 'ok');
+  assert.equal(consumeDepStatus({ size: near, evicted: 0, max }), 'degraded');
+});
+
+test('consumeDepStatus: 판정할 수 없으면 ok 라고 말하지 않는다(모름 ≠ 정상)', () => {
+  for (const bad of [null, undefined, {}, 'nope', { size: 1, evicted: 0, max: 0 }, { size: NaN, evicted: 0, max: 5 }]) {
+    assert.equal(consumeDepStatus(bad), 'degraded', `모르는 상태를 ok 로 말했다: ${JSON.stringify(bad)}`);
+  }
+});
+
+test('consumeDepStatus: /health 어휘만 쓰고 error 는 내지 않는다(전체를 503 으로 만들지 않는다)', () => {
+  const cases = [
+    { size: 0, evicted: 0, max: 10 },
+    { size: 9, evicted: 0, max: 10 },
+    { size: 3, evicted: 7, max: 10 },
+    null,
+  ];
+  for (const c of cases) {
+    const status = consumeDepStatus(c);
+    assert.ok(DEP_STATUSES.includes(status), `어휘 밖 상태: ${status}`);
+    assert.notEqual(status, 'error', '부가 신호가 서비스 전체를 죽이면 안 된다');
+    // 화이트리스트를 거쳐도 그대로 통과하고 required 가 붙지 않는다.
+    assert.deepEqual(normalizeDep({ name: 'eum-onetime', status }), { name: 'eum-onetime', status });
+  }
+});
+
+test('[통합] 버린 순간과 지금 상태를 둘 다 읽는 코드가 실제로 있다', () => {
+  const route = readFileSync(new URL('../app/api/eum/senior/preferences/route.js', import.meta.url), 'utf8');
+  const health = readFileSync(new URL('../app/api/health/route.js', import.meta.url), 'utf8');
+  assert.match(route, /claim\.evicted/, '축출을 라우트가 읽지 않으면 그 순간이 기록되지 않는다');
+  assert.match(route, /level:\s*'warn'/, '축출은 경고로 남겨야 눈에 띈다');
+  assert.match(health, /consumeDepStatus\(consumeStore\(\)\.stats\(\)\)/);
+  assert.match(health, /name: 'eum-onetime'/);
+  // /health 는 인증 없이 열려 있다 — 이름과 상태 말고는 아무것도 싣지 않는다.
+  assert.ok(!/stats\(\)\.size/.test(health), '기록 건수를 공개 응답에 싣지 않는다');
 });
 
 test('기본 스토어는 프로세스 안에서 공유된다', () => {
