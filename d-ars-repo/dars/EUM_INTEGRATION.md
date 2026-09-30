@@ -165,7 +165,7 @@ D-ARS 를 **「이음 어르신 신청」 화면 하나로 축소**한 별도 �
   쪽이 나빠지므로, 그 경로는 고치지 않고 여기 적어 둔다.
 
 ## 검증 메모(2026-09-30 · 5회차)
-- `node --test "tests/*.test.mjs"` **1146/1146 통과**(직전 1130 → 신규 `tests/selfauthapi.test.mjs` 10건 ·
+- `node --test "tests/*.test.mjs"` **1147/1147 통과**(직전 1130 → 신규 `tests/selfauthapi.test.mjs` 10건 ·
   `tests/eumseniorui.test.mjs` +5건 · `tests/eumconsume.test.mjs` +2건). coverage 게이트 **로직 65/65
   참조됨**(예외 0) · ESLint 변경 파일 경고 0 · `env:check`·`token:check`·`auth:check`·`backup:check`·
   `retention:check`·`legal:check`·`audit:check` 이 변경 전과 같다(auth 의 차단 2건·legal 의 차단 4건은
