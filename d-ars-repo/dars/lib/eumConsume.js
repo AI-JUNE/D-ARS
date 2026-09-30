@@ -134,10 +134,32 @@ export function createConsumeStore({ max = EUM_CONSUME_MAX } = {}) {
 }
 
 // 프로세스 공용 기본 스토어(라우트가 쓰는 것). 테스트는 createConsumeStore 로 격리한다.
-let shared = null;
+//
+// **왜 globalThis 인가**: 예전에는 모듈 스코프 변수(`let shared`)였다. 그런데 이 모듈을 읽는
+// 곳은 세 군데이고 셋은 서로 **다른 서버 엔트리**다 — 제출 라우트(`/api/eum/senior/preferences`),
+// 진입 화면(`app/eum/senior/[token]/page.jsx`), 헬스체크(`/api/health`). Next 는 라우트·페이지마다
+// 별도 엔트리를 만들고 각 엔트리가 자기 모듈 레지스트리를 갖기 때문에, 같은 서버 인스턴스
+// 안에서도 `lib/eumConsume.js` 가 **여러 번 평가**돼 각자 다른 Map 을 들 수 있다. 그러면
+//   · 제출 라우트가 소진한 링크를 **진입 화면은 모른다** → 「이미 신청하셨습니다」가 영영 안 뜬다.
+//   · `/api/health` 의 `eum-onetime` 은 **언제나 빈 스토어**를 읽는다 → 축출이 몇 건이든 `ok`.
+// 즉 지난 회차에 "조용한 손실 금지" 로 붙인 관측 신호와 헛걸음을 없앤 진입 안내가, 배선은
+// 멀쩡한데 **보는 대상이 달라서** 참이 아닐 수 있었다(한계로 적어 둔 것은 인스턴스가 여러 개인
+// 경우였는데, 인스턴스가 하나여도 같은 일이 일어난다). 판정을 한 자리에 묶어 두는 것이
+// 이 파일의 목적이므로, 스토어는 모듈이 아니라 **프로세스**에 매단다.
+//
+// Symbol.for 를 쓰는 이유: 문자열 키는 다른 코드와 충돌할 수 있고, 전역 심볼 레지스트리는
+// 모듈 평가가 몇 번 일어나도 같은 심볼을 돌려준다.
+const STORE_KEY = Symbol.for('dars.eum.consumeStore.v1');
+
 export function consumeStore() {
-  if (!shared) shared = createConsumeStore();
-  return shared;
+  const g = globalThis;
+  const found = g[STORE_KEY];
+  // 모양이 맞지 않는 값이 들어와 있으면(다른 코드가 같은 이름을 썼다면) 새로 만든다 —
+  // 여기서 던지면 신청 화면과 헬스체크가 함께 죽는다.
+  if (found && typeof found.claim === 'function' && typeof found.recordOf === 'function') return found;
+  const made = createConsumeStore();
+  g[STORE_KEY] = made;
+  return made;
 }
 
 // ── 지금 1회용 판정이 실제로 서 있는가 ────────────────────────────────────

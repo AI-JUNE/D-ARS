@@ -57,6 +57,49 @@ const ROUTE_MIN = {
 export function routeRoleMatrix() {
   return { ...ROUTE_MIN };
 }
+
+// ── 포털 세션이 아니라 **자체 인증**으로 지키는 API ───────────────────────
+//
+// 왜 등록부가 필요한가: 이 목록은 여태 `middleware.js` 의 matcher 정규식 안에만
+// `(?!auth|health|cpaas|visual|dev)` 로 적혀 있었다. 그 한 줄을 **아무도 대조하지 않았고**,
+// 자체 인증을 가진 API 가 새로 생겨도 빠뜨렸다는 신호가 어디에도 나지 않는다 —
+// AUTH_ENFORCE 가 꺼져 있는 동안 미들웨어는 통째로 통과이므로 테스트도 화면도 멀쩡하다.
+// 실제로 「이음 어르신 신청」 제출(`/api/eum/senior/`)이 빠져 있었다. `AUTH_ENFORCE=1` 을
+// 켜는 순간 어르신의 제출은 전부 **401**(포털 로그인 쿠키가 없다)로 떨어지고, 화면은 그것을
+// 「링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요」로 안내한다. 담당자가 새 링크를
+// 보내도 결과는 같다 — 링크는 멀쩡한데 신청이 영영 안 되고, 양쪽 모두 원인을 알 길이 없다
+// (「기기 시계 하나로 멀쩡한 링크가 죽던」 것과 같은 모양의 결함이다).
+// 전환은 [승인 필요]이지만, 켜는 순간 조용히 깨지는 것을 남겨 두지 않는다.
+//
+// 등록 기준: **요청 자체가 자기 인증 수단을 들고 오는 API** 만. 각 줄의 `why` 가 그 수단이다.
+// 여기에 올리는 것은 포털 세션 검사를 면제한다는 뜻이므로, 라우트가 스스로 판정하지 않으면
+// 그대로 무인증 공개가 된다(테스트가 라우트 소스에서 판정 배선을 확인한다).
+// 접두어는 **가능한 좁게** 잡는다 — `/api/eum` 전체가 아니라 `/api/eum/senior/` 만 면제해야,
+// 아직 만들지 않은 발급 API(`/api/eum/link` 등)가 실인증 뒤에서 보호된다(그 발급 라우트를
+// 실인증 전에 여는 것은 순서가 뒤바뀐 일이라 [승인 필요]로 남아 있다).
+export const SELF_AUTH_API = [
+  { prefix: 'auth', why: '로그인·로그아웃·본인확인 — 세션을 만드는 경로라 세션을 요구할 수 없다' },
+  { prefix: 'health', why: '헬스체크 — 배포·감시 도구가 익명으로 부른다(민감정보 미포함)' },
+  { prefix: 'cpaas', why: '교환기·콜봇 웹훅 — webhook secret 으로 판정' },
+  { prefix: 'visual', why: '고객 화면 상태·조작 — 세션 서명토큰으로 판정' },
+  { prefix: 'dev', why: '데모·시뮬레이션 — DEMO_MODE 게이트' },
+  { prefix: 'eum/senior/', why: '이음 어르신 신청 제출 — 1회용 링크(HMAC 서명·5분·소진)로 판정' },
+];
+
+// middleware matcher 가 면제하는 접두어 목록(등록부의 사본). 대조 테스트가 이것과
+// middleware.js 의 리터럴을 양방향으로 맞춘다 — Next 는 matcher 를 정적 리터럴로만 읽으므로
+// 미들웨어가 이 배열을 가져다 쓸 수는 없다(그래서 대조가 유일한 방어선이다).
+export function selfAuthApiPrefixes() {
+  return SELF_AUTH_API.map((e) => e.prefix);
+}
+
+// 이 경로가 포털 세션 검사 대상인가. `/api/` 밖이면 미들웨어 matcher 의 화면 경로 규칙이
+// 따로 판정하므로 여기서는 false 를 돌려주지 않고 그대로 true(=세션 검사 대상)로 둔다.
+export function isSelfAuthApi(pathname) {
+  if (typeof pathname !== 'string' || !pathname.startsWith('/api/')) return false;
+  const rest = pathname.slice('/api/'.length);
+  return selfAuthApiPrefixes().some((p) => rest.startsWith(p));
+}
 export function minRoleFor(pathname) {
   for (const p in ROUTE_MIN) if (pathname === p || pathname.startsWith(p + '/')) return ROUTE_MIN[p];
   return 'viewer';

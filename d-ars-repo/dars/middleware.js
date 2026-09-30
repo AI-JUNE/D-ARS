@@ -34,7 +34,12 @@ export const config = {
     '/dashboard/:path*', '/sessions/:path*', '/scenarios/:path*', '/docs/:path*',
     '/ums/:path*', '/stats/:path*', '/notifications/:path*', '/history/:path*',
     '/report/:path*', '/templates/:path*', '/launcher/:path*', '/help/:path*',
-    // API 보호: auth·health·cpaas·visual·dev 는 공개(각자 인증 보유), 나머지 포털 API는 로그인 필요
-    '/api/((?!auth|health|cpaas|visual|dev).*)',  // 머신/토큰/데모: 자체 인증(webhook-secret·서명토큰·DEMO_MODE)
+    // API 보호: 아래 접두어는 **자체 인증**을 들고 오는 요청이라 포털 세션을 요구하지 않고,
+    // 나머지 포털 API 는 로그인이 필요하다. 면제 목록의 단일 출처는 `lib/auth.SELF_AUTH_API`
+    // (사유 포함)이며, Next 는 matcher 를 정적 리터럴로만 읽으므로 여기 손으로 적은 이 줄과
+    // 등록부를 `tests/selfauthapi.test.mjs` 가 양방향으로 대조한다 — 빠뜨리면 테스트가 실패한다.
+    // `eum/senior/` 가 빠져 있던 동안, AUTH_ENFORCE=1 은 어르신 신청 제출을 전부 401 로 만들었다
+    // (화면은 그것을 「링크가 올바르지 않습니다」로 안내한다 — 링크는 멀쩡한데).
+    '/api/((?!auth|health|cpaas|visual|dev|eum/senior/).*)',
   ],
 };

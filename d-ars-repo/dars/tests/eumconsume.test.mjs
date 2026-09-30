@@ -166,6 +166,50 @@ test('기본 스토어는 프로세스 안에서 공유된다', () => {
   assert.ok(EUM_CONSUME_MAX > 0);
 });
 
+// 위 테스트의 **제목이 코드보다 앞서 있었다** — 같은 모듈 인스턴스에서 두 번 부른 것을 비교하니
+// "프로세스 안에서 공유된다" 를 확인한 적이 없었다. 이 모듈을 읽는 세 곳(제출 라우트·진입 화면·
+// 헬스체크)은 서로 다른 서버 엔트리이고, Next 는 엔트리마다 모듈 레지스트리를 따로 갖는다.
+// 그래서 모듈이 두 번 평가되면 예전 구조(`let shared`)에서는 Map 이 둘로 갈라졌다 —
+// 제출이 소진한 링크를 진입 화면이 모르고, /api/health 는 늘 빈 스토어를 읽는다.
+// 여기서는 같은 파일을 다른 URL 로 불러 **모듈 재평가를 실제로 재현**한다.
+test('스토어는 모듈이 아니라 프로세스에 매달려 있다(번들이 갈라져도 같은 기록을 본다)', async () => {
+  const again = await import('../lib/eumConsume.js?bundle=2');
+  assert.notEqual(again.createConsumeStore, createConsumeStore, '모듈 재평가가 일어나지 않아 이 테스트는 무의미하다');
+
+  const key = 'ZZ-bundle-split-key-0001';
+  const mine = consumeStore();
+  const theirs = again.consumeStore();
+  assert.equal(theirs, mine, '엔트리마다 다른 스토어를 보면 1회용 판정이 라우트 안에서만 선다');
+
+  const before = mine.stats().size;
+  assert.equal(mine.claim(key, EXP, T0, { activity: 'walk', timeslot: 'morning' }).ok, true);
+  // 다른 평가본이 같은 소진 기록을 본다 — 진입 화면의 「이미 신청하셨습니다」가 실제로 뜨는 조건.
+  assert.deepEqual(theirs.recordOf(key, T0 + 1000), {
+    used: true,
+    note: { activity: 'walk', timeslot: 'morning' },
+  });
+  assert.equal(theirs.stats().size, before + 1, '관측 신호(/api/health)가 빈 스토어를 읽으면 안 된다');
+
+  // 전역을 쓰는 만큼 뒷정리도 확실히 한다 — 다른 테스트의 기대를 흔들지 않게.
+  mine.reset();
+});
+
+test('스토어 앵커가 이상한 값이어도 신청 화면이 죽지 않는다', () => {
+  const anchor = Symbol.for('dars.eum.consumeStore.v1');
+  const saved = globalThis[anchor];
+  try {
+    for (const junk of [1, 'store', { claim: 1 }, [], null]) {
+      globalThis[anchor] = junk;
+      const s = consumeStore();
+      assert.equal(typeof s.claim, 'function', '모양이 깨진 전역 값을 그대로 쓰면 제출이 throw 한다');
+      assert.equal(s.claim('ZZ-anchor-recover-key-01', EXP, T0).ok, true);
+    }
+  } finally {
+    globalThis[anchor] = saved;
+    consumeStore().reset();
+  }
+});
+
 // ── 안내문 ────────────────────────────────────────────────────────────────
 test('안내문: 만료와 "이미 신청함"을 다른 문장으로 구분한다', () => {
   assert.notEqual(EUM_CONSUME_MESSAGE.used, EUM_CONSUME_MESSAGE.expired);

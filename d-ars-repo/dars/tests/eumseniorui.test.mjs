@@ -151,3 +151,76 @@ test('제출은 자기 서버까지만 간다 — 이음 등 외부로의 직접
   assert.match(flow, /localStorage\.setItem/, '보조 사본은 유지한다');
   assert.match(flow, /\[승인 필요\]/, '실연결 전 상태임을 소스에 남긴다');
 });
+
+// ── 경계 상태 화면(로딩·오류·토큰 없음) ───────────────────────────────────
+//
+// 고친 결함: 어르신 화면에는 오류·로딩 경계와 토큰 없는 진입 경로가 없어, 그 세 상태에서
+// 가장 가까운 화면이 **운영 포털의 것**이었다(app/loading.jsx · app/error.jsx · app/not-found.jsx).
+// 어르신이 보던 것은 13~20px 글자와 「대시보드」·「홈으로」 단추 — 요건(18pt 이상)을 어기고,
+// 신청 흐름 밖의 제품 화면으로 데려가는 문이다. 링크는 문자 안에 있고 수명은 5분이라,
+// 한 번 나가면 돌아오는 길을 스스로 찾지 못한다.
+const boundary = {
+  'app/eum/error.jsx': readFileSync(resolve(root, 'app/eum/error.jsx'), 'utf8'),
+  'app/eum/loading.jsx': readFileSync(resolve(root, 'app/eum/loading.jsx'), 'utf8'),
+  'app/eum/senior/page.jsx': readFileSync(resolve(root, 'app/eum/senior/page.jsx'), 'utf8'),
+};
+
+test('경계 상태(로딩·오류·토큰 없음) 화면이 모두 어르신 화면으로 존재한다', () => {
+  for (const [name, src] of Object.entries(boundary)) {
+    assert.ok(src.length > 200, `${name}: 비어 있다`);
+    assert.match(src, /이음 어르신 신청/, `${name}: 어르신 화면 표기 누락`);
+    // 표현은 어르신 화면의 단일 출처(ui.jsx)를 쓴다 — 크기·색 요건이 한 곳에서만 관리되도록.
+    assert.match(src, /ui\.jsx'/, `${name}: 어르신 화면 표현을 쓰지 않는다`);
+  }
+});
+
+test('경계 화면에 포털로 나가는 문이 없다(제품 화면 노출·흐름 이탈 금지)', () => {
+  for (const [name, src] of Object.entries(boundary)) {
+    const shown = stripComments(src);
+    for (const banned of ['도입사례', '도입 사례', '요금제', '요금표', '고객사', 'D-ARS']) {
+      assert.ok(!shown.includes(banned), `${name}: 표시 금지 문구 ${banned}`);
+    }
+    assert.ok(!/next\/link/.test(shown), `${name}: 포털 화면으로 가는 Link 금지`);
+    for (const portal of ['/dashboard', '/login', '/sessions', '/scenarios', 'href="/"']) {
+      assert.ok(!shown.includes(portal), `${name}: 신청 흐름 밖으로 나가는 경로 ${portal}`);
+    }
+    assert.ok(!/<img\b/.test(shown), `${name}: 로고를 포함한 이미지 표시 금지`);
+    // 색 하드코딩 금지 — ui.jsx / lib/eumTheme 가 단일 출처다.
+    const hex = [...shown.matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0]);
+    assert.deepEqual(hex, [], `${name}: 색 하드코딩 ${hex.join(',')}`);
+  }
+});
+
+test('오류 화면: 되돌릴 길은 다시 시도 하나뿐이고 담당자를 가리킨다', () => {
+  const src = boundary['app/eum/error.jsx'];
+  assert.match(src, /^\s*'use client'/m, '오류 경계는 클라이언트 컴포넌트여야 한다');
+  assert.match(src, /type="button"/, '암시적 submit 금지');
+  const buttons = [...src.matchAll(/<button\b/g)].length;
+  assert.equal(buttons, 1, `버튼 4개 이내 요건 — 오류 화면은 하나로 충분하다: ${buttons}`);
+  assert.match(src, /reset\(\)/, '일시적 오류를 되돌릴 수단이 없으면 5분 링크를 잃는다');
+  const shown = stripComments(src);
+  assert.match(shown, /담당자/, '어르신에게 「관리자」는 누구인지 알 수 없는 사람이다');
+  assert.ok(!/관리자/.test(shown), '포털 문구(관리자에게 문의)가 남아 있다');
+  // 기술 문구를 화면에 내지 않는다(콘솔에만 남긴다).
+  for (const jargon of ['stack', 'digest', 'Error:', '오류 코드']) {
+    assert.ok(!shown.includes(jargon), `기술 문구 노출: ${jargon}`);
+  }
+  assert.match(src, /monitorLine\(buildEvent\(/, '원인 추적 한 줄은 남겨야 한다');
+});
+
+test('오류·로딩 특수 파일은 기본 export 만 둔다(route.js 규칙과 같은 취지)', () => {
+  for (const name of ['app/eum/error.jsx', 'app/eum/loading.jsx']) {
+    const names = [...boundary[name].matchAll(/^export\s+(?:async\s+)?(?:function|const|let|var|class)\s+(\w+)/gm)]
+      .map((m) => m[1]);
+    assert.deepEqual(names, [], `${name}: 기본 export 외 export 금지 — ${names.join(',')}`);
+    assert.match(boundary[name], /export default function/, `${name}: 기본 export 누락`);
+  }
+});
+
+test('토큰 없는 진입은 잘못된 링크와 같은 문구를 쓰고, 토큰을 다루지 않는다', () => {
+  const src = boundary['app/eum/senior/page.jsx'];
+  assert.match(src, /tokenMessage\('missing'\)/, '안내 문구 단일 출처를 써야 한다');
+  assert.ok(!/verifyEumToken|consumeStore|claim\(/.test(src), '판정은 [token]/page.jsx 한 곳뿐이다');
+  assert.match(src, /absolute: '이음 어르신 신청'/, '제품 브랜드 템플릿을 쓰지 않는다');
+  assert.equal(/<button\b/.test(src), false, '어르신이 스스로 재발급할 수단이 없으므로 단추를 두지 않는다');
+});
