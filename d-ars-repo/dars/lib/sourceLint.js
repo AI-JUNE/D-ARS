@@ -362,3 +362,107 @@ export function duplicateIdAttrs(src) {
   }
   return bad.sort((a, b) => a - b);
 }
+
+// ---- metadata 상속 대조용 파서 ----
+//
+// 배경: Next 의 `metadata` 는 레이아웃 → 페이지로 **상속**된다. 자식이 어떤 최상위 키를
+// 적지 않으면 부모가 선언한 값이 그대로 내려간다. 「이음 어르신 신청」 화면은 `title` 만
+// 덮어쓰고 있었고, 루트 레이아웃의 `openGraph`·`twitter`·`applicationName`·`appleWebApp` 은
+// 손대지 않아 **운영 포털 브랜드가 그대로** head 에 실렸다 — 화면 본문의 금지 문구는 테스트가
+// 막고 있었지만 head 는 아무도 보지 않았다(어르신이 문자로 받는 링크의 미리보기 카드가 그것이다).
+// 그 상속을 사람 눈이 아니라 테스트가 대조하게 하려면 **최상위 키**를 긁을 수단이 필요하다.
+//
+// 설계: 순수 문자열 입력 → 배열 출력. 던지지 않는다(소스가 바뀌어 못 읽으면 빈 배열이고,
+// 호출측 테스트가 "대조가 무의미해졌다"로 실패한다 — 조용한 통과보다 낫다).
+// 한계(정직하게): 정규식·중괄호 세기 수준의 파서다. 문자열·주석 안의 괄호와 쉼표는 세지 않지만,
+// 템플릿 리터럴 안의 `${…}` 중첩이나 동적으로 조립한 metadata 객체는 판정 대상이 아니다.
+
+// 문자열 리터럴의 **끝 다음** 위치. 여는 따옴표 위치(i)를 받는다. 이스케이프를 건너뛴다.
+function endOfStringLiteral(src, i) {
+  const q = src[i];
+  let j = i + 1;
+  while (j < src.length) {
+    if (src[j] === '\\') { j += 2; continue; }
+    if (src[j] === q) return j + 1;
+    j += 1;
+  }
+  return src.length;
+}
+
+// `export const <name> = { … }` 의 **최상위 항목**을 [{ key, value, line }] 로 돌려준다.
+// 전개(`...x`)는 키를 만들 수 없으므로 건너뛴다. 괄호가 닫히지 않으면 [].
+export function exportedObjectEntries(src, name) {
+  if (typeof src !== 'string' || !src) return [];
+  if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(name)) return [];
+  const head = new RegExp(`export\\s+const\\s+${name}\\s*=\\s*\\{`).exec(src);
+  if (!head) return [];
+
+  const segments = [];
+  let text = '';
+  let segStart = head.index + head[0].length;
+  let depth = 0;
+  let i = segStart;
+  let closed = false;
+  while (i < src.length) {
+    const c = src[i];
+    const two = src.slice(i, i + 2);
+    if (two === '//') { const n = src.indexOf('\n', i); i = n === -1 ? src.length : n; continue; }
+    if (two === '/*') { const n = src.indexOf('*/', i); i = n === -1 ? src.length : n + 2; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      const end = endOfStringLiteral(src, i);
+      text += src.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (c === '{' || c === '[' || c === '(') { depth += 1; text += c; i += 1; continue; }
+    if (c === '}' && depth === 0) { closed = true; i += 1; break; }
+    if (c === '}' || c === ']' || c === ')') { depth -= 1; text += c; i += 1; continue; }
+    if (c === ',' && depth === 0) {
+      segments.push({ text, start: segStart });
+      text = '';
+      i += 1;
+      segStart = i;
+      continue;
+    }
+    text += c;
+    i += 1;
+  }
+  if (!closed) return [];
+  segments.push({ text, start: segStart });
+
+  const out = [];
+  for (const seg of segments) {
+    const s = seg.text.trim();
+    if (!s || s.startsWith('...')) continue;
+    const pair = /^([A-Za-z_$][\w$]*|'[^']*'|"[^"]*")\s*:([\s\S]*)$/.exec(s);
+    const key = pair ? pair[1].replace(/^['"]|['"]$/g, '') : s;
+    if (!pair && !/^[A-Za-z_$][\w$]*$/.test(s)) continue; // 해석할 수 없는 조각은 세지 않는다
+    out.push({
+      key,
+      value: (pair ? pair[2] : s).trim(),
+      line: src.slice(0, seg.start).split('\n').length,
+    });
+  }
+  return out;
+}
+
+// `export const metadata = { … }` 의 최상위 키 → 값 텍스트. 못 읽으면 빈 객체.
+export function metadataFields(src) {
+  const out = {};
+  for (const e of exportedObjectEntries(src, 'metadata')) out[e.key] = e.value;
+  return out;
+}
+
+// 같은 파일 최상위의 `const NAME = '…'` 문자열 상수를 text 안에서 **값으로 펼친다**.
+// 이유: `description: DESC` 처럼 상수를 가리키는 값은 텍스트만 봐서는 무엇이 들었는지 알 수 없다 —
+// 브랜드 문구가 상수 뒤에 숨으면 대조가 조용히 통과한다.
+export function inlineStringConsts(src, text) {
+  if (typeof text !== 'string') return '';
+  if (typeof src !== 'string' || !src) return text;
+  const map = new Map();
+  const re = /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*(['"])((?:\\.|(?!\2)[^\\])*)\2/g;
+  let m;
+  while ((m = re.exec(src))) map.set(m[1], m[3]);
+  if (!map.size) return text;
+  return text.replace(/\b[A-Za-z_$][\w$]*\b/g, (w) => (map.has(w) ? map.get(w) : w));
+}

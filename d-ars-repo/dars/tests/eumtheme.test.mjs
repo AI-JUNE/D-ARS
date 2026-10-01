@@ -10,7 +10,8 @@ import {
   EUM_CONTRAST_PAIRS,
   EUM_CONTRAST_MIN,
   EUM_MIN_FONT_PX,
-  EUM_MIN_SUB_FONT_PX,
+  EUM_FONT_PX,
+  fontSizeViolations,
   parseHex,
   relativeLuminance,
   contrastRatio,
@@ -64,8 +65,37 @@ test('contrastViolations: 대비가 모자란 색을 실제로 잡아낸다(실�
 
 test('최소 글자 크기가 18pt(24px) 이상이다', () => {
   assert.ok(EUM_MIN_FONT_PX >= 24, `18pt = 24px 미만: ${EUM_MIN_FONT_PX}`);
-  assert.ok(EUM_MIN_SUB_FONT_PX >= 20, `보조 문구 하한 미달: ${EUM_MIN_SUB_FONT_PX}`);
-  assert.ok(EUM_MIN_SUB_FONT_PX <= EUM_MIN_FONT_PX);
+});
+
+// 고친 결함: 예전에는 이 자리에서 상수 **두 개**(본문 24 · 보조 20)만 보았다. 보조 하한 20px 은
+// 15pt 로 요건 아래였고, 더 나쁜 것은 화면이 그 둘 중 어느 쪽도 아닌 22px 을 세 자리에 손으로
+// 적고 있었다는 점이다 — 오류 안내·만료 임박 경고·되돌아가기 링크. 상수만 보는 검사는 그것을
+// 영원히 보지 못한다. 이제 **화면이 실제로 쓰는 크기 전부**를 등록부에서 본다.
+test('화면이 쓰는 모든 글자 크기가 18pt(24px) 이상이다', () => {
+  const bad = fontSizeViolations();
+  assert.deepEqual(bad, [], `18pt 미달: ${JSON.stringify(bad)}`);
+  for (const name of ['h1', 'choice', 'summary', 'body', 'sub', 'alert', 'warn', 'back']) {
+    assert.equal(typeof EUM_FONT_PX[name], 'number', `크기 등록 누락: ${name}`);
+  }
+});
+
+test('fontSizeViolations: 기준 미달·수가 아닌 값을 실제로 잡아낸다(실패 경로)', () => {
+  // 하필 예전에 쓰던 값들이다 — 되살아나면 반드시 실패해야 한다.
+  assert.deepEqual(fontSizeViolations({ alert: 22 }), [{ name: 'alert', px: 22 }]);
+  assert.deepEqual(fontSizeViolations({ sub: 20 }), [{ name: 'sub', px: 20 }]);
+  // '24px' 처럼 단위가 붙으면 React 는 그대로 쓰지만 우리는 비교할 수 없다 → 통과시키지 않는다.
+  assert.deepEqual(fontSizeViolations({ body: '24px' }), [{ name: 'body', px: null }]);
+  assert.deepEqual(fontSizeViolations({ body: NaN }), [{ name: 'body', px: null }]);
+  assert.deepEqual(fontSizeViolations({ body: 24 }), []);
+  // 경계: 기준값과 같은 크기는 통과한다.
+  assert.deepEqual(fontSizeViolations({ body: EUM_MIN_FONT_PX }), []);
+});
+
+test('fontSizeViolations: 이상 입력에도 던지지 않는다(화면 규격 검사가 테스트를 죽이지 않게)', () => {
+  for (const bad of [null, undefined, 42, 'nope', [], {}]) {
+    assert.deepEqual(fontSizeViolations(bad), [], `예외 없이 빈 결과여야 한다: ${String(bad)}`);
+  }
+  assert.deepEqual(fontSizeViolations({ body: 24 }, 'nope'), [{ name: 'body', px: 24 }]);
 });
 
 test('색 이름 집합이 화면 요구를 덮는다(배경·본문·주색·경고)', () => {

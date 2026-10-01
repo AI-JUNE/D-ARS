@@ -10,6 +10,8 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { EUM_FONT_PX } from '../lib/eumTheme.js';
+import { metadataFields, inlineStringConsts } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = resolve(root, 'app/eum/senior/[token]');
@@ -124,10 +126,25 @@ test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', ()
   assert.match(ui, /function Notice/, '만료·오류 패널이 양쪽에서 공유돼야 한다');
 });
 
+// 고친 결함: 이 테스트의 이름은 「색·**글자 크기**는 … 하드코딩 금지」였는데 정작 검사하던 것은
+// 색뿐이었다. 그 사이 ui.jsx 에는 22·26·32 가 손으로 적혀 있었고, 그중 **22px(16.5pt)은 요건
+// 아래**였다 — 오류 안내(alert)·만료 임박 경고(warn)·되돌아가기 링크(back). 평소 화면은 크게
+// 지어 두고 무언가 잘못됐을 때 읽어야 하는 글자만 작았던 셈이다. 이름이 코드보다 앞서 있었다.
 test('색·글자 크기는 lib/eumTheme.js 에서 가져온다(하드코딩 금지)', () => {
   assert.match(ui, /from '@\/lib\/eumTheme'/);
   const hex = [...ui.matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0]);
   assert.deepEqual(hex, [], `ui.jsx 에 색 하드코딩: ${hex.join(',')}`);
+
+  // fontSize 는 전부 등록부(F.*)를 가리켜야 한다 — 숫자가 되살아나면 여기서 실패한다.
+  const sizes = [...ui.matchAll(/fontSize:\s*([^,\n]+)/g)].map((m) => m[1].trim());
+  assert.ok(sizes.length >= 8, `글자 크기 선언이 줄었다: ${sizes.length}`);
+  const literal = sizes.filter((v) => !/^F\.[A-Za-z]\w*$/.test(v));
+  assert.deepEqual(literal, [], `ui.jsx 에 글자 크기 하드코딩: ${literal.join(',')}`);
+
+  // 등록부 ↔ 화면 양방향 대조: 모르는 이름을 쓰면(undefined → 브라우저 기본 16px) 조용히
+  // 요건이 깨지고, 아무도 쓰지 않는 이름이 남아 있으면 등록부가 썩는다.
+  const used = new Set(sizes.map((v) => v.slice(2)));
+  assert.deepEqual([...used].sort(), Object.keys(EUM_FONT_PX).sort(), '등록부와 화면이 어긋난다');
 });
 
 test('개인정보를 화면에 그리지 않는다(sid 는 전송 본문에만 쓴다)', () => {
@@ -163,6 +180,9 @@ const boundary = {
   'app/eum/error.jsx': readFileSync(resolve(root, 'app/eum/error.jsx'), 'utf8'),
   'app/eum/loading.jsx': readFileSync(resolve(root, 'app/eum/loading.jsx'), 'utf8'),
   'app/eum/senior/page.jsx': readFileSync(resolve(root, 'app/eum/senior/page.jsx'), 'utf8'),
+  // 더 짧게 잘린 링크(`/eum`). 이 주소는 「알려진 한계」에 "루트 404(포털)로 간다" 고 적혀
+  // 있었지만, 한 칸 아래에서 이미 쓴 수단(세그먼트 page)으로 그대로 받을 수 있었다.
+  'app/eum/page.jsx': readFileSync(resolve(root, 'app/eum/page.jsx'), 'utf8'),
 };
 
 test('경계 상태(로딩·오류·토큰 없음) 화면이 모두 어르신 화면으로 존재한다', () => {
@@ -218,9 +238,85 @@ test('오류·로딩 특수 파일은 기본 export 만 둔다(route.js 규칙�
 });
 
 test('토큰 없는 진입은 잘못된 링크와 같은 문구를 쓰고, 토큰을 다루지 않는다', () => {
-  const src = boundary['app/eum/senior/page.jsx'];
-  assert.match(src, /tokenMessage\('missing'\)/, '안내 문구 단일 출처를 써야 한다');
-  assert.ok(!/verifyEumToken|consumeStore|claim\(/.test(src), '판정은 [token]/page.jsx 한 곳뿐이다');
-  assert.match(src, /absolute: '이음 어르신 신청'/, '제품 브랜드 템플릿을 쓰지 않는다');
-  assert.equal(/<button\b/.test(src), false, '어르신이 스스로 재발급할 수단이 없으므로 단추를 두지 않는다');
+  // 문자에서 잘린 주소는 어디서 잘리느냐에 따라 둘이다 — `/eum/senior` 와 한 칸 더 짧은 `/eum`.
+  // 앞의 것만 받아 두면 뒤의 것은 루트 404(운영 포털 · 커다란 「404」와 「대시보드」 단추)로 간다.
+  for (const name of ['app/eum/senior/page.jsx', 'app/eum/page.jsx']) {
+    const src = boundary[name];
+    assert.match(src, /tokenMessage\('missing'\)/, `${name}: 안내 문구 단일 출처를 써야 한다`);
+    assert.ok(!/verifyEumToken|consumeStore|claim\(/.test(src), `${name}: 판정은 [token]/page.jsx 한 곳뿐이다`);
+    assert.match(src, /absolute: '이음 어르신 신청'/, `${name}: 제품 브랜드 템플릿을 쓰지 않는다`);
+    assert.equal(/<button\b/.test(src), false, `${name}: 어르신이 스스로 재발급할 수단이 없으므로 단추를 두지 않는다`);
+    assert.match(src, /링크를 열 수 없습니다/, `${name}: 무엇이 잘못됐는지 말해야 한다`);
+  }
+});
+
+// ── 어르신 화면이 head 로 말하는 이름 ─────────────────────────────────────
+//
+// 고친 결함: 어르신 화면은 `title` 만 덮어쓰고 있었다. 그런데 Next 의 metadata 는 레이아웃에서
+// 상속되고, 자식이 적지 않은 최상위 키는 부모 값이 그대로 내려간다. 루트 레이아웃이 운영
+// 포털용으로 선언한 `openGraph`·`twitter`·`applicationName`·`appleWebApp` 이 그대로 실려 있었다.
+// 어르신은 링크를 **문자로** 받고, 문자·메신저 앱은 그 주소를 긁어 `og:*` 로 미리보기 카드를
+// 만든다 — 신청 화면보다 먼저 보이는 그 카드에 적혀 있던 것이 운영 포털의 제목·사이트 이름이다.
+// 「제품 화면을 어르신에게 노출하지 않는다」가 화면 코드에서만 지켜지고 head 에서는 아무도
+// 보지 않고 있었다. 이제 `app/eum/layout.jsx` 가 묶음 전체의 단일 출처다.
+const rootLayout = readFileSync(resolve(root, 'app/layout.jsx'), 'utf8');
+const eumLayout = readFileSync(resolve(root, 'app/eum/layout.jsx'), 'utf8');
+
+// 어르신 화면이 **자기 값으로 덮어써야** 하는 키.
+const OWN = {
+  title: '브라우저 탭·공유 제목',
+  description: '미리보기 카드의 설명문',
+  openGraph: '문자·메신저가 읽어 만드는 미리보기 카드 — 어르신이 신청 화면보다 먼저 본다',
+  twitter: '같은 카드의 다른 규격',
+  applicationName: '브라우저가 말하는 앱 이름',
+  appleWebApp: '홈 화면에 추가했을 때 남는 이름',
+  robots: '토큰이 든 주소가 색인되지 않게',
+};
+
+// 상속받아 두는 키와 **그 사유**. 사유 없는 상속은 다음 사람이 늘린다.
+const INHERITED = {
+  metadataBase: '상대 주소 해석의 기준일 뿐 문구가 아니다 — 지우면 상대 URL 해석이 깨진다',
+  formatDetection: '전화번호 자동 링크 끄기 — 어르신 화면에도 그대로 맞는 설정이다',
+  icons: '파비콘은 파일 규약(app/icon.svg)이 함께 결정해 metadata 만으로 바꿀 수 없다 — EUM_INTEGRATION.md 「알려진 한계」에 적었다',
+  keywords: '검색엔진용이고 화면·미리보기에 나오지 않는다(색인 자체는 robots 로 막는다)',
+  authors: '운영 주체 표기 — 사람 눈에 닿지 않고, 지우는 것이 더 정직하지도 않다',
+  creator: '운영 주체 표기 — authors 와 같은 이유',
+  publisher: '운영 주체 표기 — authors 와 같은 이유',
+};
+
+// 제품 브랜드로 읽히는 낱말. 미리보기 카드·홈 화면 이름에 이것이 있으면 안 된다.
+const BRAND = ['D-ARS', 'GOWON', '보이는 ARS', 'Visual ARS', '콜봇', '관리자', '운영 포털'];
+const brandedIn = (text) => BRAND.filter((w) => text.includes(w));
+
+test('어르신 레이아웃이 상속받은 제품 브랜드를 전부 자기 문구로 덮는다', () => {
+  const own = metadataFields(eumLayout);
+  assert.ok(Object.keys(own).length >= 7, 'metadata 를 읽지 못했다 — 대조가 무의미해지기 전에 고쳐라');
+  for (const [key, why] of Object.entries(OWN)) {
+    assert.ok(own[key], `어르신 화면이 덮지 않은 키: ${key}(${why})`);
+    const leaked = brandedIn(inlineStringConsts(eumLayout, own[key]));
+    assert.deepEqual(leaked, [], `${key} 에 제품 브랜드가 남아 있다: ${leaked.join(',')}`);
+  }
+});
+
+test('루트 레이아웃의 metadata 키가 전부 분류돼 있다(새 키는 결정을 강제한다)', () => {
+  const rootKeys = Object.keys(metadataFields(rootLayout));
+  assert.ok(rootKeys.length >= 10, `루트 metadata 를 읽지 못했다: ${rootKeys.length}`);
+  const unclassified = rootKeys.filter((k) => !(k in OWN) && !(k in INHERITED));
+  assert.deepEqual(unclassified, [], `어르신 화면에서 덮을지 말지 정하지 않은 키: ${unclassified.join(',')}`);
+  // 유령 분류도 잡는다 — 루트에서 사라진 키가 목록에 남아 있으면 판정이 썩는다.
+  const ghost = Object.keys(INHERITED).filter((k) => !rootKeys.includes(k));
+  assert.deepEqual(ghost, [], `루트에 없는 상속 항목: ${ghost.join(',')}`);
+  for (const [k, why] of Object.entries(INHERITED)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 상속: ${k}`);
+  }
+});
+
+test('브랜드를 담은 루트 키를 상속으로 넘길 수 있는 범위는 고정돼 있다', () => {
+  const fields = metadataFields(rootLayout);
+  const branded = Object.keys(fields).filter((k) => brandedIn(inlineStringConsts(rootLayout, fields[k])).length);
+  assert.ok(branded.includes('openGraph') && branded.includes('title'), `브랜드 탐지가 느슨해졌다: ${branded.join(',')}`);
+  // 사람 눈·미리보기에 닿지 않는다는 이유로 상속을 허용한 것은 이 넷뿐이다. 브랜드를 담은 키가
+  // 하나 늘어 상속 쪽으로 분류되면 여기서 실패한다(상속은 **조용히** 내려오기 때문).
+  const inheritedBranded = branded.filter((k) => k in INHERITED).sort();
+  assert.deepEqual(inheritedBranded, ['authors', 'creator', 'keywords', 'publisher']);
 });

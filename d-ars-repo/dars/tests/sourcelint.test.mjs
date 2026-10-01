@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -515,4 +515,76 @@ test('랜딩 죽은 링크 허용목록은 app/page.jsx 하나뿐이며, 해소�
     lines.length > 0,
     '랜딩 죽은 링크가 0건이 되었다 — 목적지 배선이 끝났다는 뜻이므로 DEAD_ANCHOR_ALLOW 를 비우고 이 테스트를 제거하라.'
   );
+});
+
+// ── metadata 상속 대조용 파서 (어르신 화면 브랜드 차단막이 쓰는 수단) ────────
+//
+// 배경: Next 의 metadata 는 레이아웃 → 페이지로 **상속**되고, 자식이 적지 않은 최상위 키는
+// 부모 값이 그대로 내려간다. 「이음 어르신 신청」 화면이 title 만 덮어쓴 채 운영 포털의
+// openGraph·applicationName 을 상속하고 있던 것(문자로 받은 링크의 미리보기 카드가 제품
+// 브랜드였다)을 테스트가 대조하려면 최상위 키를 긁을 수단이 필요하다.
+// 그 파서의 실패 경로를 여기서 고정한다 — 못 읽으면 빈 결과이고, 빈 결과를 통과로 오해하지
+// 않는 것은 호출측(tests/eumseniorui.test.mjs)의 "키 수가 너무 적다" 판정이다.
+test('exportedObjectEntries: 최상위 키만 뽑고 중첩·문자열 속 괄호에 속지 않는다', () => {
+  const src = [
+    'export const metadata = {',
+    "  title: { default: 'A, B', template: '%s · C' },",
+    '  list: [1, 2, { x: 3 }],',
+    "  url: new URL('https://x.test/a,b'),",
+    '  flag: true,',
+    '};',
+  ].join('\n');
+  assert.deepEqual(exportedObjectEntries(src, 'metadata').map((e) => e.key), ['title', 'list', 'url', 'flag']);
+  const fields = metadataFields(src);
+  assert.equal(fields.flag, 'true');
+  assert.match(fields.title, /template: '%s · C'/);
+  assert.equal(fields.url, "new URL('https://x.test/a,b')");
+});
+
+test('exportedObjectEntries: 주석의 중괄호·쉼표·따옴표를 값으로 세지 않는다', () => {
+  const src = [
+    'export const metadata = {',
+    "  // 주석의 { } 와 , 와 '따옴표' 는 값이 아니다",
+    '  a: 1, /* 블록 주석 { , */ b: 2,',
+    '};',
+  ].join('\n');
+  assert.deepEqual(exportedObjectEntries(src, 'metadata').map((e) => e.key), ['a', 'b']);
+});
+
+test('exportedObjectEntries: 줄 번호를 돌려준다(사람이 찾아갈 수 있게)', () => {
+  const src = 'const x = 1;\n\nexport const metadata = {\n  a: 1,\n  b: 2,\n};\n';
+  const got = exportedObjectEntries(src, 'metadata');
+  assert.equal(got[0].line, 3);
+  assert.equal(got[1].line, 4);
+});
+
+test('exportedObjectEntries: 못 읽으면 빈 배열(throw 금지)', () => {
+  assert.deepEqual(exportedObjectEntries('export const other = { a: 1 };', 'metadata'), []);
+  assert.deepEqual(exportedObjectEntries('export const metadata = { a: 1', 'metadata'), []);
+  for (const bad of [null, undefined, 42, '', {}]) {
+    assert.deepEqual(exportedObjectEntries(bad, 'metadata'), [], `입력: ${String(bad)}`);
+  }
+  for (const bad of [null, '', '1nope', 'a-b', 42]) {
+    assert.deepEqual(exportedObjectEntries('export const metadata = { a: 1 };', bad), [], `이름: ${String(bad)}`);
+  }
+  assert.deepEqual(metadataFields(null), {});
+});
+
+test('exportedObjectEntries: 축약 속성과 전개를 구분한다', () => {
+  const src = 'export const metadata = {\n  ...base,\n  title,\n  a: 1,\n};';
+  const got = exportedObjectEntries(src, 'metadata');
+  assert.deepEqual(got.map((e) => e.key), ['title', 'a']);
+  assert.equal(got[0].value, 'title', '축약은 키와 값이 같다');
+});
+
+test('inlineStringConsts: 상수 뒤에 숨은 문구를 펼친다(그래야 브랜드 대조가 성립한다)', () => {
+  const src = "const DESC = '보이는 ARS 운영 포털';\nexport const metadata = { description: DESC };";
+  const fields = metadataFields(src);
+  assert.equal(fields.description, 'DESC', '펼치기 전에는 상수 이름뿐이다');
+  assert.match(inlineStringConsts(src, fields.description), /보이는 ARS/);
+  assert.equal(inlineStringConsts(src, 'other DESCX'), 'other DESCX', '다른 낱말은 그대로 둔다');
+  for (const bad of [null, undefined, 42, {}]) {
+    assert.equal(inlineStringConsts(src, bad), '', `문자열이 아니면 빈 문자열: ${String(bad)}`);
+  }
+  assert.equal(inlineStringConsts(null, 'DESC'), 'DESC', '소스를 모르면 원문을 그대로 돌려준다');
 });
