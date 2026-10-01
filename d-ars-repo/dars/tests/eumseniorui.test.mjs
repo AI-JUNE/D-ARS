@@ -277,7 +277,7 @@ const OWN = {
 const INHERITED = {
   metadataBase: '상대 주소 해석의 기준일 뿐 문구가 아니다 — 지우면 상대 URL 해석이 깨진다',
   formatDetection: '전화번호 자동 링크 끄기 — 어르신 화면에도 그대로 맞는 설정이다',
-  icons: '파비콘은 파일 규약(app/icon.svg)이 함께 결정해 metadata 만으로 바꿀 수 없다 — EUM_INTEGRATION.md 「알려진 한계」에 적었다',
+  icons: '탭 아이콘 — 덮을 수는 있지만 어르신용 아이콘을 자동화가 지어내지 않는다(EUM_INTEGRATION.md 「알려진 한계」)',
   keywords: '검색엔진용이고 화면·미리보기에 나오지 않는다(색인 자체는 robots 로 막는다)',
   authors: '운영 주체 표기 — 사람 눈에 닿지 않고, 지우는 것이 더 정직하지도 않다',
   creator: '운영 주체 표기 — authors 와 같은 이유',
