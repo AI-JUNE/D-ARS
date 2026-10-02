@@ -11,12 +11,35 @@
 //   **크기도 숫자를 여기 적지 않는다.** 예전에는 22·26·32 를 손으로 적어 두었고, 그중 22px 는
 //   요건(24px) 아래였다 — 오류 안내·만료 임박 경고·되돌아가기 링크, 즉 무언가 잘못됐을 때
 //   읽어야 하는 글자만 작았다. 숫자가 이 파일에 있으면 아무 테스트도 그것을 보지 못한다.
+//
+// 그리고 **인라인 style 만으로는 이 화면을 다 지킬 수 없다**(아래 EumStyles 참조) —
+// `app/globals.css` 가 루트 레이아웃을 통해 이 화면까지 내려오고, 거기엔 요소 선택자가 있다.
 
 import { EUM_COLORS as C, EUM_FONT_PX as F } from '@/lib/eumTheme';
 
 // 375px 폭에서 가로 스크롤이 생기지 않게 하는 공통 규칙.
 // width:100% 인 요소에 padding·border 가 더해지면 부모를 넘겨 화면이 옆으로 밀린다 → border-box 고정.
 const BOX = { boxSizing: 'border-box', maxWidth: '100%' };
+
+// 어르신 화면의 범위 표시. 이 클래스가 붙은 `<main>` 안에서만 아래 EumStyles 의 규칙이 산다 —
+// 포털 화면에는 한 줄도 영향을 주지 않는다(단방향 차단막).
+export const EUM_SCOPE = 'eum-screen';
+
+// 주버튼(확인 화면의 「이대로 신청하기」 · 오류 화면의 「다시 시도」).
+const PRIMARY = {
+  display: 'block',
+  width: '100%',
+  minHeight: 72,
+  padding: '18px 20px',
+  fontSize: F.choice,
+  fontWeight: 700,
+  color: C.onBrand,
+  background: C.brand,
+  border: `3px solid ${C.brand}`,
+  borderRadius: 12,
+  cursor: 'pointer',
+  ...BOX,
+};
 
 export const S = {
   page: {
@@ -54,20 +77,15 @@ export const S = {
     overflowWrap: 'break-word',
     ...BOX,
   },
-  primary: {
-    display: 'block',
-    width: '100%',
-    minHeight: 72,
-    padding: '18px 20px',
-    fontSize: F.choice,
-    fontWeight: 700,
-    color: C.onBrand,
-    background: C.brand,
-    border: `3px solid ${C.brand}`,
-    borderRadius: 12,
-    cursor: 'pointer',
-    ...BOX,
-  },
+  primary: PRIMARY,
+  // 제출이 진행 중(disabled)일 때의 주버튼.
+  //
+  // 고친 결함: 포털 전역 CSS 의 `button:disabled{opacity:.55}` 가 이 버튼에도 내려와,
+  // 「신청하는 중…」 동안 흰 글자 대 배경 대비가 **2.87:1** 로 떨어졌다(요건 4.5:1).
+  // 눌림을 투명도로 말하면 요건을 지킬 방법이 없으므로 **색**으로 말한다 — 흰 글자 대 C.sub 는
+  // 실측 10.4:1 이고 EUM_CONTRAST_PAIRS 의 ['onBrand','sub'] 가 그것을 지킨다.
+  // 새 색을 들이지 않고 이미 쓰는 보조색을 재사용한다.
+  primaryBusy: { ...PRIMARY, background: C.sub, border: `3px solid ${C.sub}` },
   // 이 화면에서 유일한 되돌리기 수단이다 — 가장 작게 둘 자리가 아니다(예전 22px).
   back: {
     display: 'inline-block',
@@ -108,20 +126,42 @@ export const S = {
   },
 };
 
-// 키보드 포커스 표시. 인라인 style 로는 :focus-visible 을 표현할 수 없어 이 화면에만 붙는
-// 최소 CSS 를 둔다. 링을 요소 **바깥**(offset)에 그려 파란 버튼 위가 아니라 흰 배경 위에 놓이게
-// 한다 — 그래야 대비 4.5:1(포커스색 대 배경)이 성립한다.
-// 어르신 사용자는 마우스 조작이 어려운 경우가 많아 링 두께를 4px 로 크게 잡았다.
-export function FocusStyles() {
+// 어르신 화면에만 붙는 최소 CSS. 두 가지 일을 한다.
+//
+// (1) 키보드 포커스 표시 — 인라인 style 로는 `:focus-visible` 을 표현할 수 없다. 링을 요소
+//     **바깥**(offset)에 그려 파란 버튼 위가 아니라 흰 배경 위에 놓이게 한다(그래야 포커스색 대
+//     배경 대비 4.5:1 이 성립한다). 어르신은 마우스 조작이 어려운 경우가 많아 두께를 4px 로 잡았다.
+//
+// (2) **포털 전역 CSS 차단** — 고친 결함이다. `app/globals.css` 는 루트 레이아웃이 import 하므로
+//     어르신 화면에도 그대로 내려온다. 클래스 선택자(`.btn:disabled`)는 이 화면에 닿지 않지만
+//     **요소·의사 선택자는 닿는다**. 어르신 화면은 요건(18pt·대비 4.5:1)을 인라인 style 로만
+//     지켜 왔고, 인라인 style 은 자기가 적은 속성만 이긴다 — 적지 않은 속성은 전역 규칙이
+//     그대로 가져간다. 그래서 이 화면 코드를 **한 줄도 건드리지 않은 채** 요건이 깨져 있었다:
+//       · `button:disabled{opacity:.55}` → 「신청하는 중…」 동안 주버튼 대비 **2.87:1**
+//         (흰 글자·파란 배경이 흰 바닥 위에서 함께 바래 버린다 — 요건은 4.5:1).
+//         투명도로는 요건을 지킬 수 없으므로 끄고, 눌림은 색으로 말한다(S.primaryBusy).
+//       · `a,button{transition:…}` → 이 파일은 그것을 끄려 했는데 질의가 **거꾸로**였다
+//         (`prefers-reduced-motion: no-preference` — 움직임을 꺼 달라고 **하지 않은** 사람에게만
+//         끄고, 꺼 달라고 한 사람에게는 그대로 뒀다). 이 화면에는 애니메이션이 필요한 곳이
+//         없으므로 조건 없이 끈다.
+//       · `body{letter-spacing:-0.01em}`·`h1,h2,h3,h4{letter-spacing:-0.02em}` → 글자를 좁혀
+//         붙인다. 크기(24px 이상)는 지켜도 저시력 어르신이 읽는 자간이 포털 취향으로 눌렸다.
+//       · `:focus-visible{box-shadow:var(--ring)}` → 포커스 링 바깥에 **제품 브랜드색** 번짐이
+//         한 겹 더 깔린다(어르신 화면의 색 단일 출처는 lib/eumTheme 하나여야 한다).
+//     막는 범위는 `.eum-screen` 안쪽뿐이다 — 포털 화면은 한 줄도 바뀌지 않는다.
+//     재발 방지: 전역 CSS 의 요소 선택자를 **전부 분류**하게 하는 양방향 대조
+//     (`lib/sourceLint.cssBareSelectors` + tests/eumseniorui.test.mjs).
+export function EumStyles() {
   return (
     <style>{`
+      .${EUM_SCOPE}, .${EUM_SCOPE} * { letter-spacing: normal; }
+      .${EUM_SCOPE} a, .${EUM_SCOPE} button { transition: none; }
+      .${EUM_SCOPE} button:disabled { opacity: 1; }
+      .${EUM_SCOPE} :focus-visible { box-shadow: none; }
       .eum-focus:focus-visible {
         outline: 4px solid ${C.focus};
         outline-offset: 3px;
         border-radius: 12px;
-      }
-      @media (prefers-reduced-motion: no-preference) {
-        .eum-focus { transition: none; }
       }
     `}</style>
   );
@@ -141,7 +181,8 @@ export const EUM_NOTICE_FOOT = '이 화면은 안전을 위해 5분이 지나면
 
 export function Notice({ title, body, detail = '', hint = '', foot = EUM_NOTICE_FOOT }) {
   return (
-    <main style={S.page}>
+    <main style={S.page} className={EUM_SCOPE}>
+      <EumStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
         <h1 style={S.h1}>{title}</h1>

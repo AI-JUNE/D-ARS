@@ -7,11 +7,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { EUM_FONT_PX } from '../lib/eumTheme.js';
-import { metadataFields, inlineStringConsts } from '../lib/sourceLint.js';
+import { metadataFields, inlineStringConsts, cssBareSelectors } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = resolve(root, 'app/eum/senior/[token]');
@@ -169,6 +169,31 @@ test('제출은 자기 서버까지만 간다 — 이음 등 외부로의 직접
   assert.match(flow, /\[승인 필요\]/, '실연결 전 상태임을 소스에 남긴다');
 });
 
+// 고친 결함: 보조 사본은 **쓰기만 하고 아무도 읽지 않았다**. `storageKey` 를 부르는 애플리케이션
+// 코드는 쓰는 한 줄뿐이었고, 그 자리의 주석이 말한 용도("담당자가 확인할 수 있게")는 성립할 수
+// 없는 것이었다 — localStorage 는 어르신 기기 안에만 있다. `issueEumToken`(3회차)·`stats()`(4회차)와
+// 같은 모양의 세 번째 자리다. 그 사본이 메울 수 있는 구멍은 「알려진 한계」에 이미 적혀 있었다:
+// 만료 뒤 새 링크를 받은 사람에게 서버는 「전에 신청했는가」를 답할 수 없고, 그래서 명단에 두
+// 건이 남는다. 그 기기는 답을 들고 있었다.
+test('보조 사본을 읽어 「전에 낸 신청」을 확인 화면에서 알린다(막지는 않는다)', () => {
+  assert.match(flow, /localStorage\.getItem/, '쓰기만 하고 읽지 않으면 사본은 아무 일도 하지 않는다');
+  assert.match(flow, /parsePriorLocal\(/, '저장소 값은 화이트리스트를 거쳐야 한다(누구나 고칠 수 있다)');
+  assert.match(flow, /priorLocalNotice\(prior\)/, '문구는 lib/eumSenior 단일 출처에서 가져온다');
+  // 하이드레이션: 서버 렌더에는 localStorage 가 없으므로 렌더 중에 읽으면 화면이 어긋난다.
+  assert.ok(!/useState\([^)]*localStorage/.test(flow), '저장소는 효과 안에서만 읽는다');
+  // 알리기만 한다 — 단추를 늘리지 않는다(버튼 4개 이내 요건 · 재신청이 정당한 경우가 있다).
+  const buttonsInJsx = [...flow.matchAll(/<button\b/g)].length;
+  assert.ok(buttonsInJsx <= 3, `안내가 단추로 늘어났다: ${buttonsInJsx}`);
+  // 안내 자리는 **확인 화면(3단계)** 이다 — 고르는 화면에 넣으면 375px 에서 선택지가 밀리고,
+  // 중복이 만들어지는 순간은 「이대로 신청하기」를 누르는 그 순간이다.
+  const step3 = flow.slice(flow.indexOf('{step === 3 ?'), flow.indexOf('{step === 4 ?'));
+  assert.ok(step3.length > 100, '3단계 블록을 찾지 못했다');
+  assert.match(step3, /\{prior \?/, '안내가 확인 화면에 없다');
+  // 제출을 막지 않는다 — disabled 는 전송 중(busy)일 때뿐이다.
+  const disabled = [...flow.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1].trim());
+  assert.deepEqual(disabled, ['busy'], `전에 냈다는 이유로 제출을 막으면 안 된다: ${disabled.join(',')}`);
+});
+
 // ── 경계 상태 화면(로딩·오류·토큰 없음) ───────────────────────────────────
 //
 // 고친 결함: 어르신 화면에는 오류·로딩 경계와 토큰 없는 진입 경로가 없어, 그 세 상태에서
@@ -271,13 +296,15 @@ const OWN = {
   applicationName: '브라우저가 말하는 앱 이름',
   appleWebApp: '홈 화면에 추가했을 때 남는 이름',
   robots: '토큰이 든 주소가 색인되지 않게',
+  // 아래 둘은 **값을 덮는** 것이 아니라 **비우는** 것이다 — 어르신용 아이콘·매니페스트를
+  // 자동화가 지어내지 않는다는 판단은 그대로 두고, 포털 것을 가리키지 않는 쪽을 골랐다.
+  icons: '탭·공유·홈 화면의 그림 — 제품 로고라 「로고 표시 금지」 요건에 걸린다',
 };
 
 // 상속받아 두는 키와 **그 사유**. 사유 없는 상속은 다음 사람이 늘린다.
 const INHERITED = {
   metadataBase: '상대 주소 해석의 기준일 뿐 문구가 아니다 — 지우면 상대 URL 해석이 깨진다',
   formatDetection: '전화번호 자동 링크 끄기 — 어르신 화면에도 그대로 맞는 설정이다',
-  icons: '탭 아이콘 — 덮을 수는 있지만 어르신용 아이콘을 자동화가 지어내지 않는다(EUM_INTEGRATION.md 「알려진 한계」)',
   keywords: '검색엔진용이고 화면·미리보기에 나오지 않는다(색인 자체는 robots 로 막는다)',
   authors: '운영 주체 표기 — 사람 눈에 닿지 않고, 지우는 것이 더 정직하지도 않다',
   creator: '운영 주체 표기 — authors 와 같은 이유',
@@ -319,4 +346,200 @@ test('브랜드를 담은 루트 키를 상속으로 넘길 수 있는 범위는
   // 하나 늘어 상속 쪽으로 분류되면 여기서 실패한다(상속은 **조용히** 내려오기 때문).
   const inheritedBranded = branded.filter((k) => k in INHERITED).sort();
   assert.deepEqual(inheritedBranded, ['authors', 'creator', 'keywords', 'publisher']);
+});
+
+// ── 파일 규약으로 head 에 끼어드는 것 ─────────────────────────────────────
+//
+// 고친 결함: 위 세 테스트는 루트 레이아웃의 `metadata` **export 키**를 전부 분류하게 한다.
+// 그런데 head 로 들어오는 길은 그것만이 아니다 — Next 는 `app/` 의 **파일 규약**
+// (`app/manifest.js` · `app/icon.svg`)도 긁어 head 에 끼워 넣고, 그것들은 어느 metadata export 에도
+// 적혀 있지 않아 **키 대조가 보지 못했다**. 그래서 지난 회차의 브랜드 차단막은 절반이었다:
+// `appleWebApp.title`(iOS 홈 화면 이름)은 어르신 문구로 덮였는데, 안드로이드가 읽는
+// `rel="manifest"` 는 **포털 매니페스트를 그대로 가리키고 있었다**(`name: D-ARS …` ·
+// `start_url: /dashboard`). 두 절반이 서로 다른 말을 하고 있었던 것이 고침이 절반이었다는 증거다.
+// 어르신이 그 링크를 홈 화면에 추가하면 제품 로고·제품 이름이 남고, 누르면 운영 포털이 열린다 —
+// 경계 화면에서 없앤 「대시보드」 단추와 **같은 문**이 head 에 남아 있었다.
+//
+// 지난 회차가 이것을 「알려진 한계」로 남긴 이유는 "무엇으로 덮을지가 디자인 결정"이었다.
+// 그 이유는 **덮는 것**에는 맞고 **치우는 것**에는 맞지 않는다 — 치우는 쪽에는 지어낼 값이 없다.
+//
+// 그리고 이 둘은 끊는 자리가 다르다(빌드 산출물로 확인한 사실이다).
+//   · `icons` 는 레이아웃에서 끊을 수 있다 — Next 는 `metadata.icons` 가 **비어 있을 때만**
+//     파일 규약 아이콘을 끼워 넣으므로, 빈 선언이 그 자리를 막는다(`null` 이면 되살아난다).
+//   · `manifest` 는 레이아웃에서 끊을 수 없다 — 파일 규약 정적 metadata 는 `app/manifest.js` 가
+//     있는 폴더 **바로 아래 세그먼트**(=이 레이아웃)에 붙고, 그 세그먼트의 `metadata` export
+//     **뒤에** 무조건 덮어쓴다. 레이아웃에 `manifest: null` 을 적어 보고 산출물에 `rel="manifest"`
+//     가 그대로 남는 것을 확인했다 — 적었는데 아무 일도 일어나지 않는, 가장 나쁜 모양이다.
+//     그래서 한 칸 아래(각 page)에서 끊고, 빠뜨린 page 가 생기지 않게 여기서 전부 긁어 대조한다.
+const manifestRoute = readFileSync(resolve(root, 'app/manifest.js'), 'utf8');
+
+// `app/eum/**` 의 page 파일 전부. 새 어르신 화면이 생기면 자동으로 대조 대상에 들어온다.
+function eumPageFiles(dir = resolve(root, 'app/eum'), out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = resolve(dir, entry.name);
+    if (entry.isDirectory()) eumPageFiles(full, out);
+    else if (entry.name === 'page.jsx') out.push(full);
+  }
+  return out;
+}
+
+test('파일 규약으로 끼어드는 head 항목(매니페스트·아이콘)을 어르신 화면에서는 끊는다', () => {
+  // 끊어야 하는 이유를 먼저 고정한다 — 이 파일이 포털을 가리키는 동안에만 아래 결정이 유효하다.
+  // 포털용이 아니게 바뀌면 여기서 실패해 결정을 다시 하게 만든다(유령 분류 방지).
+  assert.ok(brandedIn(manifestRoute).length > 0, 'app/manifest.js 가 더 이상 포털 것이 아니다 — 끊을 이유를 다시 보라');
+  assert.match(manifestRoute, /start_url:\s*'\/dashboard'/, '시작 주소가 바뀌었다 — 흐름 이탈 판단을 다시 하라');
+
+  // 아이콘: 레이아웃의 **빈 선언**이 파일 규약의 끼어들기를 막는다.
+  const own = metadataFields(eumLayout);
+  assert.match(own.icons || '', /icon:\s*\[\s*\]/, '아이콘 선언이 비어 있지 않다');
+  assert.match(own.icons || '', /apple:\s*\[\s*\]/, 'apple-touch-icon 선언이 비어 있지 않다');
+  assert.ok(existsSync(resolve(root, 'app/icon.svg')), 'app/icon.svg 가 사라졌다 — 빈 선언의 이유를 다시 보라');
+
+  // 매니페스트: 레이아웃에 적으면 **조용히 덮인다** → 적혀 있으면 실패로 알린다.
+  assert.ok(!('manifest' in own), '레이아웃의 manifest 선언은 파일 규약에 덮인다 — 각 page 에서 끊어야 한다');
+  const pages = eumPageFiles();
+  assert.ok(pages.length >= 3, `어르신 page 를 찾지 못했다: ${pages.length}`);
+  for (const file of pages) {
+    const fields = metadataFields(readFileSync(file, 'utf8'));
+    assert.equal(fields.manifest, 'null', `${file.slice(root.length + 1)}: 포털 매니페스트가 매달린다`);
+  }
+});
+
+test('어르신 화면의 주소창 색은 제품 브랜드색이 아니라 이 화면의 바탕색이다', () => {
+  // 루트는 포털 브랜드색(#be5535)을 themeColor 로 선언하고, viewport 도 metadata 처럼 상속된다.
+  assert.match(rootLayout, /themeColor:\s*'#be5535'/, '루트 선언이 바뀌었다 — 덮을 값을 다시 보라');
+  assert.match(eumLayout, /export const viewport\s*=/, '어르신 화면이 viewport 를 덮지 않는다');
+  assert.match(eumLayout, /themeColor:\s*EUM_COLORS\.bg/, '색은 lib/eumTheme 단일 출처에서 가져와야 한다');
+  const hex = [...stripComments(eumLayout).matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0]);
+  assert.deepEqual(hex, [], `app/eum/layout.jsx 에 색 하드코딩: ${hex.join(',')}`);
+  // 확대를 막는 설정은 어디에도 없어야 한다 — 저시력 어르신이 손가락으로 키울 수 있어야 한다.
+  for (const src of [rootLayout, eumLayout]) {
+    assert.ok(!/maximumScale|userScalable/.test(src), '확대 제한은 저시력 요건과 정면으로 어긋난다');
+  }
+});
+
+// ── 어르신 화면에 내려오는 포털 전역 CSS ──────────────────────────────────
+//
+// 고친 결함: 어르신 화면은 요건(18pt · 대비 4.5:1)을 **인라인 style 로만** 지켜 왔다. 그런데
+// `app/globals.css` 는 루트 레이아웃이 import 하므로 이 화면에도 그대로 내려오고, 인라인 style 은
+// **자기가 적은 속성만** 이긴다 — 적지 않은 속성은 전역 규칙이 가져간다. 클래스 선택자
+// (`.btn:disabled`)는 이 화면에 닿지 않지만 요소·의사 선택자는 닿는다. 그래서 화면 코드를 한 줄도
+// 건드리지 않은 채 요건이 깨져 있었다:
+//   · `button:disabled{opacity:.55}` → 「신청하는 중…」 동안 주버튼 대비 2.87:1(요건 4.5:1).
+//     제출이 실패했는지 성공했는지 기다리며 읽는 그 글자가 가장 흐렸다.
+//   · `a,button{transition:…}` → 이 화면의 `prefers-reduced-motion` 질의가 **거꾸로**여서
+//     움직임을 꺼 달라고 **한** 사람에게만 전환이 남아 있었다.
+//   · `letter-spacing` 음수 → 자간이 포털 취향으로 눌렸다.
+//   · `:focus-visible{box-shadow:var(--ring)}` → 포커스 링에 제품 브랜드색이 한 겹 끼었다.
+// metadata 상속과 **같은 모양**의 결함이다 — 조용히 내려오고, 이 화면의 파일만 읽어서는 보이지
+// 않는다. 그래서 재발 방지도 같은 모양으로 둔다: 전역 CSS 의 요소 선택자를 **전부 분류**하게 하고
+// 양방향으로 대조한다. 새 전역 규칙이 하나 늘었을 때 아무 일도 일어나지 않는 것이 위험이다.
+const globalCss = readFileSync(resolve(root, 'app/globals.css'), 'utf8');
+
+// 어르신 화면이 **그 요소를 아예 쓰지 않아서** 닿지 않는 선택자 → 없어야 하는 태그 이름.
+// 주석이 아니라 테스트가 그 전제를 확인한다 — 어르신 화면에 <input> 하나가 생기면 여기서 실패한다.
+const CSS_ABSENT = {
+  select: 'select',
+  textarea: 'textarea',
+  svg: 'svg',
+  table: 'table',
+  tr: 'tr',
+  td: 'td',
+  th: 'th',
+  b: 'b',
+  strong: 'strong',
+  h2: 'h2',
+  h3: 'h3',
+  h4: 'h4',
+  img: 'img',
+  'input:focus-visible': 'input',
+  'select:focus-visible': 'select',
+  'textarea:focus-visible': 'textarea',
+  '::placeholder': 'input',
+};
+
+// 닿는데 **요건을 깨뜨리므로** 어르신 화면이 끄는 선택자 → ui.jsx 가 반드시 담아야 하는 선언.
+const CSS_NEUTRALIZED = {
+  body: 'letter-spacing: normal',
+  h1: 'letter-spacing: normal',
+  a: 'transition: none',
+  button: 'transition: none',
+  'button:disabled': 'opacity: 1',
+  ':focus-visible': 'box-shadow: none',
+};
+
+// 닿지만 어르신 화면에도 그대로 맞는 선택자 → **사유**. 사유 없는 허용은 다음 사람이 늘린다.
+const CSS_ACCEPTED = {
+  ':root': '커스텀 속성(--brand 등) 선언뿐이고 어르신 화면은 그 변수를 쓰지 않는다',
+  '*': 'box-sizing:border-box — 375px 가로 스크롤을 막는 쪽이고 ui.jsx 도 같은 값을 쓴다',
+  html: 'margin·padding 0 · overflow-x:hidden · text-size-adjust 100% — 어르신 화면에도 맞다',
+  '*::-webkit-scrollbar': '스크롤바 모양 — 글자 크기·대비·배치에 닿지 않는다',
+  '*::-webkit-scrollbar-thumb': '스크롤바 모양 — 위와 같은 이유',
+  '*::-webkit-scrollbar-thumb:hover': '스크롤바 모양 — 위와 같은 이유',
+  '::selection': '글자를 끌어 선택했을 때의 반투명 하이라이트 — 글자 자체의 대비는 바뀌지 않는다',
+};
+
+const eumSources = {
+  'app/eum/senior/[token]/page.jsx': page,
+  'app/eum/senior/[token]/SeniorFlow.jsx': flow,
+  'app/eum/senior/[token]/ui.jsx': ui,
+  ...boundary,
+};
+
+test('포털 전역 CSS 의 요소 선택자가 전부 분류돼 있다(새 규칙은 결정을 강제한다)', () => {
+  const bare = cssBareSelectors(globalCss);
+  assert.ok(bare.length >= 25, `전역 CSS 를 읽지 못했다 — 대조가 무의미해지기 전에 고쳐라: ${bare.length}`);
+  const unclassified = bare.filter((s) => !(s in CSS_ABSENT) && !(s in CSS_NEUTRALIZED) && !(s in CSS_ACCEPTED));
+  assert.deepEqual(unclassified, [], `어르신 화면에서 어떻게 처리할지 정하지 않은 전역 선택자: ${unclassified.join(' | ')}`);
+  // 유령 분류도 잡는다 — 전역 CSS 에서 사라진 선택자가 목록에 남아 있으면 판정이 썩는다.
+  const known = [...Object.keys(CSS_ABSENT), ...Object.keys(CSS_NEUTRALIZED), ...Object.keys(CSS_ACCEPTED)];
+  const ghost = known.filter((s) => !bare.includes(s));
+  assert.deepEqual(ghost, [], `전역 CSS 에 없는 분류 항목: ${ghost.join(' | ')}`);
+  for (const [s, why] of Object.entries(CSS_ACCEPTED)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 허용: ${s}`);
+  }
+});
+
+test('닿지 않는다고 분류한 전역 선택자는 그 요소가 어르신 화면에 실제로 없다', () => {
+  for (const [selector, tag] of Object.entries(CSS_ABSENT)) {
+    for (const [name, src] of Object.entries(eumSources)) {
+      const re = new RegExp(`<${tag}\\b`);
+      assert.ok(!re.test(stripComments(src)), `${name}: <${tag}> 가 생겼다 — 전역 규칙 ${selector} 가 이제 닿는다`);
+    }
+  }
+});
+
+test('요건을 깨뜨리는 전역 선택자는 ui.jsx 가 어르신 화면 범위 안에서만 끈다', () => {
+  assert.match(ui, /EUM_SCOPE = 'eum-screen'/, '범위 표시의 단일 출처가 사라졌다');
+  const block = ui.slice(ui.indexOf('export function EumStyles'));
+  assert.ok(block.length > 100, 'EumStyles 를 찾지 못했다');
+  for (const [selector, decl] of Object.entries(CSS_NEUTRALIZED)) {
+    assert.ok(block.includes(decl), `전역 규칙 ${selector} 를 끄는 선언이 없다: ${decl}`);
+  }
+  // 포털 화면을 건드리면 안 된다 — 끄는 규칙은 전부 .eum-screen 안쪽에만 적용돼야 한다.
+  for (const line of block.split('\n')) {
+    if (!line.includes('{') || !line.includes(':') || line.trim().startsWith('//')) continue;
+    if (!/^\s*\./.test(line)) continue;
+    assert.match(line, /\.(?:\$\{EUM_SCOPE\}|eum-screen|eum-focus)/, `범위 없는 전역 규칙: ${line.trim()}`);
+  }
+});
+
+test('어르신 화면 전부가 범위 표시와 EumStyles 를 함께 단다(한 화면만 빠지면 그 화면에서 깨진다)', () => {
+  for (const [name, src] of Object.entries(eumSources)) {
+    const code = stripComments(src);
+    const mains = [...code.matchAll(/<main\b[^>]*>/g)].map((m) => m[0]);
+    for (const tag of mains) {
+      assert.match(tag, /className=\{EUM_SCOPE\}/, `${name}: <main> 에 범위 표시가 없다`);
+    }
+    if (!mains.length) continue;
+    assert.match(code, /<EumStyles \/>/, `${name}: EumStyles 를 그리지 않는다`);
+  }
+  // Notice·SeniorFlow·오류·대기 — 화면을 그리는 파일은 빠짐없이 들어 있어야 한다.
+  const drawing = Object.entries(eumSources).filter(([, src]) => /<main\b/.test(stripComments(src))).map(([n]) => n).sort();
+  assert.deepEqual(drawing, [
+    'app/eum/error.jsx',
+    'app/eum/loading.jsx',
+    'app/eum/senior/[token]/SeniorFlow.jsx',
+    'app/eum/senior/[token]/ui.jsx',
+  ]);
 });

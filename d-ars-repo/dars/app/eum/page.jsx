@@ -24,6 +24,9 @@ import { Notice } from './senior/[token]/ui.jsx';
 export const metadata = {
   // 루트 템플릿('%s · 제품명')을 쓰지 않는다 — 어르신 화면에는 제품 브랜드를 노출하지 않는다.
   title: { absolute: '이음 어르신 신청' },
+  // 운영 포털 매니페스트(`app/manifest.js` — 이름·시작 주소·아이콘이 전부 포털)를 매달지 않는다.
+  // 왜 레이아웃이 아니라 여기인지는 `app/eum/layout.jsx` 아래쪽 주석 참조(파일 규약이 덮는다).
+  manifest: null,
 };
 
 export default function EumRootNoLink() {

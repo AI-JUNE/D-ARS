@@ -23,7 +23,7 @@ import { useEffect } from 'react';
 // 순수 포맷터만 가져온다(전송 로직 미사용) — 브라우저에서 외부 통신은 일어나지 않는다.
 // 메시지는 buildEvent 안에서 마스킹되고 스택은 애초에 봉투에 담기지 않는다(lib/monitor 계약).
 import { buildEvent, monitorLine } from '@/lib/monitor';
-import { S, FocusStyles } from './senior/[token]/ui.jsx';
+import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
 
 // 특수 파일(error.jsx)에는 기본 export 외에 아무것도 내보내지 않는다 — route.js 규칙과 같은 취지다.
 // 문구는 테스트가 소스에서 읽어 회귀를 잡는다.
@@ -40,8 +40,8 @@ export default function EumError({ error, reset }) {
   }, [error]);
 
   return (
-    <main style={S.page}>
-      <FocusStyles />
+    <main style={S.page} className={EUM_SCOPE}>
+      <EumStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
         <h1 style={S.h1}>{EUM_ERROR_TITLE}</h1>

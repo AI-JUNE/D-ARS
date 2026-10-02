@@ -40,6 +40,8 @@ import {
   normalizeDraft,
   stepQuery,
   storageKey,
+  parsePriorLocal,
+  priorLocalNotice,
 } from '@/lib/eumSenior';
 import {
   EUM_SOON_MESSAGE,
@@ -53,7 +55,7 @@ import {
 } from '@/lib/eumCountdown';
 import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumConsume';
 import { fetchOnce } from '@/lib/fetchJson';
-import { S, Notice, FocusStyles } from './ui.jsx';
+import { S, Notice, EumStyles, EUM_SCOPE } from './ui.jsx';
 
 // 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
 // 여기서 던지면 뒤로가기 한 번에 신청 화면이 통째로 죽는다.
@@ -95,6 +97,8 @@ export default function SeniorFlow({
   const [already, setAlready] = useState(false);
   // 그때 실제로 접수된 선택. 서버가 알려 주지 못하면 null 이고, 화면은 요약을 그리지 않는다.
   const [accepted, setAccepted] = useState(null);
+  // **이 기기에서 전에 낸 신청**(보조 사본). 모르면 null 이고 화면은 아무것도 말하지 않는다.
+  const [prior, setPrior] = useState(null);
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
   const headingRef = useRef(null);
@@ -115,6 +119,20 @@ export default function SeniorFlow({
       /* 포커스 불가 환경 — 화면 동작에는 영향 없다 */
     }
   }, [step]);
+
+  // 보조 사본을 **읽는다**. 예전에는 쓰기만 하고 아무도 읽지 않았다(lib/eumSenior 참조) —
+  // 그래서 "신청이 됐는지 모르겠어서 한 번 더" 로 생기는 중복을, 기기가 답을 들고 있으면서도
+  // 막지 못했다. 읽기는 효과 안에서 한다: 서버 렌더에는 localStorage 가 없으므로 렌더 중에
+  // 읽으면 하이드레이션이 어긋난다. 저장소 접근이 막혀 있어도(시크릿 모드) 던지지 않는다 —
+  // 안내 한 줄이 없을 뿐이고 신청은 그대로 된다.
+  useEffect(() => {
+    try {
+      const key = storageKey(sid);
+      if (key) setPrior(parsePriorLocal(window.localStorage.getItem(key)));
+    } catch {
+      /* 저장소 접근 불가 — 안내만 생략한다 */
+    }
+  }, [sid]);
 
   // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·탭 복원 대비).
   // 기준은 **주소에서 복원한 선택**이다 — 예전에는 빈 선택으로 계산해, 주소에 고른 것이
@@ -297,8 +315,8 @@ export default function SeniorFlow({
   const stepLabel = step <= 3 ? `${step}단계 / 3단계` : '완료';
 
   return (
-    <main style={S.page}>
-      <FocusStyles />
+    <main style={S.page} className={EUM_SCOPE}>
+      <EumStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
@@ -357,8 +375,22 @@ export default function SeniorFlow({
         {step === 3 ? (
           <>
             <p style={S.summary}>{summaryText({ activity, timeslot })}</p>
+            {/* 「이 기기에서 전에 낸 신청」 — 중복이 실제로 만들어지는 순간은 아래 단추를 누르는
+                그 순간이므로 여기서 말한다(고르는 화면에 넣으면 375px 에서 선택지가 밀린다).
+                막지는 않는다 — 담당자가 바꾸라고 새 링크를 보낸 경우가 있고, 그때 재신청은 정당하다.
+                내용을 모르면 문장이 '' 이고 아무것도 그리지 않는다(지어내지 않는다). */}
+            {prior ? <p style={S.warn} role="status">{priorLocalNotice(prior)}</p> : null}
             <div style={S.list}>
-              <button type="button" className="eum-focus" style={S.primary} onClick={submit} disabled={busy}>
+              {/* 진행 중에는 색이 바뀐다 — 예전에는 포털 전역 CSS 의 `button:disabled{opacity:.55}`
+                  가 내려와 투명도로 눌림을 말했고, 그때 대비가 2.87:1(요건 4.5:1)로 떨어졌다.
+                  바로 그 순간 어르신이 읽는 글자가 「신청하는 중…」이다(ui.jsx 의 EumStyles 참조). */}
+              <button
+                type="button"
+                className="eum-focus"
+                style={busy ? S.primaryBusy : S.primary}
+                onClick={submit}
+                disabled={busy}
+              >
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
             </div>

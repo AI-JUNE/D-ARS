@@ -453,6 +453,79 @@ export function metadataFields(src) {
   return out;
 }
 
+// ---- 전역 CSS 상속 대조용 스캐너 ----
+//
+// 배경: `app/globals.css` 는 **루트 레이아웃이 import** 하므로 어르신 화면(`/eum/**`)에도
+// 그대로 내려온다. 클래스를 가진 선택자(`.btn:disabled`)는 어르신 화면에 닿지 않지만
+// (그 화면은 클래스를 거의 쓰지 않는다) **요소·의사 선택자**(`button:disabled` · `a` · `h1` ·
+// `:focus-visible`)는 닿는다 — metadata 상속과 똑같이 **조용히** 닿는다. 그래서 어르신 화면이
+// 인라인 style 로 지켜 온 요건(18pt · 대비 4.5:1)이 그 화면 코드를 하나도 건드리지 않은 채
+// 깨질 수 있다. 사람 눈이 아니라 테스트가 대조하게 하려면 그 선택자들을 긁을 수단이 필요하다.
+//
+// 설계: 순수 문자열 입력 → 배열 출력. 던지지 않는다(못 읽으면 빈 배열이고, 호출측 테스트가
+// "대조가 무의미해졌다"로 실패한다 — 조용한 통과보다 낫다).
+// 한계(정직하게): 중괄호를 세는 수준의 파서다. `:not(.x)` 처럼 괄호 안에 클래스를 품은 선택자는
+// 클래스 있음으로 보아 대상에서 빠지고(보수적), CSS-in-JS·외부 스타일시트는 보지 않는다.
+
+// 여는 중괄호(open)의 짝 위치. 주석은 건너뛴다. 짝이 없으면 end.
+function matchBrace(src, open, end) {
+  let depth = 0;
+  let i = open;
+  while (i < end) {
+    if (src.startsWith('/*', i)) { const n = src.indexOf('*/', i); i = n === -1 ? end : n + 2; continue; }
+    if (src[i] === '{') depth += 1;
+    else if (src[i] === '}') { depth -= 1; if (depth === 0) return i; }
+    i += 1;
+  }
+  return end;
+}
+
+// 선택자를 품을 수 있는 @규칙(본문이 다시 규칙 목록인 것). 나머지 @규칙(@keyframes·@font-face·
+// @page 등)의 본문은 선택자가 아니므로 통째로 건너뛴다.
+const NESTED_AT_RULE = /^@(?:media|supports|layer|container|document)\b/i;
+
+function scanRules(src, start, end, out) {
+  let i = start;
+  let prelude = '';
+  while (i < end) {
+    if (src.startsWith('/*', i)) { const n = src.indexOf('*/', i); i = n === -1 ? end : n + 2; continue; }
+    const c = src[i];
+    if (c === '{') {
+      const close = matchBrace(src, i, end);
+      const sel = prelude.trim();
+      if (sel.startsWith('@')) {
+        if (NESTED_AT_RULE.test(sel)) scanRules(src, i + 1, close, out);
+      } else if (sel) {
+        for (const part of sel.split(',')) {
+          const s = part.trim().replace(/\s+/g, ' ');
+          if (s && !s.includes('.') && !s.includes('#')) out.push(s);
+        }
+      }
+      i = close + 1;
+      prelude = '';
+      continue;
+    }
+    if (c === ';' || c === '}') { prelude = ''; i += 1; continue; }
+    prelude += c;
+    i += 1;
+  }
+}
+
+// CSS 소스에서 **클래스·id 없이도 요소에 닿는** 선택자 목록(선언 순서 · 중복 제거).
+export function cssBareSelectors(css) {
+  if (typeof css !== 'string' || !css) return [];
+  const found = [];
+  scanRules(css, 0, css.length, found);
+  const out = [];
+  const seen = new Set();
+  for (const s of found) {
+    if (seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
+  }
+  return out;
+}
+
 // 같은 파일 최상위의 `const NAME = '…'` 문자열 상수를 text 안에서 **값으로 펼친다**.
 // 이유: `description: DESC` 처럼 상수를 가리키는 값은 텍스트만 봐서는 무엇이 들었는지 알 수 없다 —
 // 브랜드 문구가 상수 뒤에 숨으면 대조가 조용히 통과한다.

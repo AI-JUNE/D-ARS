@@ -9,11 +9,12 @@
 // 움직이는 원을 쓰지 않는 이유: 어지럼·저시력에 불리하고, 무엇보다 **무슨 일이 일어나는지**
 // 글자로 말하는 편이 낫다. 낭독도 되어야 하므로 role="status" 를 둔다.
 
-import { S } from './senior/[token]/ui.jsx';
+import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
 
 export default function EumLoading() {
   return (
-    <main style={S.page}>
+    <main style={S.page} className={EUM_SCOPE}>
+      <EumStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
         <h1 style={S.h1}>잠시만 기다려 주세요</h1>

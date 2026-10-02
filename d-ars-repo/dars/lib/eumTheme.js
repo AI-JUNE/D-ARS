@@ -79,6 +79,11 @@ export const EUM_CONTRAST_PAIRS = [
   ['sub', 'bg'],
   ['brand', 'bg'],
   ['onBrand', 'brand'],
+  // 제출이 진행 중인 주버튼(ui.jsx 의 S.primaryBusy) — 흰 글자 대 보조색 배경.
+  // 왜 생겼나: 포털 전역 CSS 의 `button:disabled{opacity:.55}` 가 어르신 화면까지 내려와
+  // 「신청하는 중…」 동안 대비를 2.87:1 로 떨어뜨렸다. 투명도로는 요건을 지킬 수 없어
+  // 눌림을 **색**으로 말하게 바꿨고, 그 색 조합도 여기서 함께 지킨다.
+  ['onBrand', 'sub'],
   ['onAlert', 'alertBg'],
   ['text', 'warnBg'],
   ['warnEdge', 'warnBg'],

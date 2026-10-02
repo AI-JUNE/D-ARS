@@ -18,6 +18,8 @@ import {
   stepQuery,
   DRAFT_PARAM,
   EUM_STEP_MAX,
+  parsePriorLocal,
+  priorLocalNotice,
 } from '../lib/eumSenior.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
@@ -190,4 +192,43 @@ test('storageKey: sid 별로 구분되고 값이 없으면 빈 문자열이다',
   assert.notEqual(storageKey('s-1001'), storageKey('s-1002'));
   assert.equal(storageKey(''), '');
   assert.equal(storageKey(null), '');
+});
+
+// ── 보조 사본을 읽는다(쓰기만 하고 아무도 읽지 않던 것) ────────────────────
+//
+// 왜 중요한가: 소진 기록은 토큰 만료와 함께 사라지므로, 만료 뒤 새 링크를 받은 사람에게 서버는
+// "전에 신청했는가" 를 답할 수 없다(「알려진 한계」). 그런데 그 기기는 답을 들고 있었다 —
+// 어르신은 링크를 문자로 받고 새 링크도 같은 전화로 온다. 가장 흔한 중복은 "됐는지 몰라서
+// 한 번 더" 이고, 전에 낸 내용을 보여 주면 그 이유가 사라진다.
+
+test('parsePriorLocal: 제출 때 써 둔 사본을 그대로 다시 읽는다(왕복)', () => {
+  const body = buildPreferences({ sid: 's-1001', activity: 'walk', timeslot: 'morning' });
+  assert.deepEqual(parsePriorLocal(JSON.stringify(body)), { activity: 'walk', timeslot: 'morning' });
+  // 사본에 들어 있던 다른 필드(sid·submittedAt)는 넘어오지 않는다 — 화면이 쓸 것만 남는다.
+  assert.deepEqual(Object.keys(parsePriorLocal(JSON.stringify(body))).sort(), ['activity', 'timeslot']);
+});
+
+test('parsePriorLocal: 저장소는 누구나 고칠 수 있다 — 규격 밖은 전부 null(지어내지 않는다)', () => {
+  for (const bad of [
+    null, undefined, 42, '', '   ', '{', '[]', 'null', '"walk"',
+    '{"activity":"walk"}',                         // 반쪽짜리 — 시간대가 없다
+    '{"timeslot":"morning"}',
+    '{"activity":"없는값","timeslot":"morning"}',   // 화이트리스트 밖
+    '{"activity":"walk","timeslot":"새벽"}',
+    '[{"activity":"walk","timeslot":"morning"}]',  // 배열은 기록이 아니다
+  ]) {
+    assert.equal(parsePriorLocal(bad), null, `입력: ${String(bad)}`);
+  }
+});
+
+test('priorLocalNotice: 아는 것만 말하고, 모르면 한 글자도 그리지 않는다', () => {
+  const msg = priorLocalNotice({ activity: 'walk', timeslot: 'morning' });
+  assert.match(msg, /이 기기에서/, '어디까지 아는지를 분명히 말해야 한다(서버가 아니라 이 기기다)');
+  assert.ok(msg.includes(summaryText({ activity: 'walk', timeslot: 'morning' })), '전에 낸 내용이 문장에 있어야 한다');
+  assert.match(msg, /다시 신청하지 않으셔도 됩니다/, '중복을 내지 않아도 된다는 것이 이 문장의 목적이다');
+  // 「이미 접수됐다」고 단정하지 않는다 — 이 기기의 사본은 서버 기록이 아니다.
+  assert.ok(!/접수되었습니다|이미 신청하셨습니다/.test(msg), '서버만이 접수를 단정할 수 있다');
+  for (const bad of [null, undefined, {}, { activity: 'walk' }, { activity: 'x', timeslot: 'morning' }]) {
+    assert.equal(priorLocalNotice(bad), '', `입력: ${JSON.stringify(bad)}`);
+  }
 });

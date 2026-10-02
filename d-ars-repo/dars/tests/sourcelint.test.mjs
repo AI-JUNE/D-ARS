@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -587,4 +587,47 @@ test('inlineStringConsts: 상수 뒤에 숨은 문구를 펼친다(그래야 브
     assert.equal(inlineStringConsts(src, bad), '', `문자열이 아니면 빈 문자열: ${String(bad)}`);
   }
   assert.equal(inlineStringConsts(null, 'DESC'), 'DESC', '소스를 모르면 원문을 그대로 돌려준다');
+});
+
+// ── 전역 CSS 상속 대조용 스캐너(cssBareSelectors) ─────────────────────────
+//
+// 왜 필요한가: `app/globals.css` 는 루트 레이아웃이 import 하므로 어르신 화면에도 내려온다.
+// 클래스 선택자는 그 화면에 닿지 않지만 **요소·의사 선택자는 닿는다** — 그리고 metadata
+// 상속과 똑같이 조용히 닿는다. 어떤 선택자가 그런지를 사람이 아니라 테스트가 세게 하는 수단이다.
+
+test('cssBareSelectors: 클래스·id 없는 선택자만 모으고 쉼표로 갈라 낸다', () => {
+  const css = '.btn{a:1}\nbutton:disabled{opacity:.55}\na,button{transition:none}\nmain p{b:2}';
+  assert.deepEqual(cssBareSelectors(css), ['button:disabled', 'a', 'button', 'main p']);
+});
+
+test('cssBareSelectors: 중복은 합치고 선언 순서를 지킨다', () => {
+  assert.deepEqual(cssBareSelectors('a{x:1}\nb{y:1}\na{z:1}'), ['a', 'b']);
+});
+
+test('cssBareSelectors: @media 안쪽은 들어가고 @keyframes 본문은 세지 않는다', () => {
+  const css = '@media(max-width:900px){ h1{a:1} .card{b:2} }\n@keyframes blink{50%{opacity:.4}to{opacity:1}}';
+  assert.deepEqual(cssBareSelectors(css), ['h1']);
+});
+
+test('cssBareSelectors: @import·@font-face·@page 는 선택자를 만들지 않는다', () => {
+  const css = "@import url('https://x.test/f.css');\n@font-face{font-family:X;src:url(a)}\n@media print{@page{margin:1mm} td{a:1}}";
+  assert.deepEqual(cssBareSelectors(css), ['td']);
+});
+
+test('cssBareSelectors: 선언부의 색·수치를 선택자로 오인하지 않는다', () => {
+  // 본문의 색 코드와 .55 는 선택자가 아니다 — 여는 중괄호 앞(프렐류드)만 본다.
+  assert.deepEqual(cssBareSelectors('*{scrollbar-color:#d8c8bd transparent;opacity:.55}'), ['*']);
+});
+
+test('cssBareSelectors: 주석은 선택자가 되지 않고 공백은 한 칸으로 줄인다', () => {
+  assert.deepEqual(cssBareSelectors('/* a,b{x:1} */\nmain\n   p{y:1}'), ['main p']);
+});
+
+test('cssBareSelectors: 못 읽으면 빈 배열(throw 금지)', () => {
+  for (const bad of [null, undefined, 42, '', {}]) {
+    assert.deepEqual(cssBareSelectors(bad), [], `입력: ${String(bad)}`);
+  }
+  // 닫히지 않은 블록·짝 없는 닫힘에도 던지지 않는다.
+  assert.deepEqual(cssBareSelectors('a{x:1'), ['a']);
+  assert.deepEqual(cssBareSelectors('}a{x:1}'), ['a']);
 });
