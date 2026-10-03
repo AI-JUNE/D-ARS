@@ -11,7 +11,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { EUM_FONT_PX } from '../lib/eumTheme.js';
-import { metadataFields, inlineStringConsts, cssBareSelectors } from '../lib/sourceLint.js';
+import { metadataFields, inlineStringConsts, cssBareSelectors, exportedObjectEntries } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = resolve(root, 'app/eum/senior/[token]');
@@ -189,9 +189,62 @@ test('보조 사본을 읽어 「전에 낸 신청」을 확인 화면에서 알
   const step3 = flow.slice(flow.indexOf('{step === 3 ?'), flow.indexOf('{step === 4 ?'));
   assert.ok(step3.length > 100, '3단계 블록을 찾지 못했다');
   assert.match(step3, /\{prior \?/, '안내가 확인 화면에 없다');
-  // 제출을 막지 않는다 — disabled 는 전송 중(busy)일 때뿐이다.
-  const disabled = [...flow.matchAll(/disabled=\{([^}]*)\}/g)].map((m) => m[1].trim());
+  // 제출을 막지 않는다 — 눌림을 말하는 것은 전송 중(busy)일 때뿐이다.
+  const disabled = [...flow.matchAll(/\baria-disabled=\{([^}]*)\}/g)].map((m) => m[1].trim());
   assert.deepEqual(disabled, ['busy'], `전에 냈다는 이유로 제출을 막으면 안 된다: ${disabled.join(',')}`);
+});
+
+// ── 전송 중의 상태가 **양쪽 감각에** 전해진다 ──────────────────────────────
+//
+// 고친 결함: 눌림을 `disabled` 로 말하고 있었다. HTML 에서 disabled 요소는 포커스를 가질 수
+// 없으므로, 누른 순간 브라우저가 포커스를 버튼에서 떼어 문서(body)로 보낸다. 그래서
+// 키보드·스크린리더로 쓰는 어르신에게는 ① 기다리는 동안(상한 8초) 들리는 말이 없고
+// (바뀐 글자 「신청하는 중…」을 읽어 줄 대상이 사라졌다 — 멈춘 것과 구별되지 않는다),
+// ② 실패 안내가 「아래 단추를 한 번 더 눌러 주세요」라고 말하는데 그 단추가 어디 있는지 알 수
+// 없다(포커스는 문서 맨 앞). 직전 두 회차가 고친 "작을 때 읽는 글자"·"흐릴 때 읽는 글자" 와
+// **같은 순간**이고, 이번에는 들리지 않았다.
+test('전송 중: 눌림을 aria-disabled 로 말해 포커스를 잃지 않는다', () => {
+  const submit = flow.slice(flow.indexOf('{step === 3 ?'), flow.indexOf('{step === 4 ?'));
+  assert.ok(submit.length > 100, '3단계 블록을 찾지 못했다');
+  assert.match(submit, /aria-disabled=\{busy\}/, '눌림이 낭독되지 않는다');
+  // 하드 disabled 가 되살아나면 포커스가 다시 사라진다 — aria- 접두어 없는 disabled 를 금지한다.
+  const hard = [...stripComments(flow).matchAll(/(^|[^-\w])disabled\s*=/g)].length;
+  assert.equal(hard, 0, `disabled 속성이 되살아났다: ${hard}곳`);
+  // 브라우저가 막아 주던 중복 전송은 이제 우리가 막는다 — 상태보다 먼저 반영되는 ref 로.
+  assert.match(flow, /submittingRef\.current/, '중복 누름을 막는 수단이 없다');
+  assert.match(flow, /if \(busy \|\| submittingRef\.current\) return;/);
+  // 글자가 바뀐 것을 포커스 위치와 무관하게 알린다.
+  assert.match(submit, /aria-live="polite"/, '전송 중 바뀐 글자가 낭독되지 않는다');
+  assert.match(submit, /신청하는 중…/);
+});
+
+// ── 고른 것이 **눈에도** 보인다 ───────────────────────────────────────────
+//
+// 고친 결함: 선택 여부가 `aria-pressed` 하나로만 있었고 네 버튼의 style 은 똑같았다 —
+// 브라우저는 `[aria-pressed=true]` 를 저절로 꾸미지 않는다. 그래서 이 사실은 스크린리더에만
+// 전해졌고 보는 어르신에게는 한 픽셀도 달라지지 않았다. 보이는 자리는 2단계에서 「앞 화면으로」로
+// 1단계에 돌아갔을 때(그리고 탭이 되살아나 복원됐을 때)다 — 고른 것은 주소에도 상태에도 남아
+// 있는데 화면은 처음과 구별되지 않는다. 6회차에 "다시 그려져도 고른 것이 살아남는다" 를 고쳐
+// 놓고 **살아남은 것을 보여 주지 않고 있었다**(위 전송 중 결함과 정반대 방향의 같은 결함 —
+// 한쪽 감각에만 전해진 사실이다).
+test('고른 것이 눈에도 보인다(낭독에만 있던 사실을 화면이 함께 말한다)', () => {
+  // 고른 것과 고르지 않은 것의 style 이 달라야 한다.
+  assert.match(ui, /choiceOn:\s*\{\s*\.\.\.CHOICE/, '고른 선택지의 style 이 없다');
+  assert.match(ui, /choice:\s*CHOICE/, '기본 선택지 style 이 사라졌다');
+  for (const key of ['activity', 'timeslot']) {
+    const re = new RegExp(`style=\\{${key} === o\\.k \\? S\\.choiceOn : S\\.choice\\}`);
+    assert.match(flow, re, `${key} 선택이 화면에 반영되지 않는다`);
+  }
+  // 색만으로 말하지 않는다(WCAG 1.4.1) — 표시 글자가 함께 붙고, 자리는 늘 비워 둔다.
+  assert.match(ui, /export const EUM_CHOICE_MARK = '/, '표시 문자의 단일 출처가 없다');
+  assert.match(ui, /mark:\s*\{[^}]*display: 'inline-block'/, '표시 칸이 자리를 비워 두지 않는다');
+  const marks = [...flow.matchAll(/<span aria-hidden="true" style=\{S\.mark\}>/g)].length;
+  assert.equal(marks, 2, `표시 칸이 두 고르기 화면에 모두 있어야 한다: ${marks}`);
+  // 같은 사실을 두 번 낭독하지 않는다 — aria-pressed 가 이미 말한다.
+  assert.match(flow, /aria-pressed=\{activity === o\.k\}/);
+  assert.match(flow, /aria-pressed=\{timeslot === o\.k\}/);
+  // 새 색을 들이지 않는다 — 흰 글자 대 주색은 이미 대비 검사를 받는 조합이다.
+  assert.match(ui, /choiceOn:[^\n]*color: C\.onBrand[^\n]*background: C\.brand/);
 });
 
 // ── 경계 상태 화면(로딩·오류·토큰 없음) ───────────────────────────────────
@@ -273,6 +326,51 @@ test('토큰 없는 진입은 잘못된 링크와 같은 문구를 쓰고, 토�
     assert.equal(/<button\b/.test(src), false, `${name}: 어르신이 스스로 재발급할 수단이 없으므로 단추를 두지 않는다`);
     assert.match(src, /링크를 열 수 없습니다/, `${name}: 무엇이 잘못됐는지 말해야 한다`);
   }
+});
+
+// ── 안내 패널의 마무리 문구 ───────────────────────────────────────────────
+//
+// 고친 결함: 마무리 문구에 기본값이 있었고(「이 화면은 안전을 위해 5분이 지나면 닫힙니다」),
+// 그 기본값은 **나오는 모든 자리에서 거짓**이었다 —
+//   · 진입 시 만료 · 작성 중 만료 → 5분은 **이미 지났다**(앞으로 닫힌다는 말이 아니다).
+//   · 잘린 링크(`/eum` · `/eum/senior`) → 토큰이 없는 정적 페이지라 **닫히지 않는다**.
+//   · 이미 접수됨 → 이 한 자리만 foot 을 따로 넘겨 맞는 말을 하고 있었다.
+// 정작 그 문장이 맞는 화면(신청 흐름 1~4단계)은 Notice 를 쓰지 않는다. 맞는 자리에는 없고
+// 틀린 자리에만 있던 문장이고, 기본값이라 아무도 적지 않아도 조용히 붙었다 — metadata 상속·
+// 전역 CSS 와 같은 모양이다("조용히 내려오는 것"). 그래서 기본값을 없애고 호출마다 적게 한다.
+const noticeTags = (src) => [...stripComments(src).matchAll(/<Notice\b[^>]*>/g)].map((m) => m[0]);
+
+test('마무리 문구: Notice 를 그리는 모든 자리가 foot 을 직접 적는다(기본값이 없다)', () => {
+  const found = [];
+  for (const [name, src] of Object.entries({
+    'app/eum/senior/[token]/page.jsx': page,
+    'app/eum/senior/[token]/SeniorFlow.jsx': flow,
+    'app/eum/senior/page.jsx': boundary['app/eum/senior/page.jsx'],
+    'app/eum/page.jsx': boundary['app/eum/page.jsx'],
+  })) {
+    const tags = noticeTags(src);
+    assert.ok(tags.length >= 1, `${name}: Notice 호출을 찾지 못했다 — 대조가 무의미해지기 전에 고쳐라`);
+    for (const tag of tags) {
+      assert.match(tag, /\bfoot=/, `${name}: foot 을 적지 않은 Notice — ${tag.slice(0, 70)}`);
+      assert.match(tag, /foot=\{[^}]*EUM_NOTICE_FOOT\./,
+        `${name}: 마무리 문구를 손으로 적었다(등록부 단일 출처) — ${tag.slice(0, 70)}`);
+    }
+    found.push(...tags);
+  }
+  assert.ok(found.length >= 4, `Notice 호출이 줄었다: ${found.length}`);
+});
+
+test('마무리 문구: 등록부와 쓰이는 곳이 양방향으로 맞는다', () => {
+  const keys = exportedObjectEntries(ui, 'EUM_NOTICE_FOOT').map((e) => e.key);
+  assert.ok(keys.length >= 3, `등록부를 읽지 못했다: ${keys.length}`);
+  // 쓰는 쪽(화면 전부)에서 실제로 가리키는 이름.
+  const text = Object.values(eumSources).map(stripComments).join('\n');
+  const used = [...new Set([...text.matchAll(/EUM_NOTICE_FOOT\.(\w+)/g)].map((m) => m[1]))];
+  // 등록만 하고 아무도 쓰지 않으면 등록부가 썩고, 없는 이름을 가리키면 화면이 **빈 줄**이 된다
+  // (undefined → Notice 의 foot 이 거짓값 → 아무 말도 하지 않는다. 조용한 실패를 막는다).
+  assert.deepEqual(used.sort(), keys.sort(), '등록부와 화면이 어긋난다');
+  // 「5분이 지나면 닫힙니다」류의 문장이 되살아나면 그 거짓이 다시 모든 자리에 붙는다.
+  assert.equal(/지나면 닫힙니다/.test(text), false, '닫히지 않는 화면에 닫힌다고 적은 문장이 되살아났다');
 });
 
 // ── 어르신 화면이 head 로 말하는 이름 ─────────────────────────────────────

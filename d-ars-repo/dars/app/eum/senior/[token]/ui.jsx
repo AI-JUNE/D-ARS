@@ -41,6 +41,25 @@ const PRIMARY = {
   ...BOX,
 };
 
+// 선택지 버튼(희망 활동 · 희망 시간대). 고른 것과 고르지 않은 것의 차이는 아래 S.choiceOn 이다.
+const CHOICE = {
+  display: 'block',
+  width: '100%',
+  minHeight: 72,
+  padding: '18px 20px',
+  fontSize: F.choice,
+  fontWeight: 600,
+  lineHeight: 1.4,
+  textAlign: 'left',
+  color: C.text,
+  background: C.bg,
+  border: `3px solid ${C.brand}`,
+  borderRadius: 12,
+  cursor: 'pointer',
+  overflowWrap: 'break-word',
+  ...BOX,
+};
+
 export const S = {
   page: {
     minHeight: '100vh',
@@ -60,32 +79,31 @@ export const S = {
   body: { fontSize: F.body, margin: '0 0 20px' },
   note: { fontSize: F.sub, color: C.sub, margin: '0 0 20px' },
   list: { display: 'grid', gap: 16, margin: '0 0 24px' },
-  choice: {
-    display: 'block',
-    width: '100%',
-    minHeight: 72,
-    padding: '18px 20px',
-    fontSize: F.choice,
-    fontWeight: 600,
-    lineHeight: 1.4,
-    textAlign: 'left',
-    color: C.text,
-    background: C.bg,
-    border: `3px solid ${C.brand}`,
-    borderRadius: 12,
-    cursor: 'pointer',
-    overflowWrap: 'break-word',
-    ...BOX,
-  },
+  choice: CHOICE,
+  // 고친 결함: **고른 것이 눈에는 보이지 않았다.** 선택 여부는 `aria-pressed` 하나로만 있었고
+  // 네 버튼의 style 은 똑같았다 — 브라우저는 `[aria-pressed=true]` 를 저절로 꾸미지 않는다.
+  // 그래서 이 사실은 스크린리더에만 전해졌고, 보는 어르신에게는 한 픽셀도 달라지지 않았다.
+  // 보이는 자리: 2단계에서 「앞 화면으로」를 눌러 1단계로 돌아가면(또는 탭이 되살아나 복원되면)
+  // 아까 고른 것이 주소에도 상태에도 남아 있는데 화면은 **처음과 똑같다**. 6회차에 고친 것이
+  // "다시 그려져도 고른 것이 살아남는다" 였는데, 살아남은 것을 **보여 주지 않고 있었다** —
+  // 어르신에게는 그 고침이 절반만 닿은 셈이다(두 번 고르게 하거나, 아까 고른 것을 기억에만
+  // 의지해 되짚게 한다. 링크 수명은 5분이다).
+  // 색만으로 말하지 않는다(WCAG 1.4.1) — 자리를 비워 둔 표시 칸(S.mark)에 ✓ 가 함께 붙는다.
+  // 색 조합은 새로 들이지 않는다: 흰 글자 대 주색은 EUM_CONTRAST_PAIRS 의 ['onBrand','brand'].
+  choiceOn: { ...CHOICE, color: C.onBrand, background: C.brand, fontWeight: 700 },
+  // 고른 것 표시 칸. **모든** 선택지가 같은 폭을 비워 두어 라벨이 어긋나지 않게 한다
+  // (고르지 않은 쪽은 빈칸 — 표시가 붙었다 떨어질 때 글자가 움직이면 그것만으로도 읽기 어렵다).
+  mark: { display: 'inline-block', width: 34, fontWeight: 700 },
   primary: PRIMARY,
-  // 제출이 진행 중(disabled)일 때의 주버튼.
+  // 제출이 진행 중일 때의 주버튼.
   //
   // 고친 결함: 포털 전역 CSS 의 `button:disabled{opacity:.55}` 가 이 버튼에도 내려와,
   // 「신청하는 중…」 동안 흰 글자 대 배경 대비가 **2.87:1** 로 떨어졌다(요건 4.5:1).
   // 눌림을 투명도로 말하면 요건을 지킬 방법이 없으므로 **색**으로 말한다 — 흰 글자 대 C.sub 는
   // 실측 10.4:1 이고 EUM_CONTRAST_PAIRS 의 ['onBrand','sub'] 가 그것을 지킨다.
   // 새 색을 들이지 않고 이미 쓰는 보조색을 재사용한다.
-  primaryBusy: { ...PRIMARY, background: C.sub, border: `3px solid ${C.sub}` },
+  // cursor 로도 말한다 — 이 버튼은 이제 `disabled` 가 아니라 `aria-disabled` 다(SeniorFlow 참조).
+  primaryBusy: { ...PRIMARY, background: C.sub, border: `3px solid ${C.sub}`, cursor: 'progress' },
   // 이 화면에서 유일한 되돌리기 수단이다 — 가장 작게 둘 자리가 아니다(예전 22px).
   back: {
     display: 'inline-block',
@@ -167,6 +185,10 @@ export function EumStyles() {
   );
 }
 
+// 고른 것 표시(S.mark 와 함께 쓴다). 스크린리더에는 `aria-pressed` 가 이미 말하므로
+// 이 글자는 `aria-hidden` 으로 가린다 — 같은 사실을 두 번 낭독하지 않게.
+export const EUM_CHOICE_MARK = '✓';
+
 // 만료·오류 안내 패널. 되돌릴 방법이 없는 상태이므로 **버튼을 두지 않고** 다음 행동만 알려 준다
 // (담당자에게 다시 요청 — 어르신이 스스로 재발급할 수단이 없기 때문).
 //
@@ -175,11 +197,36 @@ export function EumStyles() {
 //  - hint: 다음에 무엇을 하면 되는지 한 줄(예: 바꾸려면 담당자에게). detail 과 마찬가지로
 //    모르면 넘기지 않는다. 이 문장이 없으면 되돌릴 단추가 없는 화면이 **막다른 길**이 된다 —
 //    어르신은 담당자에게 새 링크를 청하고, 그 링크로 낸 신청이 중복 접수가 된다.
-//  - foot: 마무리 안내. 기본은 만료 안내지만, 상황에 따라 맞는 문장이 다르다
-//    (이미 신청이 끝난 사람에게 "5분이 지나면 닫힙니다" 는 할 말이 아니다).
-export const EUM_NOTICE_FOOT = '이 화면은 안전을 위해 5분이 지나면 닫힙니다.';
+//  - foot: 마무리 안내. **기본값을 두지 않는다**(아래 참조).
+//
+// ── 고친 결함: 마무리 문구가 **나오는 모든 자리에서 거짓이었다** ───────────────────────────
+// 이 자리의 기본값은 "이 화면은 안전을 위해 5분이 지나면 닫힙니다" 였고, 바로 위 주석은
+// 그것을 "기본은 만료 안내" 라고 적어 두었다. 그런데 `Notice` 가 실제로 쓰이는 자리는 넷이다 —
+//   · 진입 시 만료(`[token]/page.jsx`) → 5분은 **이미 지났다**. 앞으로 닫힌다는 말은 거짓이고,
+//     읽는 사람에게는 "그럼 지금은 왜 안 되지" 만 남는다.
+//   · 작성 중 만료(`SeniorFlow`) → 같다.
+//   · 잘린 링크(`/eum` · `/eum/senior`) → 토큰이 없는 **정적 페이지**라 닫히지 않는다.
+//     애초에 열린 적이 없는 5분을 두고 "지나면 닫힙니다" 라고 말하고 있었다.
+//   · 이미 접수됨 → 이 한 자리만 `foot` 을 따로 넘겨 맞는 말을 하고 있었다.
+// 정작 그 문장이 맞는 화면(신청 흐름 1~4단계)은 `Notice` 를 쓰지 않고 자기 경고
+// (`EUM_SOON_MESSAGE`)를 쓴다. 즉 **맞는 자리에는 없고 틀린 자리에만 있던 문장**이다.
+// 왜 아무도 몰랐나: 기본값이라 아무 호출도 적지 않아도 조용히 붙는다 — 상속·전역 CSS 와 같은
+// 모양이다. 그래서 기본값을 없애고(빠뜨리면 **아무 말도 하지 않는다**, 틀린 말을 하지 않는다)
+// 상황별 문장을 아래 등록부에 두고, 호출마다 `foot` 을 적게 한다(tests/eumseniorui.test.mjs 가
+// 호출 자리 ↔ 등록부를 양방향 대조한다 — 등록만 하고 안 쓰거나 안 적고 넘어가면 실패한다).
+export const EUM_NOTICE_FOOT = {
+  // 링크가 더 이상 열리지 않는 상태. 사실은 "이 화면이 닫힌다"가 아니라 "링크가 5분만 산다"다.
+  expired: '링크는 안전을 위해 보내 드린 뒤 5분 동안만 열립니다.',
+  // 토큰이 없는 경로(문자에서 잘린 링크·잘못된 링크). 이 화면은 닫히지 않는다 —
+  // 할 수 있는 말은 무엇을 눌러야 하는가다(링크는 길어서 문자 앱이 줄 끝에서 자른다).
+  // 문장에 '주소' 를 쓰지 않는다: 이 화면군의 개인정보 금지 검사가 그 낱말을 막는다(그리고
+  // 어르신에게 '주소' 는 사는 곳으로 읽힌다). 이 화면의 어휘는 처음부터 「링크」 하나다.
+  link: '문자에 있는 링크를 끝까지 눌러 주세요.',
+  // 접수가 끝난 사람 — 더 할 일이 없다는 것이 이 자리에서 가장 중요한 사실이다.
+  done: '이제 이 화면을 닫으셔도 됩니다.',
+};
 
-export function Notice({ title, body, detail = '', hint = '', foot = EUM_NOTICE_FOOT }) {
+export function Notice({ title, body, detail = '', hint = '', foot = '' }) {
   return (
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />

@@ -154,8 +154,12 @@ test('진입 화면: 소진 판정은 서버 라우트가 최종이라는 사실
   assert.match(PAGE, /인스턴스 로컬/, '인메모리 한계를 숨기지 않는다');
 });
 
-test('안내 패널: 상세·다음 행동·마무리 문구를 선택적으로 받되 기본은 그대로다', () => {
-  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = EUM_NOTICE_FOOT \}\)/);
+// 정정: 예전 제목은 "…기본은 그대로다" 였다. 그 기본값이 **나오는 모든 자리에서 거짓**이었으므로
+// (만료된 사람에게 "5분이 지나면 닫힙니다" · 닫히지 않는 정적 페이지에 같은 말) 기본값을 없앴다.
+// 빠뜨리면 아무 말도 하지 않는다 — 틀린 말을 조용히 붙이는 것보다 낫다. 자세한 대조는
+// tests/eumseniorui.test.mjs 의 「마무리 문구」 테스트가 한다.
+test('안내 패널: 상세·다음 행동·마무리 문구를 선택적으로 받고 기본값은 두지 않는다', () => {
+  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = '' \}\)/);
   assert.match(UI, /\{detail \? <p style=\{S\.summary\}>\{detail\}<\/p> : null\}/,
     '모를 때는 빈 칸을 그리지 않는다');
   assert.match(UI, /\{hint \? <p style=\{S\.body\}>\{hint\}<\/p> : null\}/,

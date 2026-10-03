@@ -25,7 +25,7 @@ import {
   EUM_CONSUME_CHANGE_HINT,
   EUM_CONSUME_UNKNOWN_HINT,
 } from '@/lib/eumConsume';
-import { Notice } from './ui.jsx';
+import { Notice, EUM_NOTICE_FOOT } from './ui.jsx';
 import SeniorFlow from './SeniorFlow.jsx';
 
 // 토큰 만료 판정은 요청 시각에 따라 달라진다 → 정적 캐시 금지.
@@ -46,10 +46,13 @@ export default async function EumSeniorPage({ params, searchParams }) {
 
   if (!result.ok) {
     const expired = result.reason === 'expired';
+    // 마무리 문구는 사유에 따라 다르다. 예전에는 둘 다 기본값("5분이 지나면 닫힙니다")을 받았는데,
+    // 만료된 사람에게 5분은 **이미 지났고** 잘못된 링크에는 열린 5분이 애초에 없었다(ui.jsx 참조).
     return (
       <Notice
         title={expired ? '링크가 만료되었습니다' : '링크를 열 수 없습니다'}
         body={tokenMessage(result.reason)}
+        foot={expired ? EUM_NOTICE_FOOT.expired : EUM_NOTICE_FOOT.link}
       />
     );
   }
@@ -71,7 +74,7 @@ export default async function EumSeniorPage({ params, searchParams }) {
         body={consumeMessage('used')}
         detail={summary}
         hint={summary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}
-        foot="이제 이 화면을 닫으셔도 됩니다."
+        foot={EUM_NOTICE_FOOT.done}
       />
     );
   }

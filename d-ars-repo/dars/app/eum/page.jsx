@@ -19,7 +19,7 @@
 // 않는다. 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `senior/[token]` 한 곳뿐).
 
 import { tokenMessage } from '@/lib/eumToken';
-import { Notice } from './senior/[token]/ui.jsx';
+import { Notice, EUM_NOTICE_FOOT } from './senior/[token]/ui.jsx';
 
 export const metadata = {
   // 루트 템플릿('%s · 제품명')을 쓰지 않는다 — 어르신 화면에는 제품 브랜드를 노출하지 않는다.
@@ -30,5 +30,8 @@ export const metadata = {
 };
 
 export default function EumRootNoLink() {
-  return <Notice title="링크를 열 수 없습니다" body={tokenMessage('missing')} />;
+  // 마무리 문구는 **이 화면에서 참인 것**만 말한다. 예전에는 기본값("이 화면은 안전을 위해
+  // 5분이 지나면 닫힙니다")이 조용히 붙었는데, 이 주소는 토큰이 없는 정적 페이지라 닫히지
+  // 않는다 — 애초에 열린 적 없는 5분을 두고 한 말이었다(ui.jsx 의 EUM_NOTICE_FOOT 참조).
+  return <Notice title="링크를 열 수 없습니다" body={tokenMessage('missing')} foot={EUM_NOTICE_FOOT.link} />;
 }

@@ -14,7 +14,7 @@
 // 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `[token]/page.jsx` 한 곳뿐이다).
 
 import { tokenMessage } from '@/lib/eumToken';
-import { Notice } from './[token]/ui.jsx';
+import { Notice, EUM_NOTICE_FOOT } from './[token]/ui.jsx';
 
 export const metadata = {
   // 루트 템플릿('%s · D-ARS')을 쓰지 않는다 — 어르신 화면에는 제품 브랜드를 노출하지 않는다.
@@ -27,5 +27,7 @@ export const metadata = {
 };
 
 export default function EumSeniorNoToken() {
-  return <Notice title="링크를 열 수 없습니다" body={tokenMessage('missing')} />;
+  // 이 화면도 닫히지 않는다(정적 페이지) — 마무리 문구에 만료 안내를 붙이지 않는다.
+  // 할 수 있는 말은 "링크를 끝까지 눌러 달라" 다(ui.jsx 의 EUM_NOTICE_FOOT 참조).
+  return <Notice title="링크를 열 수 없습니다" body={tokenMessage('missing')} foot={EUM_NOTICE_FOOT.link} />;
 }

@@ -55,7 +55,7 @@ import {
 } from '@/lib/eumCountdown';
 import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumConsume';
 import { fetchOnce } from '@/lib/fetchJson';
-import { S, Notice, EumStyles, EUM_SCOPE } from './ui.jsx';
+import { S, Notice, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
 
 // 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
 // 여기서 던지면 뒤로가기 한 번에 신청 화면이 통째로 죽는다.
@@ -103,6 +103,8 @@ export default function SeniorFlow({
   draftRef.current = { activity, timeslot, done, sid };
   const headingRef = useRef(null);
   const mountedRef = useRef(false);
+  // 제출이 떠 있는 동안인가. 상태(busy)와 달리 **그 자리에서** 바뀌므로 중복 누름을 막는 데 쓴다.
+  const submittingRef = useRef(false);
 
   // 단계가 바뀌면 제목으로 포커스를 옮긴다.
   // 이유: 이 화면은 주소만 바뀌고 문서는 그대로라, 스크린리더 사용자는 화면이 넘어간 것을 모른 채
@@ -236,7 +238,11 @@ export default function SeniorFlow({
   }
 
   async function submit() {
-    if (busy) return;
+    // 중복 전송 방지는 **우리 몫이다.** 예전에는 버튼이 `disabled` 가 되어 브라우저가 막아 주었고,
+    // 그 대가로 포커스가 사라졌다(위 주석). 이제 버튼이 눌릴 수 있는 상태로 남으므로,
+    // 상태(busy)보다 먼저 반영되는 ref 로 같은 틱의 두 번째 누름까지 막는다.
+    // (설령 새어 나가도 서버가 409 로 받아 두 건이 되지는 않는다 — 1회용 판정은 라우트의 몫이다.)
+    if (busy || submittingRef.current) return;
     setError('');
     const body = buildPreferences({ sid, activity, timeslot });
     if (!body) {
@@ -244,14 +250,16 @@ export default function SeniorFlow({
       setStep(1);
       return;
     }
+    submittingRef.current = true;
     setBusy(true);
     // 시간 상한(fetchOnce)이 필요한 이유: 맨 fetch 에는 상한이 없어, 서버가 응답하지 않으면
-    // 이 화면은 "신청하는 중…" 인 채 **영영 멈춰 있었다**. 단추는 disabled 라 다시 누를 수도
-    // 없고, 그 사이 5분 만료가 지나 링크까지 죽는다 — 어르신은 무엇이 잘못됐는지 알 길이 없다.
+    // 이 화면은 "신청하는 중…" 인 채 **영영 멈춰 있었다**. 그때 단추는 다시 누를 수도 없고,
+    // 그 사이 5분 만료가 지나 링크까지 죽는다 — 어르신은 무엇이 잘못됐는지 알 길이 없다.
     const { res, failure } = await fetchOnce('/api/eum/senior/preferences', {
       method: 'POST',
       body: { token, activity, timeslot },
     });
+    submittingRef.current = false;
     setBusy(false);
 
     if (failure) {
@@ -308,7 +316,13 @@ export default function SeniorFlow({
   // 신청 위에 담당자에게 새 링크를 조르게 된다. 응답은 곧 도착하고, 만료의 최종 판정자는
   // 언제나 서버다(410 → expiredByServer).
   if (!done && !busy && (expiredByServer || isExpired(left))) {
-    return <Notice title="링크가 만료되었습니다" body="링크가 만료되었습니다. 담당자에게 다시 요청해 주세요" />;
+    return (
+      <Notice
+        title="링크가 만료되었습니다"
+        body="링크가 만료되었습니다. 담당자에게 다시 요청해 주세요"
+        foot={EUM_NOTICE_FOOT.expired}
+      />
+    );
   }
 
   const soon = !done && isSoon(left);
@@ -335,17 +349,23 @@ export default function SeniorFlow({
 
         {error ? <p style={S.alert} role="alert">{error}</p> : null}
 
+        {/* 고른 것은 **눈에도** 보여야 한다. 예전에는 선택 여부가 `aria-pressed` 하나로만 있어
+            스크린리더에만 전해졌고, 네 버튼의 모양은 똑같았다 — 2단계에서 「앞 화면으로」를 눌러
+            돌아오면 아까 고른 것이 주소에도 상태에도 남아 있는데 화면은 처음과 구별되지 않았다
+            (6회차에 "다시 그려져도 고른 것이 살아남는다" 를 고쳐 놓고, 살아남은 것을 보여 주지
+            않고 있었다). 색만으로 말하지 않는다 — ✓ 표시가 함께 붙는다(ui.jsx 의 S.mark). */}
         {step === 1 ? (
           <div style={S.list} role="group" aria-label="희망 활동 고르기">
             {ACTIVITIES.map((o) => (
               <button
                 key={o.k}
                 type="button"
-                style={S.choice}
+                style={activity === o.k ? S.choiceOn : S.choice}
                 className="eum-focus"
                 aria-pressed={activity === o.k}
                 onClick={() => chooseActivity(o.k)}
               >
+                <span aria-hidden="true" style={S.mark}>{activity === o.k ? EUM_CHOICE_MARK : ''}</span>
                 {o.label}
               </button>
             ))}
@@ -359,11 +379,12 @@ export default function SeniorFlow({
                 <button
                   key={o.k}
                   type="button"
-                  style={S.choice}
+                  style={timeslot === o.k ? S.choiceOn : S.choice}
                   className="eum-focus"
                   aria-pressed={timeslot === o.k}
                   onClick={() => chooseTimeslot(o.k)}
                 >
+                  <span aria-hidden="true" style={S.mark}>{timeslot === o.k ? EUM_CHOICE_MARK : ''}</span>
                   {o.label}
                 </button>
               ))}
@@ -383,13 +404,28 @@ export default function SeniorFlow({
             <div style={S.list}>
               {/* 진행 중에는 색이 바뀐다 — 예전에는 포털 전역 CSS 의 `button:disabled{opacity:.55}`
                   가 내려와 투명도로 눌림을 말했고, 그때 대비가 2.87:1(요건 4.5:1)로 떨어졌다.
-                  바로 그 순간 어르신이 읽는 글자가 「신청하는 중…」이다(ui.jsx 의 EumStyles 참조). */}
+                  바로 그 순간 어르신이 읽는 글자가 「신청하는 중…」이다(ui.jsx 의 EumStyles 참조).
+
+                  고친 결함: 그 눌림을 `disabled` 로 말하고 있었다. HTML 에서 disabled 요소는
+                  **포커스를 가질 수 없다** — 누른 순간 브라우저가 포커스를 이 버튼에서 떼어
+                  문서(body)로 보낸다. 그래서 키보드·스크린리더로 쓰는 어르신에게는
+                    ① 기다리는 동안(상한 8초) 들리는 말이 한 마디도 없고 — 포커스가 떠났으니
+                       바뀐 글자("신청하는 중…")를 읽어 줄 대상이 없다. 멈춘 것과 구별되지 않는다.
+                    ② 실패했을 때 화면이 「아래 단추를 한 번 더 눌러 주세요」라고 말하는데,
+                       그 단추가 **어디 있는지 알 수 없다**. 포커스는 문서 맨 앞에 있어 다시
+                       Tab 으로 찾아 내려와야 하고, 그 사이 5분 링크가 줄어든다.
+                  바로 그 순간이 ①직전 회차의 "작을 때 읽는 글자" ②그 전 회차의 "흐릴 때 읽는
+                  글자" 와 **같은 순간**이다 — 이번에는 들리지 않았다.
+                  그래서 눌림은 `aria-disabled` 로 말한다: 상태는 그대로 낭독되는데 포커스는
+                  남는다. 중복 전송은 브라우저가 아니라 우리가 막는다(submit 의 submittingRef).
+                  `aria-live` 는 글자가 바뀐 것을 포커스 위치와 무관하게 알리기 위한 것이다. */}
               <button
                 type="button"
                 className="eum-focus"
                 style={busy ? S.primaryBusy : S.primary}
                 onClick={submit}
-                disabled={busy}
+                aria-disabled={busy}
+                aria-live="polite"
               >
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
@@ -426,7 +462,9 @@ export default function SeniorFlow({
                 {labelOf(ACTIVITIES, activity)} · {labelOf(TIMESLOTS, timeslot)}
               </p>
             )}
-            <p style={S.note}>이제 이 화면을 닫으셔도 됩니다.</p>
+            {/* 진입 화면의 「이미 신청하셨습니다」와 **같은 문장**이다(ui.jsx 의 등록부가 단일 출처) —
+                한쪽만 고쳐져 두 화면이 다른 말을 하는 일을 없앤다. */}
+            <p style={S.note}>{EUM_NOTICE_FOOT.done}</p>
           </>
         ) : null}
       </div>
