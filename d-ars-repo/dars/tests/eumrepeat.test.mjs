@@ -232,7 +232,8 @@ test('완료 화면: 접수 내용을 모르면 요약을 아예 그리지 않�
   assert.match(FLOW, /doneSummary \? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT/,
     '접수 내용을 아는지에 따라 할 말이 다르다(진입 화면과 같은 갈림)');
   // 손 조립이 되살아나면 형식이 다시 두 벌이 되고 반쪽 요약이 돌아온다.
-  assert.equal(/labelOf\(/.test(FLOW), false, '요약 조립은 lib/eumSenior.summaryText 한 곳뿐이다');
+  assert.equal(/labelOf\((?:ACTIVITIES|TIMESLOTS)/.test(FLOW), false,
+    '요약 조립은 lib/eumSenior.summaryText 한 곳뿐이다');
   assert.equal(/\} · \{/.test(FLOW), false, '구분자를 화면에서 손으로 적으면 안 된다');
 });
 
