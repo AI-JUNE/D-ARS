@@ -159,7 +159,12 @@ test('진입 화면: 소진 판정은 서버 라우트가 최종이라는 사실
 // 빠뜨리면 아무 말도 하지 않는다 — 틀린 말을 조용히 붙이는 것보다 낫다. 자세한 대조는
 // tests/eumseniorui.test.mjs 의 「마무리 문구」 테스트가 한다.
 test('안내 패널: 상세·다음 행동·마무리 문구를 선택적으로 받고 기본값은 두지 않는다', () => {
-  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = '' \}\)/);
+  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = '', children = null \}\)/);
+  // children: 서버가 지을 수 없는 한 줄(이 기기의 보조 사본)을 끼우는 자리. 자리는 hint 다음·
+  // foot 앞이어야 말이 이어진다 — 「무엇을 하면 된다」 뒤에 「하지 않아도 된다」가 온다.
+  const panel = UI.slice(UI.indexOf('export function Notice'));
+  assert.ok(panel.indexOf('{hint ?') < panel.indexOf('{children}'), 'children 이 hint 보다 앞에 있다');
+  assert.ok(panel.indexOf('{children}') < panel.indexOf('{foot ?'), 'children 이 foot 보다 뒤에 있다');
   assert.match(UI, /\{detail \? <p style=\{S\.summary\}>\{detail\}<\/p> : null\}/,
     '모를 때는 빈 칸을 그리지 않는다');
   assert.match(UI, /\{hint \? <p style=\{S\.body\}>\{hint\}<\/p> : null\}/,
@@ -212,13 +217,23 @@ test('완료 화면: 409 면 서버가 알려 준 「먼저 접수된 선택」�
 test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 문장이 다르다', () => {
   assert.match(FLOW, /이미 접수된 신청이 있습니다/);
   assert.match(FLOW, /신청이 접수되었습니다/);
-  assert.match(FLOW, /\{EUM_CONSUME_CHANGE_HINT\}/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
+  assert.match(FLOW, /EUM_CONSUME_CHANGE_HINT/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
 });
 
+// 고친 결함: 완료 화면은 요약을 `labelOf(…) · labelOf(…)` 로 **손으로 조립**했다(두 자리).
+// 확인 화면은 `summaryText` 를 쓰므로 같은 형식이 두 벌 돌아다녔고, 손으로 조립한 쪽은 한쪽
+// 라벨을 모를 때 「 · 」만 남은 **반쪽 요약**을 그린다 — 지금은 두 경로 모두 화이트리스트를
+// 통과한 값만 와서 발동하지 않는 **잠복**이었다. 조립을 한 곳(lib/eumSenior)으로 되돌린다.
 test('완료 화면: 접수 내용을 모르면 요약을 아예 그리지 않는다', () => {
-  assert.match(FLOW, /\{EUM_CONSUME_UNKNOWN_HINT\}/);
-  assert.match(FLOW, /accepted \?/, 'accepted 가 null 인 경우를 나눠야 한다');
-  assert.match(FLOW, /labelOf\(ACTIVITIES, accepted\.activity\)/);
+  assert.match(FLOW, /EUM_CONSUME_UNKNOWN_HINT/);
+  assert.match(FLOW, /const doneSummary = already \? summaryText\(accepted\) : summaryText\(\{ activity, timeslot \}\)/,
+    '모를 때 빈 요약이 그려지지 않게 요약 문장 자체로 판정해야 한다');
+  assert.match(FLOW, /\{doneSummary \? <p style=\{S\.summary\}>/, '요약이 없으면 빈 칸을 그리지 않는다');
+  assert.match(FLOW, /doneSummary \? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT/,
+    '접수 내용을 아는지에 따라 할 말이 다르다(진입 화면과 같은 갈림)');
+  // 손 조립이 되살아나면 형식이 다시 두 벌이 되고 반쪽 요약이 돌아온다.
+  assert.equal(/labelOf\(/.test(FLOW), false, '요약 조립은 lib/eumSenior.summaryText 한 곳뿐이다');
+  assert.equal(/\} · \{/.test(FLOW), false, '구분자를 화면에서 손으로 적으면 안 된다');
 });
 
 test('완료 화면: 내용을 모르면 보조 사본도 쓰지 않는다(단말 기록까지 어긋나지 않게)', () => {

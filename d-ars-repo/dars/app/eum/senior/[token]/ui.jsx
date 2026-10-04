@@ -198,6 +198,12 @@ export const EUM_CHOICE_MARK = '✓';
 //    모르면 넘기지 않는다. 이 문장이 없으면 되돌릴 단추가 없는 화면이 **막다른 길**이 된다 —
 //    어르신은 담당자에게 새 링크를 청하고, 그 링크로 낸 신청이 중복 접수가 된다.
 //  - foot: 마무리 안내. **기본값을 두지 않는다**(아래 참조).
+//  - children: 서버가 지을 수 없는 한 줄을 끼우는 자리. 지금 쓰는 곳은 만료 화면의
+//    「이 기기에서 전에 신청하신 내용」 하나다(PriorLocal.jsx) — 그 사실은 **어르신 단말의
+//    localStorage** 에만 있어 서버 컴포넌트가 읽을 수 없다. 패널 전체를 클라이언트로 만들면
+//    (만료·잘린 링크까지 포함해) 네 화면이 전부 자바스크립트에 매달리므로, 그 한 줄만 조각으로
+//    뗀다. 자리는 hint 다음·foot 앞이다 — 「무엇을 하면 된다」 뒤에 「하지 않아도 된다」가 와야
+//    말이 이어진다.
 //
 // ── 고친 결함: 마무리 문구가 **나오는 모든 자리에서 거짓이었다** ───────────────────────────
 // 이 자리의 기본값은 "이 화면은 안전을 위해 5분이 지나면 닫힙니다" 였고, 바로 위 주석은
@@ -226,7 +232,7 @@ export const EUM_NOTICE_FOOT = {
   done: '이제 이 화면을 닫으셔도 됩니다.',
 };
 
-export function Notice({ title, body, detail = '', hint = '', foot = '' }) {
+export function Notice({ title, body, detail = '', hint = '', foot = '', children = null }) {
   return (
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
@@ -236,6 +242,7 @@ export function Notice({ title, body, detail = '', hint = '', foot = '' }) {
         <p style={S.body} role="status">{body}</p>
         {detail ? <p style={S.summary}>{detail}</p> : null}
         {hint ? <p style={S.body}>{hint}</p> : null}
+        {children}
         {foot ? <p style={S.note}>{foot}</p> : null}
       </div>
     </main>

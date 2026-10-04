@@ -32,7 +32,6 @@ import {
   STEP_TITLE,
   clampStep,
   parseStep,
-  labelOf,
   summaryText,
   buildPreferences,
   parseAccepted,
@@ -40,8 +39,6 @@ import {
   normalizeDraft,
   stepQuery,
   storageKey,
-  parsePriorLocal,
-  priorLocalNotice,
 } from '@/lib/eumSenior';
 import {
   EUM_SOON_MESSAGE,
@@ -54,8 +51,13 @@ import {
   secondsLeft,
 } from '@/lib/eumCountdown';
 import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumConsume';
+// 문구는 `lib/eumMessage` 에서 가져온다. 예전에는 이 파일이 만료·401 안내를 **손으로 적고**
+// 있었다(401 쪽은 마침표가 하나 더 붙은 두 번째 판본이었다) — `lib/eumToken` 을 import 할 수
+// 없다는 것이(서명 비밀·HMAC 이 브라우저 번들로 따라온다) 사본을 두는 이유가 되지는 않는다.
+import { tokenMessage } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
 import { S, Notice, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
+import PriorLocal from './PriorLocal.jsx';
 
 // 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
 // 여기서 던지면 뒤로가기 한 번에 신청 화면이 통째로 죽는다.
@@ -97,8 +99,6 @@ export default function SeniorFlow({
   const [already, setAlready] = useState(false);
   // 그때 실제로 접수된 선택. 서버가 알려 주지 못하면 null 이고, 화면은 요약을 그리지 않는다.
   const [accepted, setAccepted] = useState(null);
-  // **이 기기에서 전에 낸 신청**(보조 사본). 모르면 null 이고 화면은 아무것도 말하지 않는다.
-  const [prior, setPrior] = useState(null);
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
   const headingRef = useRef(null);
@@ -121,20 +121,6 @@ export default function SeniorFlow({
       /* 포커스 불가 환경 — 화면 동작에는 영향 없다 */
     }
   }, [step]);
-
-  // 보조 사본을 **읽는다**. 예전에는 쓰기만 하고 아무도 읽지 않았다(lib/eumSenior 참조) —
-  // 그래서 "신청이 됐는지 모르겠어서 한 번 더" 로 생기는 중복을, 기기가 답을 들고 있으면서도
-  // 막지 못했다. 읽기는 효과 안에서 한다: 서버 렌더에는 localStorage 가 없으므로 렌더 중에
-  // 읽으면 하이드레이션이 어긋난다. 저장소 접근이 막혀 있어도(시크릿 모드) 던지지 않는다 —
-  // 안내 한 줄이 없을 뿐이고 신청은 그대로 된다.
-  useEffect(() => {
-    try {
-      const key = storageKey(sid);
-      if (key) setPrior(parsePriorLocal(window.localStorage.getItem(key)));
-    } catch {
-      /* 저장소 접근 불가 — 안내만 생략한다 */
-    }
-  }, [sid]);
 
   // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·탭 복원 대비).
   // 기준은 **주소에서 복원한 선택**이다 — 예전에는 빈 선택으로 계산해, 주소에 고른 것이
@@ -296,7 +282,9 @@ export default function SeniorFlow({
       return;
     }
     if (res.status === 401) {
-      setError('링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요.');
+      // 문구는 서버 쪽 화면(진입 시 잘못된 링크)과 **같은 문장**이어야 한다. 예전에는 여기
+      // 적힌 사본에 마침표가 하나 더 붙어, 같은 상태를 두 화면이 미묘하게 다르게 말했다.
+      setError(tokenMessage('signature'));
       return;
     }
     if (res.status === 429) {
@@ -319,14 +307,23 @@ export default function SeniorFlow({
     return (
       <Notice
         title="링크가 만료되었습니다"
-        body="링크가 만료되었습니다. 담당자에게 다시 요청해 주세요"
+        body={tokenMessage('expired')}
         foot={EUM_NOTICE_FOOT.expired}
-      />
+      >
+        {/* 이 링크로는 더 할 일이 없는 화면이다. 전에 신청을 마친 사람이라면 **그 기기는 그것을
+            알고 있다** — 말해 주지 않으면 담당자에게 새 링크를 청해 처음부터 다시 고른다. */}
+        <PriorLocal storeKey={storageKey(sid)} where="expired" />
+      </Notice>
     );
   }
 
   const soon = !done && isSoon(left);
   const stepLabel = step <= 3 ? `${step}단계 / 3단계` : '완료';
+  // 완료 화면이 보여 줄 요약. 세 경우가 다르다(아래 4단계 주석 참조) — 모르면 빈 문자열이고
+  // 화면은 요약을 아예 그리지 않는다. 조립은 lib/eumSenior.summaryText 한 곳에서만 한다:
+  // 예전에는 이 자리에서 `labelOf(…) · labelOf(…)` 로 손수 이어 붙여, 확인 화면과 **형식이
+  // 두 벌**이었고 한쪽 라벨을 모를 때 「 · 」만 남은 반쪽 요약이 그려질 수 있었다.
+  const doneSummary = already ? summaryText(accepted) : summaryText({ activity, timeslot });
 
   return (
     <main style={S.page} className={EUM_SCOPE}>
@@ -399,8 +396,8 @@ export default function SeniorFlow({
             {/* 「이 기기에서 전에 낸 신청」 — 중복이 실제로 만들어지는 순간은 아래 단추를 누르는
                 그 순간이므로 여기서 말한다(고르는 화면에 넣으면 375px 에서 선택지가 밀린다).
                 막지는 않는다 — 담당자가 바꾸라고 새 링크를 보낸 경우가 있고, 그때 재신청은 정당하다.
-                내용을 모르면 문장이 '' 이고 아무것도 그리지 않는다(지어내지 않는다). */}
-            {prior ? <p style={S.warn} role="status">{priorLocalNotice(prior)}</p> : null}
+                내용을 모르면 조각이 아무것도 그리지 않는다(지어내지 않는다 · PriorLocal.jsx). */}
+            <PriorLocal storeKey={storageKey(sid)} where="confirm" />
             <div style={S.list}>
               {/* 진행 중에는 색이 바뀐다 — 예전에는 포털 전역 CSS 의 `button:disabled{opacity:.55}`
                   가 내려와 투명도로 눌림을 말했고, 그때 대비가 2.87:1(요건 4.5:1)로 떨어졌다.
@@ -446,22 +443,12 @@ export default function SeniorFlow({
                 ? '이미 접수된 신청이 있습니다. 담당자가 곧 전화로 안내해 드립니다.'
                 : '신청이 접수되었습니다. 담당자가 곧 전화로 안내해 드립니다.'}
             </p>
+            {doneSummary ? <p style={S.summary}>{doneSummary}</p> : null}
+            {/* 진입 화면(page.jsx)의 「이미 신청하셨습니다」와 **같은 갈림**이다 —
+                접수 내용을 아는지에 따라 할 말이 다르다. */}
             {already ? (
-              accepted ? (
-                <>
-                  <p style={S.summary}>
-                    {labelOf(ACTIVITIES, accepted.activity)} · {labelOf(TIMESLOTS, accepted.timeslot)}
-                  </p>
-                  <p style={S.body}>{EUM_CONSUME_CHANGE_HINT}</p>
-                </>
-              ) : (
-                <p style={S.body}>{EUM_CONSUME_UNKNOWN_HINT}</p>
-              )
-            ) : (
-              <p style={S.summary}>
-                {labelOf(ACTIVITIES, activity)} · {labelOf(TIMESLOTS, timeslot)}
-              </p>
-            )}
+              <p style={S.body}>{doneSummary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}</p>
+            ) : null}
             {/* 진입 화면의 「이미 신청하셨습니다」와 **같은 문장**이다(ui.jsx 의 등록부가 단일 출처) —
                 한쪽만 고쳐져 두 화면이 다른 말을 하는 일을 없앤다. */}
             <p style={S.note}>{EUM_NOTICE_FOOT.done}</p>

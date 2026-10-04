@@ -13,7 +13,7 @@
 //
 // 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `[token]/page.jsx` 한 곳뿐이다).
 
-import { tokenMessage } from '@/lib/eumToken';
+import { tokenMessage } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from './[token]/ui.jsx';
 
 export const metadata = {

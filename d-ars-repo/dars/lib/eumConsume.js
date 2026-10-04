@@ -29,6 +29,8 @@
 // **[승인 필요]** — `createConsumeStore` 와 같은 모양의 어댑터를 끼우면 되도록 인터페이스를
 // 좁게 잡아 두었다.
 
+import { EUM_TOKEN_MESSAGE } from './eumMessage.js';
+
 export const EUM_CONSUME_MAX = 5000;
 
 // 소진 기록에 **함께 남기는 것은 선택 결과뿐**이다.
@@ -190,10 +192,15 @@ export function consumeDepStatus(stats) {
 }
 
 // 사유별 안내문 — 화면이 고르게(만료 vs 이미 신청함) 하기 위한 단일 출처.
+//
+// 만료·사용 불가는 **토큰 검증 실패와 같은 사실**이고(링크가 열리지 않는다), 어르신이 그
+// 두 경로의 차이를 알 길도 없다. 그래서 문장을 손으로 다시 적지 않고 lib/eumMessage 를
+// 가리킨다 — 예전에는 글자까지 같은 사본이 여기 한 벌 더 있었다(한쪽만 고쳐지면 같은 상태를
+// 두 문장이 설명하게 된다). `used` 만 이 파일 고유의 사실이다.
 export const EUM_CONSUME_MESSAGE = {
   used: '이미 신청이 접수된 링크입니다. 담당자에게 문의해 주세요',
-  expired: '링크가 만료되었습니다. 담당자에게 다시 요청해 주세요',
-  unusable: '링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요',
+  expired: EUM_TOKEN_MESSAGE.expired,
+  unusable: EUM_TOKEN_MESSAGE.malformed,
 };
 
 // 이미 접수된 링크를 만난 사람에게 **다음에 무엇을 하면 되는지** 알려 주는 한 문장.

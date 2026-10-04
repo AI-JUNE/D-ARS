@@ -20,6 +20,10 @@ const read = (f) => readFileSync(resolve(dir, f), 'utf8');
 const page = read('page.jsx');
 const flow = read('SeniorFlow.jsx');
 const ui = read('ui.jsx');
+// 「이 기기에서 전에 신청하신 내용」 한 줄. 이 사실은 어르신 단말의 localStorage 에만 있어
+// 서버 컴포넌트(진입 시 만료 안내)가 읽을 수 없다 — 패널 전체를 클라이언트로 돌리지 않고
+// 그 한 줄만 조각으로 뗐다.
+const prior = read('PriorLocal.jsx');
 
 // 금지 문구 검사는 **주석을 걷어낸 코드**에만 적용한다.
 // 설계 의도를 적은 주석("기존 D-ARS 제품과 분리한다")까지 금지하면, 왜 그런지를 적을 수 없게 되어
@@ -32,11 +36,11 @@ function stripComments(src) {
     .join('\n');
 }
 
-const code = [page, flow, ui].map(stripComments).join('\n');
+const code = [page, flow, ui, prior].map(stripComments).join('\n');
 
-test('라우트에 페이지·흐름·표현 3개 파일만 있고 route.js 는 두지 않는다', () => {
+test('라우트에 화면 파일만 있고 route.js 는 두지 않는다', () => {
   const files = readdirSync(dir).sort();
-  assert.deepEqual(files, ['SeniorFlow.jsx', 'page.jsx', 'ui.jsx']);
+  assert.deepEqual(files, ['PriorLocal.jsx', 'SeniorFlow.jsx', 'page.jsx', 'ui.jsx']);
 });
 
 test('page 는 서버에서 토큰을 검증한다("use client" 금지)', () => {
@@ -120,9 +124,15 @@ test('완료 상태는 주소에 싣지 않는다(주소로 완료 화면을 만
   assert.match(flow, /draftRef\.current\.done\)\s*\{\s*setStep\(4\)/, '완료 뒤 뒤로가기는 주소를 따르지 않는다');
 });
 
+// 고친 결함: 「문구는 EUM_TOKEN_MESSAGE 단일 출처」는 **서버 쪽 화면에서만** 참이었다.
+// 브라우저에서 도는 SeniorFlow 는 만료·401 안내를 손으로 적었고(401 쪽은 마침표가 하나 더 붙은
+// 두 번째 판본), 이 테스트는 그 사본이 **있는지**를 확인하며 통과하고 있었다. 사본을 없애는 쪽이
+// 맞으므로 표를 비밀 없는 자리(lib/eumMessage)로 떼고, 양쪽이 같은 표를 가리키는지 본다.
+// (문장 자체의 계약·사본 금지 대조는 tests/eummessage.test.mjs)
 test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', () => {
   assert.match(page, /tokenMessage\(result\.reason\)/, '사유별 안내를 문구 단일 출처에서 가져와야 한다');
-  assert.match(flow, /링크가 만료되었습니다\. 담당자에게 다시 요청해 주세요/);
+  assert.match(flow, /body=\{tokenMessage\('expired'\)\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
+  assert.match(flow, /setError\(tokenMessage\('signature'\)\)/, '401 안내도 같은 표에서 가져온다');
   assert.match(ui, /function Notice/, '만료·오류 패널이 양쪽에서 공유돼야 한다');
 });
 
@@ -175,23 +185,67 @@ test('제출은 자기 서버까지만 간다 — 이음 등 외부로의 직접
 // 같은 모양의 세 번째 자리다. 그 사본이 메울 수 있는 구멍은 「알려진 한계」에 이미 적혀 있었다:
 // 만료 뒤 새 링크를 받은 사람에게 서버는 「전에 신청했는가」를 답할 수 없고, 그래서 명단에 두
 // 건이 남는다. 그 기기는 답을 들고 있었다.
-test('보조 사본을 읽어 「전에 낸 신청」을 확인 화면에서 알린다(막지는 않는다)', () => {
-  assert.match(flow, /localStorage\.getItem/, '쓰기만 하고 읽지 않으면 사본은 아무 일도 하지 않는다');
-  assert.match(flow, /parsePriorLocal\(/, '저장소 값은 화이트리스트를 거쳐야 한다(누구나 고칠 수 있다)');
-  assert.match(flow, /priorLocalNotice\(prior\)/, '문구는 lib/eumSenior 단일 출처에서 가져온다');
+test('보조 사본을 읽어 「전에 낸 신청」을 알린다(막지는 않는다)', () => {
+  assert.match(prior, /^\s*["']use client["']/m, '저장소를 읽으려면 클라이언트 조각이어야 한다');
+  assert.match(prior, /localStorage\.getItem/, '쓰기만 하고 읽지 않으면 사본은 아무 일도 하지 않는다');
+  assert.match(prior, /parsePriorLocal\(/, '저장소 값은 화이트리스트를 거쳐야 한다(누구나 고칠 수 있다)');
+  assert.match(prior, /priorLocalNotice\(prior, where\)/, '문구는 lib/eumSenior 단일 출처에서 가져온다');
+  assert.match(prior, /if \(!message\) return null;/, '할 말이 없으면 빈 줄도 그리지 않는다');
   // 하이드레이션: 서버 렌더에는 localStorage 가 없으므로 렌더 중에 읽으면 화면이 어긋난다.
-  assert.ok(!/useState\([^)]*localStorage/.test(flow), '저장소는 효과 안에서만 읽는다');
+  assert.ok(!/useState\([^)]*localStorage/.test(prior), '저장소는 효과 안에서만 읽는다');
+  assert.match(prior, /useEffect\(\(\) => \{\s*try \{/, '저장소 접근이 막혀도(시크릿 모드) 던지면 안 된다');
+  // 이 조각은 sid 가 아니라 **저장소 키**를 받는다 — 키 조립은 lib/eumSenior 한 곳뿐이다.
+  assert.ok(!/storageKey\(/.test(prior), '키 조립이 두 곳으로 갈라진다');
   // 알리기만 한다 — 단추를 늘리지 않는다(버튼 4개 이내 요건 · 재신청이 정당한 경우가 있다).
+  assert.equal(/<button\b|<a\b/.test(prior), false, '안내가 조작 요소로 늘어났다');
   const buttonsInJsx = [...flow.matchAll(/<button\b/g)].length;
   assert.ok(buttonsInJsx <= 3, `안내가 단추로 늘어났다: ${buttonsInJsx}`);
-  // 안내 자리는 **확인 화면(3단계)** 이다 — 고르는 화면에 넣으면 375px 에서 선택지가 밀리고,
+  // 안내 자리 하나는 **확인 화면(3단계)** 이다 — 고르는 화면에 넣으면 375px 에서 선택지가 밀리고,
   // 중복이 만들어지는 순간은 「이대로 신청하기」를 누르는 그 순간이다.
   const step3 = flow.slice(flow.indexOf('{step === 3 ?'), flow.indexOf('{step === 4 ?'));
   assert.ok(step3.length > 100, '3단계 블록을 찾지 못했다');
-  assert.match(step3, /\{prior \?/, '안내가 확인 화면에 없다');
+  assert.match(step3, /<PriorLocal storeKey=\{storageKey\(sid\)\} where="confirm" \/>/, '안내가 확인 화면에 없다');
   // 제출을 막지 않는다 — 눌림을 말하는 것은 전송 중(busy)일 때뿐이다.
   const disabled = [...flow.matchAll(/\baria-disabled=\{([^}]*)\}/g)].map((m) => m[1].trim());
   assert.deepEqual(disabled, ['busy'], `전에 냈다는 이유로 제출을 막으면 안 된다: ${disabled.join(',')}`);
+});
+
+// ── 만료 화면도 그 기기가 아는 것을 말한다 ────────────────────────────────
+//
+// 고친 결함: 「알려진 한계」가 적어 둔 대로, 소진 기록은 토큰 만료와 함께 사라지므로 **서버는**
+// 만료 뒤 다시 연 사람에게 "전에 신청했는가" 를 답할 수 없다. 그래서 만료 화면은 「담당자에게
+// 다시 요청해 주세요」 한 줄로 끝났다 — 신청을 이미 마친 어르신에게 그것은 **헛수고로 가는 길**
+// 이다(새 링크를 받아 네 화면을 또 걷는다). 중복 접수 자체는 7회차에 넣은 확인 화면 안내가
+// 막지만, 헛수고는 그대로 남아 있었다. 그런데 **그 기기는 처음부터 알고 있었다**(보조 사본) —
+// 세 회차 연속 같은 교훈이다: 한계 문장이 원인을 가리키고 있었다.
+test('만료 화면이 이 기기의 사본을 읽어 헛수고를 줄인다(진입·작성 중 양쪽)', () => {
+  const elements = (src) => [...stripComments(src).matchAll(/<Notice\b[\s\S]*?(?:\/>|<\/Notice>)/g)].map((m) => m[0]);
+  const expired = [];
+  for (const [name, src] of Object.entries({ 'page.jsx': page, 'SeniorFlow.jsx': flow })) {
+    for (const el of elements(src)) {
+      if (!/EUM_NOTICE_FOOT\.expired/.test(el)) continue;
+      assert.match(el, /<PriorLocal\b/, `${name}: 만료 안내가 그 기기가 아는 것을 말하지 않는다`);
+      assert.match(el, /where="expired"/, `${name}: 만료 화면에서 할 수 없는 말을 한다(자리 이름)`);
+      expired.push(el);
+    }
+  }
+  assert.equal(expired.length, 2, `만료 안내가 두 자리(진입·작성 중)에 있어야 한다: ${expired.length}`);
+  // 진입 화면은 **서명이 검증된 만료**에만 조각을 둔다 — 잘못된 링크에는 sid 가 없고,
+  // 없는 것을 지어내 다른 사람의 사본을 읽게 하지 않는다.
+  assert.match(page, /\{expired \? <PriorLocal storeKey=\{storageKey\(result\.sid\)\} where="expired" \/> : null\}/);
+});
+
+test('보조 사본 안내의 자리 이름이 등록부와 양방향으로 맞는다', () => {
+  const keys = exportedObjectEntries(readFileSync(resolve(root, 'lib/eumSenior.js'), 'utf8'), 'EUM_PRIOR_TAIL')
+    .map((e) => e.key);
+  assert.ok(keys.length >= 2, `등록부를 읽지 못했다: ${keys.length}`);
+  const used = [...new Set(
+    Object.values(eumSources)
+      .flatMap((src) => [...stripComments(src).matchAll(/<PriorLocal\b[^>]*where="(\w+)"/g)].map((m) => m[1])),
+  )];
+  // 없는 이름을 적으면 조각이 **아무 말도 하지 않고**(기본값을 두지 않는다) 아무 신호도 나지
+  // 않는다. 쓰이지 않는 이름이 남으면 등록부가 썩는다.
+  assert.deepEqual(used.sort(), keys.sort(), '등록부와 화면이 어긋난다');
 });
 
 // ── 전송 중의 상태가 **양쪽 감각에** 전해진다 ──────────────────────────────
@@ -581,6 +635,7 @@ const eumSources = {
   'app/eum/senior/[token]/page.jsx': page,
   'app/eum/senior/[token]/SeniorFlow.jsx': flow,
   'app/eum/senior/[token]/ui.jsx': ui,
+  'app/eum/senior/[token]/PriorLocal.jsx': prior,
   ...boundary,
 };
 

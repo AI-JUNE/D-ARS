@@ -18,7 +18,7 @@
 // 않으니 담당자에게 다시 청하면 된다는 것. 어르신이 스스로 할 수 있는 일은 그것뿐이라 단추는 두지
 // 않는다. 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `senior/[token]` 한 곳뿐).
 
-import { tokenMessage } from '@/lib/eumToken';
+import { tokenMessage } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from './senior/[token]/ui.jsx';
 
 export const metadata = {

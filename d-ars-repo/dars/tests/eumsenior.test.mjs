@@ -20,6 +20,7 @@ import {
   EUM_STEP_MAX,
   parsePriorLocal,
   priorLocalNotice,
+  EUM_PRIOR_TAIL,
 } from '../lib/eumSenior.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
@@ -221,14 +222,50 @@ test('parsePriorLocal: 저장소는 누구나 고칠 수 있다 — 규격 밖�
   }
 });
 
+const PRIOR = { activity: 'walk', timeslot: 'morning' };
+
 test('priorLocalNotice: 아는 것만 말하고, 모르면 한 글자도 그리지 않는다', () => {
-  const msg = priorLocalNotice({ activity: 'walk', timeslot: 'morning' });
+  const msg = priorLocalNotice(PRIOR, 'confirm');
   assert.match(msg, /이 기기에서/, '어디까지 아는지를 분명히 말해야 한다(서버가 아니라 이 기기다)');
-  assert.ok(msg.includes(summaryText({ activity: 'walk', timeslot: 'morning' })), '전에 낸 내용이 문장에 있어야 한다');
+  assert.ok(msg.includes(summaryText(PRIOR)), '전에 낸 내용이 문장에 있어야 한다');
   assert.match(msg, /다시 신청하지 않으셔도 됩니다/, '중복을 내지 않아도 된다는 것이 이 문장의 목적이다');
   // 「이미 접수됐다」고 단정하지 않는다 — 이 기기의 사본은 서버 기록이 아니다.
   assert.ok(!/접수되었습니다|이미 신청하셨습니다/.test(msg), '서버만이 접수를 단정할 수 있다');
   for (const bad of [null, undefined, {}, { activity: 'walk' }, { activity: 'x', timeslot: 'morning' }]) {
-    assert.equal(priorLocalNotice(bad), '', `입력: ${JSON.stringify(bad)}`);
+    assert.equal(priorLocalNotice(bad, 'confirm'), '', `입력: ${JSON.stringify(bad)}`);
+  }
+});
+
+// ── 같은 사실, 자리마다 다른 「다음에 할 일」 ──────────────────────────────
+//
+// 고친 결함: 끝 문장이 「다시 신청하지 않으셔도 됩니다」 하나로 박혀 있었고, 그 안내가 쓰이는
+// 자리는 확인 화면 하나뿐이었다. 그런데 **만료 화면**에서도 같은 사실을 말해야 한다 —
+// 신청을 마친 어르신이 링크가 죽은 뒤 다시 열면 소진 기록은 토큰과 함께 사라져 서버는 답할 수
+// 없고, 그 화면은 만료 안내만 하고 끝나므로 어르신은 새 링크를 청해 처음부터 다시 고른다.
+// 그 자리에서 「다시 신청하지 않으셔도」는 말이 되지 않는다 — 누를 것이 없다.
+test('priorLocalNotice: 자리마다 끝 문장이 다르고, 적지 않으면 아무 말도 하지 않는다', () => {
+  const confirm = priorLocalNotice(PRIOR, 'confirm');
+  const expired = priorLocalNotice(PRIOR, 'expired');
+  assert.notEqual(confirm, expired, '만료 화면에는 누를 단추가 없다 — 같은 말을 할 수 없다');
+  assert.match(expired, /새 링크를 청하지 않으셔도 됩니다/, '만료 화면에서 하지 않아도 되는 일은 새 링크 요청이다');
+  // 앞부분(아는 사실)은 두 자리가 같아야 한다 — 사실이 자리마다 달라지면 안 된다.
+  for (const msg of [confirm, expired]) {
+    assert.ok(msg.startsWith(`이 기기에서 전에 신청하신 내용이 있습니다 — ${summaryText(PRIOR)}.`));
+  }
+  // 기본값을 두지 않는다: 자리를 적지 않으면 **아무 말도 하지 않는다**(틀린 말을 조용히 붙이는
+  // 것보다 낫다 — EUM_NOTICE_FOOT 과 같은 계약). 프로토타입 이름도 통과하지 않는다.
+  for (const bad of [undefined, '', 'nowhere', 'constructor', '__proto__', 'toString', 42, null]) {
+    assert.equal(priorLocalNotice(PRIOR, bad), '', `자리: ${String(bad)}`);
+  }
+});
+
+test('priorLocalNotice: 등록부의 모든 자리가 쓸 수 있는 문장을 들고 있다', () => {
+  const keys = Object.keys(EUM_PRIOR_TAIL);
+  assert.deepEqual(keys.sort(), ['confirm', 'expired'], '자리가 늘면 화면 대조도 함께 갱신해야 한다');
+  for (const [k, tail] of Object.entries(EUM_PRIOR_TAIL)) {
+    assert.equal(typeof tail, 'string');
+    assert.ok(tail.endsWith('.'), `${k}: 문장이 끊겨 있다`);
+    assert.ok(!/접수되었습니다|이미 신청하셨습니다/.test(tail), `${k}: 서버만이 접수를 단정할 수 있다`);
+    assert.ok(priorLocalNotice(PRIOR, k).includes(tail), `${k}: 등록한 문장이 쓰이지 않는다`);
   }
 });

@@ -16,8 +16,11 @@
 // 화면이 그것을 어르신 **기기 시계**와 비교하게 되고, 기기 시계가 몇 분만 앞서도 서버가 유효하다고
 // 판정한 링크가 첫 렌더에서 만료로 덮인다(재발급해도 같은 결과 — lib/eumCountdown.js 참조).
 
-import { verifyEumToken, tokenMessage } from '@/lib/eumToken';
-import { parseDraft, parseStep, summaryText } from '@/lib/eumSenior';
+import { verifyEumToken } from '@/lib/eumToken';
+// 안내 문구는 비밀을 모르는 자리에서 가져온다 — 브라우저에서 도는 화면(SeniorFlow)도 같은
+// 표를 가리켜야 하고, 그 화면은 `lib/eumToken` 을 import 할 수 없다(lib/eumMessage.js 참조).
+import { tokenMessage } from '@/lib/eumMessage';
+import { parseDraft, parseStep, storageKey, summaryText } from '@/lib/eumSenior';
 import {
   consumeKey,
   consumeStore,
@@ -27,6 +30,7 @@ import {
 } from '@/lib/eumConsume';
 import { Notice, EUM_NOTICE_FOOT } from './ui.jsx';
 import SeniorFlow from './SeniorFlow.jsx';
+import PriorLocal from './PriorLocal.jsx';
 
 // 토큰 만료 판정은 요청 시각에 따라 달라진다 → 정적 캐시 금지.
 export const dynamic = 'force-dynamic';
@@ -48,12 +52,21 @@ export default async function EumSeniorPage({ params, searchParams }) {
     const expired = result.reason === 'expired';
     // 마무리 문구는 사유에 따라 다르다. 예전에는 둘 다 기본값("5분이 지나면 닫힙니다")을 받았는데,
     // 만료된 사람에게 5분은 **이미 지났고** 잘못된 링크에는 열린 5분이 애초에 없었다(ui.jsx 참조).
+    //
+    // 만료 화면은 거기서 끝이었다 — 「담당자에게 다시 요청해 주세요」 한 줄. 그런데 신청을 이미
+    // 마친 어르신이 링크가 죽은 뒤 다시 열면 그 안내는 **헛수고로 가는 길**이다(소진 기록은
+    // 토큰과 함께 사라져 서버는 전에 신청했는지 답할 수 없다 — 「알려진 한계」). 그 기기에는
+    // 보조 사본이 남아 있으므로, 전에 낸 내용을 아는 경우에만 한 줄 더 말한다.
+    // 여기는 서버 컴포넌트라 localStorage 를 읽을 수 없어 그 한 줄만 조각으로 뗐다(PriorLocal).
+    // 사유가 만료일 때만 둔다: 잘못된 링크에는 sid 가 없고(서명이 검증되지 않았다) 지어내지 않는다.
     return (
       <Notice
         title={expired ? '링크가 만료되었습니다' : '링크를 열 수 없습니다'}
         body={tokenMessage(result.reason)}
         foot={expired ? EUM_NOTICE_FOOT.expired : EUM_NOTICE_FOOT.link}
-      />
+      >
+        {expired ? <PriorLocal storeKey={storageKey(result.sid)} where="expired" /> : null}
+      </Notice>
     );
   }
 

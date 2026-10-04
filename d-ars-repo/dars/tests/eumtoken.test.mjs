@@ -8,7 +8,6 @@ import {
   verifyEumToken,
   remainingMs,
   normalizeSid,
-  tokenMessage,
 } from '../lib/eumToken.js';
 
 const T0 = 1_760_000_000_000; // 고정 시각 — 시계에 의존하지 않는다
@@ -97,8 +96,18 @@ test('remainingMs: 음수가 되지 않고 이상 입력에 throw 하지 않는�
   assert.equal(remainingMs({ exp: 'x' }, T0), 0);
 });
 
-test('안내문: 만료는 요건 문장 그대로, 그 밖은 공통 안내다', () => {
-  assert.equal(tokenMessage('expired'), '링크가 만료되었습니다. 담당자에게 다시 요청해 주세요');
-  assert.equal(tokenMessage('signature'), tokenMessage('malformed'));
-  assert.equal(tokenMessage('알 수 없는 사유'), tokenMessage('malformed'));
+// 안내문은 이 파일에서 더 이상 검사하지 않는다 — 표가 lib/eumMessage.js 로 옮겨 갔다
+// (이 파일은 서명 비밀을 읽으므로 브라우저 화면이 import 할 수 없고, 그래서 화면이 같은 문장을
+// 손으로 적고 있었다). 검사는 tests/eummessage.test.mjs 가 한다.
+test('만료 판정은 sid 를 함께 돌려준다(서명이 이미 검증된 뒤라 우리 값이다)', async () => {
+  const tok = await issueEumToken('s-1001', { now: T0 });
+  const gone = await verifyEumToken(tok, T0 + EUM_TOKEN_TTL_MS);
+  assert.equal(gone.ok, false);
+  assert.equal(gone.sid, 's-1001', '만료 화면이 그 기기의 보조 사본을 찾을 수 없게 된다');
+  // 통과와 혼동되지 않게 payload 는 주지 않는다 — 호출측이 ok 만 보고 분기해도 안전해야 한다.
+  assert.equal(gone.payload, undefined);
+  // 서명이 검증되지 않은 실패에는 sid 가 없다(호출자가 적어 넣은 값을 돌려주지 않는다).
+  for (const bad of ['abc', '', null]) {
+    assert.equal((await verifyEumToken(bad, T0)).sid, undefined, `입력: ${String(bad)}`);
+  }
 });

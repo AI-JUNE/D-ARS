@@ -106,18 +106,19 @@ export async function verifyEumToken(token, now = Date.now()) {
   if (!sid || !Number.isFinite(exp)) return { ok: false, reason: 'malformed' };
 
   const left = remainingMs({ exp }, now);
-  if (left <= 0) return { ok: false, reason: 'expired' };
+  // 만료에는 **sid 를 함께 돌려준다.** 여기까지 왔다는 것은 서명이 이미 검증됐고 sid 도 규격
+  // 안이라는 뜻이다(위 두 단계) — 즉 이 sid 는 우리가 발급한 값이지 호출자가 적어 넣은 값이
+  // 아니다. 쓰이는 곳은 하나다: 만료 화면이 **그 기기에 남은 보조 사본**을 찾는 데 쓴다
+  // (이미 신청을 마친 사람이 만료 링크를 다시 열었을 때, 서버는 모르지만 그 기기는 안다).
+  // `ok:false` 이므로 payload 는 주지 않는다 — 검증 통과와 혼동되지 않게 자리를 따로 둔다.
+  if (left <= 0) return { ok: false, reason: 'expired', sid };
   return { ok: true, payload: { sid, iat: Number(payload?.iat) || 0, exp }, remainingMs: left };
 }
 
-// 화면이 쓰는 사유별 안내문(단일 출처 — 페이지와 테스트가 같은 문장을 참조한다).
-export const EUM_TOKEN_MESSAGE = {
-  expired: '링크가 만료되었습니다. 담당자에게 다시 요청해 주세요',
-  signature: '링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요',
-  malformed: '링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요',
-  missing: '링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요',
-};
-
-export function tokenMessage(reason) {
-  return EUM_TOKEN_MESSAGE[reason] || EUM_TOKEN_MESSAGE.malformed;
-}
+// 사유별 안내문은 **이 파일에 두지 않는다** → lib/eumMessage.js.
+//
+// 왜 옮겼나: 이 파일은 서명 비밀을 읽고 HMAC 을 계산하므로 클라이언트 번들에 들어갈 수 없다.
+// 그래서 브라우저에서 도는 화면(SeniorFlow)은 같은 문장을 **손으로 적어** 쓰고 있었고,
+// 401 안내는 마침표가 하나 더 붙은 두 번째 판본이 돌아다녔다. 문구는 비밀을 모르는 자리에
+// 있어야 양쪽이 같은 문장을 가리킬 수 있다. 여기서 다시 export 하지도 않는다 —
+// import 경로가 둘이면 "단일 출처" 가 다시 말뿐이 된다.
