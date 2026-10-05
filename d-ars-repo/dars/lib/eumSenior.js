@@ -13,18 +13,71 @@
 export const EUM_STEP_MIN = 1;
 export const EUM_STEP_MAX = 4;
 
+// ── 귀로 들을 때 사라지는 글자 ─────────────────────────────────────────────
+//
+// 고친 결함: 이 화면의 모든 표시 이름과 요약이 **눈에만 맞춰져 있었다.** 스크린리더는 기호를
+// 대개 읽지 않거나(구두점 설정 기본값) 리더마다 다른 이름으로 읽는다 — '·' 는 침묵·"중간점"·
+// "점" 으로 갈리고, '~' 와 괄호도 보통 소리가 되지 않는다. 그래서 들리는 말은 이랬다.
+//   · 선택지  「오전 (9시~12시)」 → "오전 9시 12시"  (9시인가, 12시인가, 그 사이인가)
+//   · 요약    「산책·나들이 · 오전 (9시~12시)」 → "산책 나들이 오전 9시 12시"
+//     — **활동과 시간대의 경계가 통째로 사라진다.** 하필 그 문장이 나오는 자리는 확인 화면과
+//     완료 화면, 즉 어르신이 「이대로 신청하기」를 누르기 직전과 접수된 내용을 확인하는
+//     자리다. 눈으로 보는 어르신에게는 띄어 쓴 '·' 가 경계지만, 활동 이름 **안에도** 같은
+//     '·' 가 있어(「산책·나들이」) 보는 쪽에서도 어느 것이 경계인지 알 수 없었다.
+// 이것은 8·9회차에 고친 「한쪽 감각에만 전해진 사실」과 같은 모양이다 — 그때는 고른 것(눈)과
+// 전송 중(귀)이었고, 이번에는 **무엇을 신청하는가** 그 자체다.
+//
+// 그래서 경계를 기호가 아니라 **낱말과 구두점**으로 말한다. 기호를 눈용·낭독용 두 벌로 가르는
+// 길도 있었지만(aria-hidden + sr-only) 그것은 이 과제가 9회차에 걷어낸 「조용히 갈라지는 것」을
+// 다시 만드는 일이다 — 한 사실을 두 곳에서 각자 지으면 언젠가 한쪽만 고쳐진다.
+// 아래 목록은 그 재발을 막는 대조의 기준이다(tests/eumsenior.test.mjs).
+export const EUM_MUTE_MARKS = ['·', '—', '–', '~', '|', '/', '…', '(', ')'];
+
+// 주어진 글자열에서 묵음 기호를 찾아낸다(없으면 빈 배열). 표시 이름·구분자 검사용 —
+// 사람이 눈으로 세지 않도록 테스트가 이 함수로 대조한다.
+export function muteMarksIn(text) {
+  const s = typeof text === 'string' ? text : '';
+  return EUM_MUTE_MARKS.filter((m) => s.includes(m));
+}
+
+// 읽을 글자인가(공백도 묵음 기호도 아닌 것).
+function readable(text) {
+  return [...String(text)].some((ch) => !/\s/.test(ch) && !EUM_MUTE_MARKS.includes(ch));
+}
+
+// 묵음 기호 중 **경계로 쓰인 것**만 골라낸다 — 양옆에 읽을 글자가 있는 자리다.
+//
+// 왜 전부가 아니라 경계만인가: 잃는 것이 있을 때만 결함이다. 문장 끝에 붙은 장식
+// (「신청하는 중…」)은 무엇과 무엇을 가르지 않으므로 소리가 되지 않아도 뜻이 그대로다.
+// 반대로 양옆에 글자가 있는 기호는 **그 기호가 유일한 경계**이고, 그것이 침묵하면
+// 두 사실이 한 덩어리로 들린다(「산책·나들이 · 오전 (9시~12시)」가 그랬다).
+export function muteSeparatorsIn(text) {
+  const s = typeof text === 'string' ? text : '';
+  const found = [];
+  for (const m of EUM_MUTE_MARKS) {
+    for (let i = s.indexOf(m); i !== -1; i = s.indexOf(m, i + m.length)) {
+      if (readable(s.slice(0, i)) && readable(s.slice(i + m.length))) {
+        found.push(m);
+        break;
+      }
+    }
+  }
+  return found;
+}
+
 // 선택지는 각 4개 — "한 화면 버튼 4개 이내" 요건의 상한과 같다.
+// 표시 이름에는 묵음 기호를 쓰지 않는다(위 참조) — 구간은 「부터…까지」로 말한다.
 export const ACTIVITIES = [
-  { k: 'walk', label: '산책·나들이' },
-  { k: 'talk', label: '말벗·이야기' },
-  { k: 'health', label: '건강·운동' },
-  { k: 'learn', label: '배움·교육' },
+  { k: 'walk', label: '산책과 나들이' },
+  { k: 'talk', label: '말벗과 이야기' },
+  { k: 'health', label: '건강과 운동' },
+  { k: 'learn', label: '배움과 교육' },
 ];
 
 export const TIMESLOTS = [
-  { k: 'morning', label: '오전 (9시~12시)' },
-  { k: 'afternoon', label: '낮 (12시~3시)' },
-  { k: 'evening', label: '늦은 오후 (3시~6시)' },
+  { k: 'morning', label: '오전 9시부터 12시까지' },
+  { k: 'afternoon', label: '낮 12시부터 3시까지' },
+  { k: 'evening', label: '늦은 오후 3시부터 6시까지' },
   { k: 'any', label: '아무 때나 좋아요' },
 ];
 
@@ -143,12 +196,75 @@ export function stepQuery(step, draft) {
   return `?${parts.join('&')}`;
 }
 
-// 확인 화면에 읽어 줄 한 줄 요약(스크린리더 낭독 문장과 동일하게 쓴다).
+// 활동과 시간대를 가르는 자리. 예전에는 띄어 쓴 '·' 였는데 그것은 **낭독되지 않고**(위
+// EUM_MUTE_MARKS) 활동 이름 안에도 같은 글자가 있어 보는 쪽에서도 경계가 아니었다.
+// 쉼표는 어떤 리더든 **쉼**으로 바꿔 주고, 어느 표시 이름에도 들어 있지 않다(테스트가 대조한다).
+export const EUM_SUMMARY_JOIN = ', ';
+
+// ── 되돌아가기가 실제로 되돌아가는가 ──────────────────────────────────────
+//
+// 고친 결함: 이 화면의 **유일한 되돌리기 수단**인 「앞 화면으로」·「다시 고르기」는 href 를 가진
+// 링크다(버튼 4개 이내 요건 때문에 링크로 두었고, 주소에는 고른 것이 실려 있어 자바스크립트
+// 없이 눌러도 제 자리로 간다). 그런데 onClick 이 **조건 없이** `preventDefault()` 를 하고
+// `history.back()` 을 불렀다. 그래서 두 자리에서 깨졌다.
+//
+//   ① **되돌아갈 항목이 없으면 아무 일도 일어나지 않는다.** `history.back()` 은 히스토리
+//      맨 앞에서 부르면 **던지지 않고 조용히 아무것도 하지 않는다** — 그래서 try/catch 의
+//      폴백(setStep)은 애초에 돌 일이 없었다. 단계를 주소에서 복원할 때 쓰는 것은
+//      `replaceState`(항목을 쌓지 않는다)이므로, 문서가 `?step=2` 로 **직접 열린** 경우
+//      (문자 앱이 새 탭으로 열고 탭이 세션 히스토리 없이 되살아난 경우)가 바로 그 상태다.
+//      href 는 멀쩡한데 preventDefault 가 그 길을 막아, 눌러도 꼼짝하지 않는 단추가 된다.
+//      **자바스크립트 없이 동작하던 링크를, 자바스크립트가 아무것도 하지 않는 단추로 바꿔
+//      놓고 있었다.**
+//   ② **두 번 눌리면 신청 화면 밖으로 나간다.** `history.back()` 은 즉시 돌아오지 않고
+//      traversal 이 큐에 들어간다 — 손이 떨려 같은 자리를 두 번 누르면(이 사용자층에서
+//      흔한 일이고, 제출 쪽은 이미 `submittingRef` 로 막아 둔 경우다) -1 이 두 번 쌓여
+//      앞 단계를 지나쳐 **문서 밖**으로 나간다. 링크는 문자 안에 있고 수명은 5분이라,
+//      한 번 나가면 돌아오는 길을 스스로 찾지 못한다(경계 화면에서 「대시보드」 단추를
+//      없앤 것과 같은 이유다).
+//
+// 고침의 핵심은 **지금 어디인지 알고 나서 가로채는 것**이다. 우리가 쌓은 항목에만 깊이를
+// 적어 두고(stepState), 그 깊이가 0(=복원으로 만든 뿌리 항목)이면 가로채지 않는다 —
+// 링크가 제 일을 한다. 같은 깊이에서 두 번째 누름은 삼킨다.
+export const EUM_HISTORY_ROOT = 0;
+
+// history.pushState/replaceState 에 싣는 상태. `step` 외에 **깊이**를 함께 적는다 —
+// 이것이 "이 항목은 우리가 쌓은 것인가, 복원으로 생긴 뿌리인가" 를 말해 주는 유일한 단서다.
+export function stepState(step, depth) {
+  const d = Number.isInteger(depth) && depth > EUM_HISTORY_ROOT ? depth : EUM_HISTORY_ROOT;
+  return { step: parseStep(step), depth: d };
+}
+
+// history.state 에서 깊이를 읽는다. 우리가 적은 값이 아니면(null·다른 페이지의 상태·형식 불량)
+// 뿌리로 본다 — 모를 때는 가로채지 않는 쪽이 안전하다(링크는 언제나 제 일을 할 수 있다).
+export function historyDepth(state) {
+  const d = state && typeof state === 'object' && !Array.isArray(state) ? state.depth : undefined;
+  return Number.isInteger(d) && d > EUM_HISTORY_ROOT ? d : EUM_HISTORY_ROOT;
+}
+
+// 다음 항목의 깊이(한 칸 더 쌓는다).
+export function nextDepth(state) {
+  return historyDepth(state) + 1;
+}
+
+// 되돌아가기 한 번의 판정. 상태(깊이)와 「이 자리에서 이미 요청했는가」만 보고 정한다.
+//   'follow' — 가로채지 않는다. 링크의 href 가 같은 자리로 데려간다(고른 것은 주소에 있다).
+//   'ignore' — 가로채고 **아무것도 하지 않는다**(같은 자리에서 두 번째 누름).
+//   'back'   — 가로채고 history.back() 을 부른다.
+export function backAction(state, pendingDepth) {
+  const depth = historyDepth(state);
+  if (depth <= EUM_HISTORY_ROOT) return 'follow';
+  if (Number.isInteger(pendingDepth) && pendingDepth === depth) return 'ignore';
+  return 'back';
+}
+
+// 확인 화면에 읽어 줄 한 줄 요약(보이는 글자와 낭독되는 글자가 **같은 한 벌**이다 —
+// 눈용·낭독용으로 가르면 한 사실을 두 곳에서 짓게 된다).
 export function summaryText(draft) {
   const a = labelOf(ACTIVITIES, draft?.activity);
   const t = labelOf(TIMESLOTS, draft?.timeslot);
   if (!a || !t) return '';
-  return `${a} · ${t}`;
+  return `${a}${EUM_SUMMARY_JOIN}${t}`;
 }
 
 // 이음에 보낼 본문. 개인정보는 담지 않는다(sid 는 이음 측 식별자).
@@ -250,8 +366,13 @@ export const EUM_PRIOR_TAIL = {
   expired: '그대로 괜찮으시면 담당자에게 새 링크를 청하지 않으셔도 됩니다.',
 };
 
+// 「아는 사실」과 「전에 낸 내용」 사이를 가르는 자리. 예전에는 줄표(' — ')였는데 그것도
+// 낭독되지 않아(EUM_MUTE_MARKS) 세 토막이 한 문장으로 들러붙었다 — "내용이 있습니다 산책
+// 나들이 오전 9시 12시 그대로 괜찮으시면". 마침표는 어떤 리더든 **문장 끝**으로 읽는다.
+export const EUM_PRIOR_JOIN = '. ';
+
 // 화면에 띄울 한 문장. 보여 줄 것이 없거나 자리 이름을 모르면 ''(화면은 아무것도 그리지 않는다).
-// 조사(「…으로」) 문제를 피해 요약을 문장 중간에 그대로 끼운다 — 시간대 이름이 ')' 나 '요' 로
+// 조사(「…으로」) 문제를 피해 요약을 문장 중간에 그대로 끼운다 — 시간대 이름이 '지' 나 '요' 로
 // 끝나므로 조사를 붙이면 어느 쪽이든 틀린 말이 된다.
 export function priorLocalNotice(prior, where) {
   // 등록부에 **실제로 적힌 문장**일 때만 쓴다. `EUM_PRIOR_TAIL[where]` 를 그대로 믿으면
@@ -259,5 +380,5 @@ export function priorLocalNotice(prior, where) {
   const tail = typeof EUM_PRIOR_TAIL[where] === 'string' ? EUM_PRIOR_TAIL[where] : '';
   const s = summaryText(prior ? { activity: prior.activity, timeslot: prior.timeslot } : null);
   if (!s || !tail) return '';
-  return `이 기기에서 전에 신청하신 내용이 있습니다 — ${s}. ${tail}`;
+  return `이 기기에서 전에 신청하신 내용이 있습니다${EUM_PRIOR_JOIN}${s}. ${tail}`;
 }

@@ -21,6 +21,16 @@ import {
   parsePriorLocal,
   priorLocalNotice,
   EUM_PRIOR_TAIL,
+  EUM_MUTE_MARKS,
+  EUM_SUMMARY_JOIN,
+  EUM_PRIOR_JOIN,
+  muteMarksIn,
+  muteSeparatorsIn,
+  EUM_HISTORY_ROOT,
+  stepState,
+  historyDepth,
+  nextDepth,
+  backAction,
 } from '../lib/eumSenior.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
@@ -73,12 +83,77 @@ test('clampStep: 제출 완료 뒤에는 뒤로 가도 완료 화면에 머문�
 });
 
 test('labelOf·summaryText: 값이 없거나 규격 밖이면 빈 문자열이다', () => {
-  assert.equal(labelOf(ACTIVITIES, 'walk'), '산책·나들이');
+  assert.equal(labelOf(ACTIVITIES, 'walk'), '산책과 나들이');
   assert.equal(labelOf(ACTIVITIES, '없는값'), '');
   assert.equal(labelOf(null, 'walk'), '');
-  assert.equal(summaryText({ activity: 'walk', timeslot: 'morning' }), '산책·나들이 · 오전 (9시~12시)');
+  assert.equal(summaryText({ activity: 'walk', timeslot: 'morning' }), '산책과 나들이, 오전 9시부터 12시까지');
   assert.equal(summaryText({ activity: 'walk' }), '');
   assert.equal(summaryText(null), '');
+});
+
+// ── 귀로 들을 때 사라지는 경계 ─────────────────────────────────────────────
+//
+// 고친 결함: 표시 이름과 요약이 **눈에만 맞춰져 있었다.** 스크린리더는 '·'·'~'·괄호를 대개
+// 읽지 않으므로(구두점 설정 기본값), 확인 화면의 요약 「산책·나들이 · 오전 (9시~12시)」는
+// "산책 나들이 오전 9시 12시" 로 들렸다 — **활동과 시간대의 경계가 통째로 사라진다.** 하필
+// 그 문장을 듣는 자리가 「이대로 신청하기」를 누르기 직전과 접수된 내용을 확인하는 자리다.
+// 보는 쪽에서도 애매했다: 띄어 쓴 '·' 가 경계인데 활동 이름 **안에도** 같은 '·' 가 있었다.
+// 8·9회차의 「한쪽 감각에만 전해진 사실」과 같은 모양이고, 이번 것은 **무엇을 신청하는가** 다.
+
+test('표시 이름에 묵음 기호가 없다 — 구간은 낱말로 말한다(낭독 경계 불변식)', () => {
+  for (const o of [...ACTIVITIES, ...TIMESLOTS]) {
+    assert.deepEqual(
+      muteMarksIn(o.label),
+      [],
+      `낭독되지 않는 기호가 표시 이름에 있다: ${o.k} = ${o.label}`,
+    );
+  }
+  // 「부터…까지」로 말한다 — '~' 는 들리지 않아 "9시 12시" 가 되고, 9시인지 12시인지
+  // 그 사이인지 귀로는 가릴 수 없다.
+  for (const t of TIMESLOTS.filter((o) => o.k !== 'any')) {
+    assert.match(t.label, /부터 .*까지$/, `시간 구간을 기호로 말한다: ${t.label}`);
+  }
+});
+
+test('요약 구분자는 들리고, 어느 표시 이름에도 들어 있지 않다(양방향 대조)', () => {
+  // 들린다: 쉼표·마침표는 어떤 리더든 쉼·문장 끝으로 바꿔 준다.
+  assert.deepEqual(muteMarksIn(EUM_SUMMARY_JOIN), []);
+  assert.deepEqual(muteMarksIn(EUM_PRIOR_JOIN), []);
+  // 경계다: 표시 이름이 같은 글자를 들고 있으면 눈으로도 어느 것이 경계인지 알 수 없다
+  // (예전 '·' 가 그랬다 — 「산책·나들이 · 오전…」).
+  for (const o of [...ACTIVITIES, ...TIMESLOTS]) {
+    for (const join of [EUM_SUMMARY_JOIN, EUM_PRIOR_JOIN]) {
+      assert.ok(
+        !o.label.includes(join.trim()),
+        `구분자(${join.trim()})가 표시 이름 안에도 있다: ${o.label}`,
+      );
+    }
+  }
+  // 요약은 실제로 그 구분자 하나로만 갈린다 — 조립은 summaryText 한 곳이다.
+  const s = summaryText({ activity: 'walk', timeslot: 'morning' });
+  assert.equal(s.split(EUM_SUMMARY_JOIN).length, 2, `구분자가 하나여야 한다: ${s}`);
+});
+
+test('muteMarksIn: 목록에 있는 기호만 찾아내고 이상 입력에 던지지 않는다', () => {
+  assert.deepEqual(muteMarksIn('가 · 나'), ['·']);
+  assert.deepEqual(muteMarksIn('9시~12시 (오전)').sort(), ['(', ')', '~'].sort());
+  assert.deepEqual(muteMarksIn('쉼표, 마침표.'), []);
+  for (const bad of [null, undefined, 42, {}, []]) assert.deepEqual(muteMarksIn(bad), []);
+  assert.ok(EUM_MUTE_MARKS.includes('·') && EUM_MUTE_MARKS.includes('~'));
+});
+
+// 잃는 것이 있을 때만 결함이다 — 양옆에 읽을 글자가 있는 기호는 **그것이 유일한 경계**이고,
+// 문장 끝에 붙은 장식은 소리가 되지 않아도 뜻이 그대로다. 그 둘을 가리는 것이 이 함수다.
+test('muteSeparatorsIn: 경계로 쓰인 기호만 결함으로 본다(끝에 붙은 장식은 아니다)', () => {
+  // 예전 요약. '·' 는 구분자이면서 활동 이름 안에도 있었고, '~'·'(' 도 경계였다 —
+  // 들리는 말은 "산책 나들이 오전 9시 12시" 였다. 끝의 ')' 는 뒤에 읽을 글자가 없어 경계가 아니다.
+  assert.deepEqual(muteSeparatorsIn('산책·나들이 · 오전 (9시~12시)').sort(), ['(', '~', '·'].sort());
+  assert.deepEqual(muteSeparatorsIn('1단계 / 3단계'), ['/'], '슬래시는 "1단계 3단계" 로 들린다');
+  assert.deepEqual(muteSeparatorsIn('신청하는 중…'), [], '끝에 붙은 줄임표는 무엇도 가르지 않는다');
+  assert.deepEqual(muteSeparatorsIn('오전 9시부터 12시까지'), [], '구간을 낱말로 말하면 경계가 들린다');
+  assert.deepEqual(muteSeparatorsIn(summaryText({ activity: 'walk', timeslot: 'morning' })), []);
+  assert.deepEqual(muteSeparatorsIn(priorLocalNotice(PRIOR, 'confirm')), []);
+  for (const bad of [null, undefined, 42, {}, []]) assert.deepEqual(muteSeparatorsIn(bad), []);
 });
 
 test('buildPreferences: 정상 본문에는 sid·선택·제출시각만 담긴다(개인정보 없음)', () => {
@@ -188,6 +263,69 @@ test('주소만으로는 완료 화면에 닿을 수 없다(접수는 서버 응
   assert.equal(clampStep(parseStep(q.get('step')), { ...draft, done: false }), 3, '확인 화면까지만');
 });
 
+// ── 되돌아가기가 실제로 되돌아가는가 ──────────────────────────────────────
+//
+// 고친 결함: 「앞 화면으로」·「다시 고르기」는 href 를 가진 <a> 인데 onClick 이 **조건 없이**
+// preventDefault + history.back() 을 했다. 두 자리에서 깨졌다.
+//   ① 되돌아갈 항목이 없으면(문서가 ?step=2 로 직접 열린 경우 — 단계 복원은 replaceState 라
+//      항목을 쌓지 않는다) history.back() 은 **던지지 않고 조용히 아무것도 하지 않는다**.
+//      그래서 catch 폴백도 돌지 않고, 멀쩡한 href 를 preventDefault 가 막은 채 **꼼짝하지
+//      않는 단추**가 된다 — 이 화면의 유일한 되돌리기 수단이 그것이다.
+//   ② 두 번 눌리면 -1 이 두 번 쌓여(traversal 은 큐에 들어간다) 앞 단계를 지나쳐 **신청 화면
+//      밖**으로 나간다. 링크는 문자 안에 있고 수명은 5분이라 돌아오는 길이 없다.
+// 그래서 우리가 쌓은 항목에만 깊이를 적고, 그것을 보고서 가로챈다.
+
+test('stepState: 쌓은 항목에만 깊이가 남고 뿌리는 0이다', () => {
+  assert.deepEqual(stepState(2, 1), { step: 2, depth: 1 });
+  assert.deepEqual(stepState(1, EUM_HISTORY_ROOT), { step: 1, depth: 0 });
+  // 단계는 언제나 1~4 로 좁혀진다(parseStep 과 같은 규칙).
+  assert.deepEqual(stepState('9', 3), { step: 1, depth: 3 });
+  // 깊이가 수가 아니거나 음수면 뿌리로 본다 — 모를 때 가로채지 않는 쪽이 안전하다.
+  for (const bad of [undefined, null, -1, 1.5, '2', NaN, {}]) {
+    assert.equal(stepState(2, bad).depth, 0, `깊이: ${String(bad)}`);
+  }
+});
+
+test('historyDepth·nextDepth: 우리가 적은 상태만 깊이로 읽는다', () => {
+  assert.equal(historyDepth({ step: 2, depth: 1 }), 1);
+  assert.equal(nextDepth({ step: 2, depth: 1 }), 2);
+  // 다른 페이지가 남긴 상태·형식 불량·없음은 전부 뿌리(0) → 다음은 1.
+  for (const bad of [null, undefined, {}, { depth: '1' }, { depth: -3 }, [1], 'x', 7]) {
+    assert.equal(historyDepth(bad), 0, `상태: ${JSON.stringify(bad)}`);
+    assert.equal(nextDepth(bad), 1);
+  }
+});
+
+test('backAction: 되돌아갈 항목이 없으면 가로채지 않는다(링크가 제 일을 한다)', () => {
+  // 가장 중요한 경로 — 예전에는 여기서 preventDefault 만 하고 아무 일도 일어나지 않았다.
+  assert.equal(backAction(stepState(2, EUM_HISTORY_ROOT), null), 'follow');
+  assert.equal(backAction(null, null), 'follow', '히스토리 상태를 읽을 수 없어도 링크는 간다');
+  assert.equal(backAction({ step: 2 }, null), 'follow', '예전 형식(깊이 없음)도 링크로 간다');
+});
+
+test('backAction: 같은 자리에서 두 번째 누름은 삼킨다(화면 밖으로 나가지 않게)', () => {
+  const at2 = stepState(2, 1);
+  assert.equal(backAction(at2, null), 'back', '첫 누름은 되돌아간다');
+  assert.equal(backAction(at2, 1), 'ignore', '응답이 오기 전의 두 번째 누름');
+  // 되돌아간 뒤에는 깊이가 달라지므로 다시 받는다(화면이 popstate 에서 비운다).
+  assert.equal(backAction(stepState(1, EUM_HISTORY_ROOT), 1), 'follow');
+  assert.equal(backAction(stepState(3, 2), 1), 'back', '다른 자리의 누름은 삼키지 않는다');
+});
+
+test('backAction: 1→2→3 을 쌓았다 되돌아가는 왕복이 끝까지 성립한다', () => {
+  let state = stepState(1, EUM_HISTORY_ROOT);          // 진입(복원 · replaceState)
+  const stack = [state];
+  for (const step of [2, 3]) {                          // 고를 때마다 pushState
+    state = stepState(step, nextDepth(state));
+    stack.push(state);
+  }
+  assert.deepEqual(stack.map((s) => s.depth), [0, 1, 2]);
+  // 꼭대기에서 두 번 되돌아가면 뿌리에 닿고, 그 뒤로는 링크가 받는다(문서 밖으로 나가지 않는다).
+  assert.equal(backAction(stack[2], null), 'back');
+  assert.equal(backAction(stack[1], null), 'back');
+  assert.equal(backAction(stack[0], null), 'follow');
+});
+
 test('storageKey: sid 별로 구분되고 값이 없으면 빈 문자열이다', () => {
   assert.equal(storageKey('s-1001'), 'dars.eum.senior.s-1001');
   assert.notEqual(storageKey('s-1001'), storageKey('s-1002'));
@@ -249,8 +387,11 @@ test('priorLocalNotice: 자리마다 끝 문장이 다르고, 적지 않으면 �
   assert.notEqual(confirm, expired, '만료 화면에는 누를 단추가 없다 — 같은 말을 할 수 없다');
   assert.match(expired, /새 링크를 청하지 않으셔도 됩니다/, '만료 화면에서 하지 않아도 되는 일은 새 링크 요청이다');
   // 앞부분(아는 사실)은 두 자리가 같아야 한다 — 사실이 자리마다 달라지면 안 된다.
+  // 절을 가르는 자리는 줄표(' — ')가 아니라 마침표다: 줄표는 낭독되지 않아 세 토막이
+  // "내용이 있습니다 산책 나들이 오전 9시 12시 그대로 괜찮으시면" 으로 들러붙었다.
   for (const msg of [confirm, expired]) {
-    assert.ok(msg.startsWith(`이 기기에서 전에 신청하신 내용이 있습니다 — ${summaryText(PRIOR)}.`));
+    assert.ok(msg.startsWith(`이 기기에서 전에 신청하신 내용이 있습니다${EUM_PRIOR_JOIN}${summaryText(PRIOR)}.`));
+    assert.ok(!msg.includes(' — '), `낭독되지 않는 줄표로 절을 가르고 있다: ${msg}`);
   }
   // 기본값을 두지 않는다: 자리를 적지 않으면 **아무 말도 하지 않는다**(틀린 말을 조용히 붙이는
   // 것보다 낫다 — EUM_NOTICE_FOOT 과 같은 계약). 프로토타입 이름도 통과하지 않는다.

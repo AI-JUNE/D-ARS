@@ -17,6 +17,8 @@
 //    되돌린다. 완료(done)는 주소에 싣지 않으므로 주소로는 완료 화면을 만들 수 없다.
 //  - 한 화면 버튼 4개 이내: 선택지 4개인 화면에는 버튼을 더 두지 않고, 되돌아가기는 **링크**로 둔다
 //    (href 가 있어 자바스크립트 없이도 동작하고, 눌렀을 때는 히스토리 뒤로가 선택을 보존한다).
+//    가로채기는 **조건부**다 — 되돌아갈 항목이 있을 때만 preventDefault 한다(back 참조).
+//    그러지 않으면 자바스크립트가 멀쩡한 href 를 막고 아무 일도 하지 않는 단추가 된다.
 //  - 남은 시간은 서버가 준 **기간**을 받아 기기 안에서의 **경과**로만 센다(lib/eumCountdown.js).
 //    예전에는 절대 만료시각을 받아 `Date.now()` 와 비교했는데, 그러면 기기 시계가 앞선 어르신은
 //    멀쩡한 링크에서도 곧바로 만료 화면을 보고, 재발급을 받아도 같은 일이 되풀이됐다.
@@ -39,6 +41,11 @@ import {
   normalizeDraft,
   stepQuery,
   storageKey,
+  stepState,
+  nextDepth,
+  historyDepth,
+  backAction,
+  EUM_HISTORY_ROOT,
 } from '@/lib/eumSenior';
 import {
   EUM_SOON_MESSAGE,
@@ -105,6 +112,10 @@ export default function SeniorFlow({
   const mountedRef = useRef(false);
   // 제출이 떠 있는 동안인가. 상태(busy)와 달리 **그 자리에서** 바뀌므로 중복 누름을 막는 데 쓴다.
   const submittingRef = useRef(false);
+  // 되돌아가기를 이미 요청한 히스토리 깊이. `history.back()` 은 즉시 돌아오지 않으므로(큐),
+  // 이것이 없으면 같은 자리의 두 번째 누름이 -1 을 한 번 더 쌓아 **문서 밖**으로 나간다.
+  // 되돌아간 뒤(popstate)와 새로 쌓은 뒤(go)에 비운다.
+  const backFromRef = useRef(null);
 
   // 단계가 바뀌면 제목으로 포커스를 옮긴다.
   // 이유: 이 화면은 주소만 바뀌고 문서는 그대로라, 스크린리더 사용자는 화면이 넘어간 것을 모른 채
@@ -129,7 +140,11 @@ export default function SeniorFlow({
     const want = clampStep(initialStep, { ...restored, done: false });
     setStep(want);
     try {
-      window.history.replaceState({ step: want }, '', stepQuery(want, restored));
+      // 이 항목은 **복원으로 생긴 뿌리**다 — 깊이 0. replaceState 는 항목을 쌓지 않으므로
+      // 여기서 history.back() 을 불러도 갈 곳이 없다. 그 사실을 상태에 적어 두어야
+      // 되돌아가기 링크가 가로채기 대신 **자기 href 를 따라갈 수 있다**(back 참조).
+      const root = stepState(want, EUM_HISTORY_ROOT);
+      window.history.replaceState(root, '', stepQuery(want, restored));
     } catch {
       /* 히스토리 조작 불가 환경(구형 브라우저) — 화면 동작에는 영향 없다 */
     }
@@ -138,6 +153,8 @@ export default function SeniorFlow({
   // 뒤로가기/앞으로가기 → 주소의 단계와 선택을 함께 되살린다.
   useEffect(() => {
     function onPop() {
+      // 요청한 되돌아가기가 도착했다 — 다음 누름은 다시 받는다.
+      backFromRef.current = null;
       // 제출이 끝난 뒤에는 주소가 어디를 가리키든 완료 화면에 머문다(중복 제출 방지).
       // 이때 선택을 주소에서 다시 읽으면 안 된다 — 히스토리 앞쪽 항목에는 아직 고르기 전의
       // 주소(?step=1)가 들어 있어, 방금 접수된 내용을 그린 요약이 빈 칸으로 덮인다.
@@ -170,8 +187,12 @@ export default function SeniorFlow({
     const d = draft || draftRef.current;
     const want = clampStep(next, d);
     setStep(want);
+    backFromRef.current = null;
     try {
-      window.history.pushState({ step: want }, '', stepQuery(want, d));
+      // 쌓는 항목에는 **깊이**를 한 칸 더 적는다 — 되돌아가기가 "여기서 뒤로 갈 곳이 있는가" 를
+      // 알 수 있는 유일한 단서다(lib/eumSenior 의 「되돌아가기가 실제로 되돌아가는가」).
+      const entry = stepState(want, nextDepth(window.history.state));
+      window.history.pushState(entry, '', stepQuery(want, d));
     } catch {
       /* noop */
     }
@@ -187,8 +208,31 @@ export default function SeniorFlow({
     go(3, { activity, timeslot: k, done: false });
   }
 
+  // 되돌아가기(「앞 화면으로」·「다시 고르기」). 이 화면의 **유일한 되돌리기 수단**이라
+  // 눌렀을 때 아무 일도 일어나지 않는 것이 가장 나쁜 결과다.
+  //
+  // 예전에는 조건 없이 preventDefault + history.back() 이었다. 그래서
+  //   · 되돌아갈 항목이 없으면(문서가 ?step=2 로 직접 열린 경우 — 복원은 replaceState 라
+  //     항목을 쌓지 않는다) **꼼짝하지 않았다**. history.back() 은 맨 앞에서 던지지 않고
+  //     조용히 아무것도 하지 않으므로 아래 catch 폴백도 돌지 않았다. 멀쩡한 href 를
+  //     preventDefault 가 막고 있던 셈이다.
+  //   · 두 번 눌리면 -1 이 두 번 쌓여(traversal 은 큐에 들어간다) 앞 단계를 지나쳐
+  //     **신청 화면 밖**으로 나갔다. 손이 떨려 두 번 누르는 것은 이 사용자층에서 흔하고,
+  //     제출 쪽은 이미 같은 이유로 submittingRef 를 두고 있다.
+  // 판정은 lib/eumSenior.backAction 한 곳에서 한다(순수 로직 · 단위 테스트).
   function back(e) {
+    let state = null;
+    try {
+      state = window.history.state;
+    } catch {
+      /* 히스토리 접근 불가 — 아래 판정이 'follow'(링크가 제 일을 한다)로 떨어진다 */
+    }
+    const action = backAction(state, backFromRef.current);
+    // 가로채지 않는다 — href 가 고른 것을 실은 주소로 데려간다(stepQuery).
+    if (action === 'follow') return;
     if (e) e.preventDefault();
+    if (action === 'ignore') return;
+    backFromRef.current = historyDepth(state);
     try {
       window.history.back();
     } catch {
@@ -318,7 +362,10 @@ export default function SeniorFlow({
   }
 
   const soon = !done && isSoon(left);
-  const stepLabel = step <= 3 ? `${step}단계 / 3단계` : '완료';
+  // 단계 표시. 예전에는 「1단계 / 3단계」였는데 슬래시는 **낭독되지 않아** "1단계 3단계" 로
+  // 들렸다 — 지금 몇 번째인지가 아니라 단계 둘을 읽어 주는 것처럼 들린다. 이 문단은 바로
+  // aria-live 영역이라 단계마다 다시 낭독되는 자리다. 낱말로 말한다(EUM_MUTE_MARKS 참조).
+  const stepLabel = step <= 3 ? `3단계 중 ${step}단계` : '완료';
   // 완료 화면이 보여 줄 요약. 세 경우가 다르다(아래 4단계 주석 참조) — 모르면 빈 문자열이고
   // 화면은 요약을 아예 그리지 않는다. 조립은 lib/eumSenior.summaryText 한 곳에서만 한다:
   // 예전에는 이 자리에서 `labelOf(…) · labelOf(…)` 로 손수 이어 붙여, 확인 화면과 **형식이

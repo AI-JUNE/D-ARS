@@ -11,6 +11,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { EUM_FONT_PX } from '../lib/eumTheme.js';
+import { muteSeparatorsIn } from '../lib/eumSenior.js';
 import { metadataFields, inlineStringConsts, cssBareSelectors, exportedObjectEntries } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -122,6 +123,83 @@ test('완료 상태는 주소에 싣지 않는다(주소로 완료 화면을 만
   assert.ok(!/done=/.test(code), '완료 상태가 주소에 실린다');
   assert.ok(!/DRAFT_PARAM\s*=\s*\{[^}]*done/.test(code), '완료 상태가 주소 파라미터 목록에 있다');
   assert.match(flow, /draftRef\.current\.done\)\s*\{\s*setStep\(4\)/, '완료 뒤 뒤로가기는 주소를 따르지 않는다');
+});
+
+// ── 고친 결함: 되돌아가기가 되돌아가지 않았다 ────────────────────────────────
+// 「앞 화면으로」·「다시 고르기」는 href 를 가진 링크인데(버튼 4개 이내 요건) onClick 이
+// **조건 없이** preventDefault + history.back() 을 했다. 그래서
+//   ① 되돌아갈 항목이 없으면(문서가 ?step=2 로 직접 열린 경우 — 단계 복원은 replaceState 라
+//      항목을 쌓지 않는다) history.back() 은 던지지 않고 **조용히 아무것도 하지 않는다**.
+//      catch 폴백도 돌지 않고, 멀쩡한 href 를 preventDefault 가 막은 꼴이 된다 —
+//      이 화면의 **유일한 되돌리기 수단**이 꼼짝하지 않는 단추가 되어 있었다.
+//   ② 두 번 눌리면 -1 이 두 번 쌓여 앞 단계를 지나쳐 **신청 화면 밖**으로 나간다(traversal 은
+//      큐에 들어간다). 손이 떨려 두 번 누르는 것은 이 사용자층에서 흔하고, 제출 쪽은 이미
+//      같은 이유로 submittingRef 를 두고 있었다 — 되돌아가기에는 없었다.
+// 판정 계약은 tests/eumsenior.test.mjs(backAction), 여기서는 화면이 그 판정을 쓰는지만 본다.
+test('되돌아가기: 가로채기는 조건부다(되돌아갈 곳이 없으면 링크가 제 일을 한다)', () => {
+  const body = flow.slice(flow.indexOf('function back(e)'));
+  assert.ok(body.length > 100, 'back 핸들러를 찾지 못했다');
+  assert.match(body, /backAction\(state, backFromRef\.current\)/, '판정을 화면에서 손으로 하면 안 된다');
+
+  // preventDefault 는 'follow' 로 빠져나간 **뒤에만** 온다 — 순서가 바뀌면 멀쩡한 href 가 막힌다.
+  const guard = body.indexOf("=== 'follow'");
+  const prevent = body.indexOf('e.preventDefault()');
+  assert.ok(guard > -1, '되돌아갈 곳이 없는 경우를 가려내지 않는다');
+  assert.ok(prevent > guard, '되돌아갈 곳을 모른 채 preventDefault 하면 안 된다');
+  // 같은 자리의 두 번째 누름을 삼키는 자리.
+  assert.match(body, /=== 'ignore'/, '중복 누름을 가려내지 않는다');
+  assert.match(body, /backFromRef\.current = historyDepth\(state\)/, '요청한 자리를 적어 두지 않는다');
+
+  // 조건 없는 가로채기가 되살아나면 실패한다(하드 disabled 금지와 같은 취지).
+  assert.equal(
+    /function back\(e\)\s*\{\s*if \(e\) e\.preventDefault\(\)/.test(flow), false,
+    '조건 없는 preventDefault 가 되살아났다',
+  );
+  // 되돌아간 뒤·새 항목을 쌓은 뒤에 비우지 않으면 한 번만 되돌아갈 수 있다.
+  const cleared = [...flow.matchAll(/backFromRef\.current = null/g)].length;
+  assert.ok(cleared >= 2, `popstate·새 항목 양쪽에서 비워야 한다: ${cleared}곳`);
+});
+
+test('히스토리 항목에 깊이가 함께 실린다(우리가 쌓은 것인지 아는 유일한 단서)', () => {
+  // 복원으로 만든 항목은 뿌리다 — 여기서 뒤로 갈 곳은 없다(replaceState 는 쌓지 않는다).
+  assert.match(flow, /stepState\(want, EUM_HISTORY_ROOT\)/, '복원 항목이 뿌리로 표시되지 않는다');
+  assert.match(flow, /replaceState\(root,/, '복원은 항목을 쌓지 않는다(replaceState)');
+  // 고를 때 쌓는 항목은 한 칸 깊다.
+  assert.match(flow, /stepState\(want, nextDepth\(window\.history\.state\)\)/, '쌓는 항목의 깊이가 늘지 않는다');
+  assert.match(flow, /pushState\(entry,/, '단계 이동은 항목을 쌓는다(pushState)');
+  // 상태를 손으로 적으면 깊이가 빠진 항목이 생기고, 그 자리에서 되돌아가기가 멈춘다.
+  assert.equal(/(push|replace)State\(\{\s*step/.test(flow), false, '히스토리 상태를 손으로 조립하면 안 된다');
+});
+
+// ── 고친 결함: 화면 문구가 눈에만 맞춰져 있었다 ──────────────────────────────
+// 스크린리더는 '·'·'~'·괄호·슬래시를 대개 읽지 않는다(구두점 설정 기본값). 그래서 경계를
+// 그 기호에 맡긴 문구는 **귀에서 한 덩어리가 된다**:
+//   · 요약     「산책·나들이 · 오전 (9시~12시)」 → "산책 나들이 오전 9시 12시"
+//     (활동과 시간대의 경계가 사라진다 — 하필 「이대로 신청하기」를 누르기 직전에 듣는 문장이다)
+//   · 단계 표시 「1단계 / 3단계」 → "1단계 3단계" (지금 몇 번째인지가 아니라 단계 둘로 들린다.
+//     이 문단은 aria-live 영역이라 단계마다 다시 낭독되는 자리다)
+// 표시 이름·구분자 쪽 계약은 tests/eumsenior.test.mjs 가 본다. 여기서는 **화면이 손으로 적는
+// 문구**를 본다 — 등록부를 고쳐도 화면이 자기 문장에 기호를 적으면 같은 일이 되풀이된다.
+test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다', () => {
+  const screens = { ...boundary, 'SeniorFlow.jsx': flow, 'ui.jsx': ui, 'page.jsx': page, 'PriorLocal.jsx': prior };
+  const bad = [];
+  let seen = 0;
+  for (const [name, src] of Object.entries(screens)) {
+    const shown = stripComments(src);
+    // 화면에 나가는 문구가 있는 자리는 둘이다 — 한글이 든 리터럴, 그리고 JSX 글자 노드.
+    const texts = [
+      ...[...shown.matchAll(/(['"`])((?:[^'"`\\\n]|\\.)*?[가-힣](?:[^'"`\\\n]|\\.)*?)\1/g)].map((m) => m[2]),
+      ...[...shown.matchAll(/>\s*([^<>{}\n]*[가-힣][^<>{}\n]*?)\s*</g)].map((m) => m[1]),
+    ];
+    seen += texts.length;
+    for (const s of texts) {
+      // 템플릿의 ${…} 자리는 값이지 문구가 아니다.
+      const marks = muteSeparatorsIn(s.replace(/\$\{[^}]*\}/g, ' '));
+      if (marks.length) bad.push(`${name}: "${s}" → ${marks.join('')}`);
+    }
+  }
+  assert.ok(seen >= 20, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
+  assert.deepEqual(bad, [], `낭독되지 않는 기호로 문구를 가르고 있다\n${bad.join('\n')}`);
 });
 
 // 고친 결함: 「문구는 EUM_TOKEN_MESSAGE 단일 출처」는 **서버 쪽 화면에서만** 참이었다.
