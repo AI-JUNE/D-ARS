@@ -203,7 +203,7 @@ footer a:hover{color:#fff}
   </div>
   <div class="viz">
     <div class="glow"></div><div class="ring r1"></div><div class="ring r2"></div>
-    <div class="chip c1">📞 전화 자동응대</div><div class="chip c3">⚡ 스트리밍 응답</div><div class="chip c2">🛡 24/7 무중단</div>
+    <div class="chip c1">📞 전화 자동응대</div><div class="chip c3">⚡ 스트리밍 응답</div><div class="chip c2">🛡 야간·주말 무인 응대</div>
     <div class="phone"><div class="screen">
       <div class="st">● 통화 연결됨 · 00:12</div>
       <div class="avatar"><svg aria-hidden="true" viewBox="0 0 24 24" width="26" fill="#fff"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M6 11a6 6 0 0 0 12 0" stroke="#fff" stroke-width="1.6" fill="none"/></svg></div>
@@ -240,7 +240,7 @@ footer a:hover{color:#fff}
   <div class="center"><div class="eyebrow">Why D-ARS?</div><h2 class="h2" style="margin-top:10px">비즈니스 성장을 이끄는 차별화된 가치</h2><p class="sub">D-ARS는 최적의 AI 음성 기술로 고객 경험을 혁신하고, 운영 효율을 높여 비즈니스 성과를 극대화합니다.</p></div>
   <div class="grid cards4" style="margin-top:44px">
     <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>AI 기반 자연어 이해</h3><p>정확한 음성 인식과 자연어 처리로 고객 의도를 파악하고 최적의 답변을 제공합니다.</p></div>
-    <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>24/7 무중단 서비스</h3><p>365일 24시간 언제나 안정적으로 고객 문의에 즉시 응답하는 무중단 응대 체계.</p></div>
+    <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>상담 시간 외 무인 응대</h3><p>상담원 근무 시간과 무관하게 전화를 받아 1차 응대하고, 장애 시 기존 IVR로 넘기는 이중화 설계.</p></div>
     <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 17l5-5 4 3 6-7"/><path d="M17 6h4v4"/></svg></div><h3>운영 효율 극대화</h3><p>자동화된 상담으로 인건비와 운영 비용을 줄이고 업무 효율을 크게 높입니다.</p></div>
     <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v10H4z"/><path d="M8 20h8M12 15v5"/><path d="M7 10l2 2 3-4 3 3"/></svg></div><h3>데이터 기반 인사이트</h3><p>통화 데이터를 분석해 인사이트를 도출, 비즈니스 의사결정을 지원합니다.</p></div>
   </div>
@@ -274,7 +274,7 @@ footer a:hover{color:#fff}
 
 <!-- PRODUCT -->
 <section><div class="wrap">
-  <div class="center"><div class="eyebrow">Product</div><h2 class="h2" style="margin-top:10px">검증된 기술력으로 완성한 제품 라인업</h2></div>
+  <div class="center"><div class="eyebrow">Product</div><h2 class="h2" style="margin-top:10px">기능별로 나눈 제품 라인업</h2></div>
   <div class="grid cards3" style="margin-top:44px">
     <div class="card"><div class="ic">AI</div><h3>D-ARS AI</h3><p>고도화된 AI 기술로 자연스러운 대화와 정확한 응답을 제공하는 음성봇 솔루션.</p><span class="more">자세히 보기 →</span></div>
     <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5M4 19h16M8 16v-5M12 16V7M16 16v-3"/></svg></div><h3>D-ARS Analytics</h3><p>통화 데이터를 분석해 고객 인사이트와 운영 효율을 제공하는 분석 솔루션.</p><span class="more">자세히 보기 →</span></div>
