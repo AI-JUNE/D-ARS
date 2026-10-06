@@ -45,6 +45,8 @@ import {
   nextDepth,
   historyDepth,
   backAction,
+  stepError,
+  errorFor,
   EUM_HISTORY_ROOT,
 } from '@/lib/eumSenior';
 import {
@@ -61,9 +63,12 @@ import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumCons
 // 문구는 `lib/eumMessage` 에서 가져온다. 예전에는 이 파일이 만료·401 안내를 **손으로 적고**
 // 있었다(401 쪽은 마침표가 하나 더 붙은 두 번째 판본이었다) — `lib/eumToken` 을 import 할 수
 // 없다는 것이(서명 비밀·HMAC 이 브라우저 번들로 따라온다) 사본을 두는 이유가 되지는 않는다.
-import { tokenMessage } from '@/lib/eumMessage';
+// 제출 실패 안내도 같은 자리에서 가져온다 — 예전에는 이 파일이 다섯 문장을 손으로 적었고,
+// 그중 둘이 「아래 단추를…」로 **자리를 가리키고** 있었다(그 자리를 밀어낸 것이 그 안내
+// 자신이었다 · ui.jsx 의 Alert 참조).
+import { submitMessage, tokenMessage } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
-import { S, Notice, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
+import { S, Notice, Alert, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
 import PriorLocal from './PriorLocal.jsx';
 
 // 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
@@ -94,7 +99,10 @@ export default function SeniorFlow({
   // 한 번 깜빡인 뒤 넘어가, 어르신에게는 "또 처음으로 갔다" 로 보인다.
   const [step, setStep] = useState(() => clampStep(initialStep, { ...restored, done: false }));
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  // 안내는 글자열이 아니라 **그것이 속한 단계와 함께** 들고 있는다(lib/eumSenior.stepError).
+  // 예전에는 글자열 하나였고, 비우는 곳이 다음 제출의 첫 줄뿐이라 안내가 자기 화면을 떠나
+  // 고르는 화면까지 따라다녔다 — 그 화면에서 「아래 단추」는 선택지 버튼이다.
+  const [error, setError] = useState(null);
   // 서버가 판정한 남은 기간과, 그것을 받은 시점의 단조 눈금. 둘의 차이로만 남은 시간을 센다.
   const [initialLeft] = useState(() => initialLeftMs(remainingMs));
   const [baseTick] = useState(() => nowTick());
@@ -109,6 +117,8 @@ export default function SeniorFlow({
   const draftRef = useRef({ activity: '', timeslot: '', done: false });
   draftRef.current = { activity, timeslot, done, sid };
   const headingRef = useRef(null);
+  // 만료 안내 패널의 제목. 흐름과 패널은 서로 다른 트리라 같은 ref 를 쓸 수 없다.
+  const expiredHeadingRef = useRef(null);
   const mountedRef = useRef(false);
   // 제출이 떠 있는 동안인가. 상태(busy)와 달리 **그 자리에서** 바뀌므로 중복 누름을 막는 데 쓴다.
   const submittingRef = useRef(false);
@@ -179,6 +189,25 @@ export default function SeniorFlow({
     }, 1000);
     return () => clearInterval(id);
   }, [initialLeft, baseTick, done]);
+
+  // 화면이 스스로 만료를 선언하는 조건(판정 근거는 아래 이른 return 의 주석). 거기서 구하지
+  // 않고 여기 둔 이유는, 그 전환에서 포커스를 옮기는 아래 효과가 **훅이라 조건 뒤에 둘 수
+  // 없기** 때문이다.
+  const expiredNow = !done && !busy && (expiredByServer || isExpired(left));
+
+  // 흐름 → 만료 안내로 **화면이 통째로 뒤집히는** 순간. 포커스가 얹혀 있던 요소(선택지·주버튼)가
+  // 그 순간 문서에서 사라지므로 브라우저는 포커스를 body 로 돌려보낸다. 그러면 바뀐 화면이
+  // 낭독되지 않고(새로 태어난 role="status" 는 리더가 변화로 보지 않는 경우가 많다) 다음 Tab 이
+  // 문서 맨 앞에서 시작한다 — 이 패널에는 조작 요소가 없어 Tab 이 브라우저 바깥으로 빠진다.
+  // 단계 전환과 **같은 방식**으로 새 제목에 포커스를 준다(ui.jsx 의 Notice headingRef 참조).
+  useEffect(() => {
+    if (!expiredNow) return;
+    try {
+      expiredHeadingRef.current?.focus();
+    } catch {
+      /* 포커스 불가 환경 — 화면 동작에는 영향 없다 */
+    }
+  }, [expiredNow]);
 
   // draft 는 **이동 직후의 실제 선택 상태**여야 한다 — 단계를 자르는 기준이면서 동시에
   // 주소에 적히는 값이기 때문이다. 둘이 어긋나면 주소가 화면을 설명하지 못한다.
@@ -273,10 +302,14 @@ export default function SeniorFlow({
     // 상태(busy)보다 먼저 반영되는 ref 로 같은 틱의 두 번째 누름까지 막는다.
     // (설령 새어 나가도 서버가 409 로 받아 두 건이 되지는 않는다 — 1회용 판정은 라우트의 몫이다.)
     if (busy || submittingRef.current) return;
-    setError('');
+    setError(null);
+    // 안내를 매달 단계는 **누른 그 순간의 단계**다. 기다리는 사이 어르신이 되돌아갔다면
+    // 그 화면에는 이 안내가 뜨지 않는다(다른 화면을 가리키는 말을 하지 않는다).
+    const at = step;
     const body = buildPreferences({ sid, activity, timeslot });
     if (!body) {
-      setError('선택이 저장되지 않았습니다. 처음부터 다시 골라 주세요.');
+      // 이 안내만 **고르는 화면**에 속한다 — 되돌릴 길이 「처음부터 다시 고르기」이기 때문이다.
+      setError(stepError(1, submitMessage('selection')));
       setStep(1);
       return;
     }
@@ -296,9 +329,7 @@ export default function SeniorFlow({
       // 오류를 삼키지 않는다 — 사용자가 실패한 줄 모른 채 떠나면 안 된다(QUALITY_BAR §3).
       // 상한을 넘겨 우리가 끊은 경우 요청이 서버에 닿았을 수도 있다. 그래도 다시 눌러도 안전하다 —
       // 이미 접수된 링크는 아래에서 409 로 돌아오고, 오류가 아니라 **완료 화면**이 된다.
-      setError(failure === 'offline'
-        ? '인터넷 연결이 끊겼습니다. 연결을 확인하고 다시 눌러 주세요.'
-        : '연결이 원활하지 않습니다. 아래 단추를 한 번 더 눌러 주세요.');
+      setError(stepError(at, submitMessage(failure === 'offline' ? 'offline' : 'unreachable')));
       return;
     }
 
@@ -328,14 +359,14 @@ export default function SeniorFlow({
     if (res.status === 401) {
       // 문구는 서버 쪽 화면(진입 시 잘못된 링크)과 **같은 문장**이어야 한다. 예전에는 여기
       // 적힌 사본에 마침표가 하나 더 붙어, 같은 상태를 두 화면이 미묘하게 다르게 말했다.
-      setError(tokenMessage('signature'));
+      setError(stepError(at, tokenMessage('signature')));
       return;
     }
     if (res.status === 429) {
-      setError('잠시 후 다시 눌러 주세요.');
+      setError(stepError(at, submitMessage('tooMany')));
       return;
     }
-    setError('신청을 접수하지 못했습니다. 아래 단추를 한 번 더 눌러 주세요.');
+    setError(stepError(at, submitMessage('rejected')));
   }
 
   // 화면이 스스로 만료를 선언하는 것은 **남은 시간을 실제로 알 때뿐**이다(isExpired 는 null 에
@@ -347,12 +378,13 @@ export default function SeniorFlow({
   // 만료되었습니다」로 읽는다 — 되돌릴 단추가 없는 화면이라 그대로 포기하거나, 이미 접수된
   // 신청 위에 담당자에게 새 링크를 조르게 된다. 응답은 곧 도착하고, 만료의 최종 판정자는
   // 언제나 서버다(410 → expiredByServer).
-  if (!done && !busy && (expiredByServer || isExpired(left))) {
+  if (expiredNow) {
     return (
       <Notice
         title="링크가 만료되었습니다"
         body={tokenMessage('expired')}
         foot={EUM_NOTICE_FOOT.expired}
+        headingRef={expiredHeadingRef}
       >
         {/* 이 링크로는 더 할 일이 없는 화면이다. 전에 신청을 마친 사람이라면 **그 기기는 그것을
             알고 있다** — 말해 주지 않으면 담당자에게 새 링크를 청해 처음부터 다시 고른다. */}
@@ -371,6 +403,9 @@ export default function SeniorFlow({
   // 예전에는 이 자리에서 `labelOf(…) · labelOf(…)` 로 손수 이어 붙여, 확인 화면과 **형식이
   // 두 벌**이었고 한쪽 라벨을 모를 때 「 · 」만 남은 반쪽 요약이 그려질 수 있었다.
   const doneSummary = already ? summaryText(accepted) : summaryText({ activity, timeslot });
+  // 지금 이 화면에 속한 안내만 그린다. 다른 단계의 것이면 빈 문자열이고 Alert 는 아무것도
+  // 그리지 않는다 — 안내가 자기 화면을 떠나 따라다니던 것을 여기서 끊는다.
+  const alertText = errorFor(error, step);
 
   return (
     <main style={S.page} className={EUM_SCOPE}>
@@ -391,7 +426,11 @@ export default function SeniorFlow({
           </p>
         ) : null}
 
-        {error ? <p style={S.alert} role="alert">{error}</p> : null}
+        {/* 안내 자리는 **단계마다 다르다** — 그 안내가 가리키는 조작 요소를 밀어내지 않는
+            자리여야 하기 때문이다(ui.jsx 의 Alert). 고르는 화면(1단계)에서는 선택지 위,
+            확인 화면(3단계)에서는 주버튼 **뒤**다. 한 자리에 모아 두었을 때 생긴 결함이
+            바로 그것이다 — 실패 안내가 끼어들며 「한 번 더 눌러 주세요」가 가리키는 단추를
+            자기가 아래로 밀어냈다. */}
 
         {/* 고른 것은 **눈에도** 보여야 한다. 예전에는 선택 여부가 `aria-pressed` 하나로만 있어
             스크린리더에만 전해졌고, 네 버튼의 모양은 똑같았다 — 2단계에서 「앞 화면으로」를 눌러
@@ -399,21 +438,26 @@ export default function SeniorFlow({
             (6회차에 "다시 그려져도 고른 것이 살아남는다" 를 고쳐 놓고, 살아남은 것을 보여 주지
             않고 있었다). 색만으로 말하지 않는다 — ✓ 표시가 함께 붙는다(ui.jsx 의 S.mark). */}
         {step === 1 ? (
-          <div style={S.list} role="group" aria-label="희망 활동 고르기">
-            {ACTIVITIES.map((o) => (
-              <button
-                key={o.k}
-                type="button"
-                style={activity === o.k ? S.choiceOn : S.choice}
-                className="eum-focus"
-                aria-pressed={activity === o.k}
-                onClick={() => chooseActivity(o.k)}
-              >
-                <span aria-hidden="true" style={S.mark}>{activity === o.k ? EUM_CHOICE_MARK : ''}</span>
-                {o.label}
-              </button>
-            ))}
-          </div>
+          <>
+            {/* 이 화면의 안내(「처음부터 다시 골라 주세요」)는 **선택지를 가리킨다** —
+                그 선택지 위에 두어야 읽은 뒤에 누르게 된다. */}
+            <Alert text={alertText} />
+            <div style={S.list} role="group" aria-label="희망 활동 고르기">
+              {ACTIVITIES.map((o) => (
+                <button
+                  key={o.k}
+                  type="button"
+                  style={activity === o.k ? S.choiceOn : S.choice}
+                  className="eum-focus"
+                  aria-pressed={activity === o.k}
+                  onClick={() => chooseActivity(o.k)}
+                >
+                  <span aria-hidden="true" style={S.mark}>{activity === o.k ? EUM_CHOICE_MARK : ''}</span>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </>
         ) : null}
 
         {step === 2 ? (
@@ -455,9 +499,11 @@ export default function SeniorFlow({
                   문서(body)로 보낸다. 그래서 키보드·스크린리더로 쓰는 어르신에게는
                     ① 기다리는 동안(상한 8초) 들리는 말이 한 마디도 없고 — 포커스가 떠났으니
                        바뀐 글자("신청하는 중…")를 읽어 줄 대상이 없다. 멈춘 것과 구별되지 않는다.
-                    ② 실패했을 때 화면이 「아래 단추를 한 번 더 눌러 주세요」라고 말하는데,
-                       그 단추가 **어디 있는지 알 수 없다**. 포커스는 문서 맨 앞에 있어 다시
-                       Tab 으로 찾아 내려와야 하고, 그 사이 5분 링크가 줄어든다.
+                    ② 실패했을 때 화면이 「한 번 더 눌러 주세요」라고 말하는데, 그 단추가
+                       **어디 있는지 알 수 없다**. 포커스는 문서 맨 앞에 있어 다시 Tab 으로
+                       찾아 내려와야 하고, 그 사이 5분 링크가 줄어든다. (그때 그 문장은
+                       「**아래** 단추를…」였다 — 눈에만 뜻이 있는 말이었고, 그 안내가 그려지며
+                       가리킨 단추를 자기가 밀어냈다. 지금은 안내가 이 단추 뒤에 붙는다.)
                   바로 그 순간이 ①직전 회차의 "작을 때 읽는 글자" ②그 전 회차의 "흐릴 때 읽는
                   글자" 와 **같은 순간**이다 — 이번에는 들리지 않았다.
                   그래서 눌림은 `aria-disabled` 로 말한다: 상태는 그대로 낭독되는데 포커스는
@@ -474,6 +520,11 @@ export default function SeniorFlow({
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
             </div>
+            {/* 실패 안내는 주버튼 **뒤**다. 앞에 두면 안내가 생기는 순간 그 단추를 아래로
+                밀어내고, 하필 그 안내가 「한 번 더 눌러 주세요」라고 말한다 — 외워 둔 자리를
+                누른 손 아래에서 단추가 사라진다. 뒤에 두면 밀려나는 것은 「다시 고르기」
+                링크 하나뿐이고, 포커스는 그대로 그 단추에 남아 있다(aria-disabled). */}
+            <Alert text={alertText} />
             <a href={stepQuery(2, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
           </>
         ) : null}

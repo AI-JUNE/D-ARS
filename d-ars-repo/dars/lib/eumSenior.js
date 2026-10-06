@@ -258,6 +258,36 @@ export function backAction(state, pendingDepth) {
   return 'back';
 }
 
+// ── 안내는 자기 단계에만 머문다 ───────────────────────────────────────────
+//
+// 고친 결함: 제출 실패 안내가 **글자열 하나**로만 들려 있었다(`useState('')`). 그 값을 비우는
+// 곳은 다음 제출의 첫 줄뿐이고, 단계를 옮기는 길(`go`·`popstate`·되돌아가기)은 어느 쪽도
+// 비우지 않는다. 그래서 안내가 **자기 화면을 떠나 다른 화면까지 따라다녔다.**
+//   · 확인 화면에서 제출이 실패해 「연결이 원활하지 않습니다. 아래 단추를 한 번 더 눌러
+//     주세요」가 뜬다. 어르신이 「다시 고르기」를 누르면 **고르는 화면(2단계)** 으로 가는데,
+//     그 빨간 안내가 네 선택지 위에 그대로 남는다 — 거기서 「아래 단추」는 **선택지 버튼**이다.
+//     안내대로 누른 어르신은 재시도가 아니라 다음 화면으로 넘어가고, 무엇이 됐는지 알 수 없다.
+//   · 401 안내(「링크가 올바르지 않습니다. 담당자에게 다시 요청해 주세요」)는 더 나쁘다 —
+//     고르는 화면 위에 얹혀, 아직 멀쩡히 고르고 있는 어르신에게 링크가 죽었다고 말한다.
+//   · 같은 되돌아가기가 **가로채이지 않은 경우**(히스토리 뿌리 — `backAction` 의 'follow')에는
+//     전체 이동이라 안내가 사라진다. 즉 같은 단추가 어떤 경로를 타느냐에 따라 다르게 보였다.
+//
+// 그래서 안내에 **그것이 속한 단계**를 함께 적는다. 자리를 잊지 않도록 비우는 쪽이 아니라
+// **적는 쪽**으로 고친 이유는, 비우는 길이 늘어날 때마다 한 곳을 빠뜨리면 결함이 그대로
+// 돌아오기 때문이다(기본값을 두지 않는 EUM_NOTICE_FOOT·EUM_PRIOR_TAIL 과 같은 계약).
+export function stepError(step, text) {
+  const t = typeof text === 'string' ? text.trim() : '';
+  if (!t) return null;
+  return { step: parseStep(step), text: t };
+}
+
+// 지금 그릴 안내 문구. 다른 단계의 것이거나 형식이 다르면 ''(화면은 아무것도 그리지 않는다).
+export function errorFor(error, step) {
+  const e = error && typeof error === 'object' && !Array.isArray(error) ? error : null;
+  if (!e || typeof e.text !== 'string' || !e.text) return '';
+  return e.step === parseStep(step) ? e.text : '';
+}
+
 // 확인 화면에 읽어 줄 한 줄 요약(보이는 글자와 낭독되는 글자가 **같은 한 벌**이다 —
 // 눈용·낭독용으로 가르면 한 사실을 두 곳에서 짓게 된다).
 export function summaryText(draft) {
