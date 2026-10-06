@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { EUM_TOKEN_MESSAGE, tokenMessage } from '../lib/eumMessage.js';
+import { EUM_TOKEN_MESSAGE, tokenMessage, EUM_SUBMIT_MESSAGE, submitMessage } from '../lib/eumMessage.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -117,6 +117,63 @@ test('호출 자리가 쓰는 사유 이름이 전부 표에 있다(없는 이�
   // 사유 이름은 verifyEumToken 의 reason 과 같아야 한다 — 어긋나면 사유별 안내가 무력해진다.
   for (const key of Object.keys(EUM_TOKEN_MESSAGE)) {
     assert.ok(TOKEN_SRC.includes(`'${key}'`), `lib/eumToken 이 내지 않는 사유가 표에 있다: ${key}`);
+  }
+});
+
+// ── 제출이 되지 않았을 때의 안내(알림 자리) ────────────────────────────────
+//
+// 고친 결함: 이 다섯 문장은 `SeniorFlow` 안에 손으로 적혀 있었고, 아무 테스트도 보지 않는
+// 사이 두 가지가 들어와 있었다. ① 둘이 「**아래** 단추를 한 번 더 눌러 주세요」로 자리를
+// 가리켰다 — 그 안내는 주버튼보다 **위**에 그려졌으므로, 생기는 순간 가리킨 단추를 자기가
+// 아래로 밀어냈고, 「아래」는 애초에 눈에만 뜻이 있는 말이다(그 순간 포커스는 이미 그 단추에
+// 있다). ② 끝이 전부 마침표였다 — 같은 알림 자리에 오는 401 안내(tokenMessage)는 마침표로
+// 끝나지 않으므로, 어르신이 어느 실패를 만나느냐에 따라 문장의 끝이 달랐다. 9회차가 없앤
+// 「마침표가 하나 더 붙은 두 번째 판본」이 **같은 자리에 네 벌** 남아 있었던 셈이다.
+test('제출 실패 안내: 자리를 가리키는 낱말이 없다(눈에만 뜻이 있는 말이 아니다)', () => {
+  const positional = ['아래', '위에', '위의', '왼쪽', '오른쪽', '아래쪽', '위쪽', '맨 끝'];
+  for (const [key, msg] of Object.entries(EUM_SUBMIT_MESSAGE)) {
+    for (const word of positional) {
+      assert.ok(!msg.includes(word), `${key}: 자리를 가리키는 말이 들어왔다(${word}) — ${msg}`);
+    }
+  }
+});
+
+test('제출 실패 안내: 문장 끝이 같은 알림 자리의 다른 문장과 한 가지다', () => {
+  const keys = Object.keys(EUM_SUBMIT_MESSAGE);
+  assert.ok(keys.length >= 5, `표가 줄었다: ${keys.length}`);
+  for (const [key, msg] of Object.entries(EUM_SUBMIT_MESSAGE)) {
+    assert.ok(msg.length > 8, `${key}: 문장이 비었다`);
+    // 같은 자리에 오는 401 안내(EUM_TOKEN_MESSAGE)와 끝이 달라지면 안 된다.
+    assert.ok(!msg.endsWith('.'), `${key}: 마침표로 끝나는 판본이다 — ${msg}`);
+    assert.ok(!/관리자/.test(msg), `${key}: 어르신에게 「관리자」는 누구인지 알 수 없는 사람이다`);
+  }
+  // 무엇을 하면 되는지 한 줄은 말한다 — 실패만 알리고 끝나면 어르신은 멈춘다(QUALITY_BAR §3).
+  for (const [key, msg] of Object.entries(EUM_SUBMIT_MESSAGE)) {
+    assert.match(msg, /주세요/, `${key}: 다음에 할 일을 말하지 않는다 — ${msg}`);
+  }
+});
+
+test('제출 실패 안내: 모르는 사유는 접수되지 않았다는 사실로 떨어진다(빈 문장 금지)', () => {
+  for (const bad of ['알 수 없는 사유', '', null, undefined, 42]) {
+    assert.equal(submitMessage(bad), EUM_SUBMIT_MESSAGE.rejected, `입력: ${String(bad)}`);
+  }
+  for (const key of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    assert.equal(submitMessage(key), EUM_SUBMIT_MESSAGE.rejected, `키: ${key}`);
+  }
+  assert.equal(submitMessage('offline'), EUM_SUBMIT_MESSAGE.offline);
+});
+
+test('제출 실패 안내: 사유 이름 ↔ 호출 자리가 양방향으로 맞는다', () => {
+  const flow = stripComments(SCREENS['app/eum/senior/[token]/SeniorFlow.jsx']);
+  const used = new Set([...flow.matchAll(/submitMessage\(\s*'([^']*)'\s*\)/g)].map((m) => m[1]));
+  // 모르는 이름을 적으면 조용히 `rejected` 가 되어(무엇이 잘못됐는지 알 수 없는 안내)
+  // 아무 신호도 나지 않고, 쓰이지 않는 이름이 남으면 표가 썩는다.
+  assert.deepEqual([...used].sort(), Object.keys(EUM_SUBMIT_MESSAGE).sort(), '표와 화면이 어긋난다');
+  // 문장을 손으로 다시 적으면 판본이 둘이 된다(9회차와 같은 모양).
+  for (const [name, src] of Object.entries(SCREENS)) {
+    for (const msg of Object.values(EUM_SUBMIT_MESSAGE)) {
+      assert.ok(!stripComments(src).includes(msg), `${name}: 문장을 손으로 적었다 — ${msg}`);
+    }
   }
 });
 

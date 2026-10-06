@@ -159,7 +159,10 @@ test('진입 화면: 소진 판정은 서버 라우트가 최종이라는 사실
 // 빠뜨리면 아무 말도 하지 않는다 — 틀린 말을 조용히 붙이는 것보다 낫다. 자세한 대조는
 // tests/eumseniorui.test.mjs 의 「마무리 문구」 테스트가 한다.
 test('안내 패널: 상세·다음 행동·마무리 문구를 선택적으로 받고 기본값은 두지 않는다', () => {
-  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = '', children = null \}\)/);
+  // headingRef 는 제목으로 포커스를 옮길 수 있게 내준 자리다(기본은 없음 — 서버 컴포넌트는
+  // ref 를 넘길 수 없다). 흐름에서 이 패널로 뒤집히는 전환에서 포커스가 body 로 떨어지던
+  // 결함을 그것으로 막는다(tests/eumseniorui.test.mjs 의 「만료로 화면이 뒤집히는 순간」).
+  assert.match(UI, /export function Notice\(\{ title, body, detail = '', hint = '', foot = '', children = null, headingRef = null \}\)/);
   // children: 서버가 지을 수 없는 한 줄(이 기기의 보조 사본)을 끼우는 자리. 자리는 hint 다음·
   // foot 앞이어야 말이 이어진다 — 「무엇을 하면 된다」 뒤에 「하지 않아도 된다」가 온다.
   const panel = UI.slice(UI.indexOf('export function Notice'));
@@ -244,8 +247,11 @@ test('완료 화면: 내용을 모르면 보조 사본도 쓰지 않는다(단�
 
 // ── 제출 중 만료 ───────────────────────────────────────────────────────────
 test('제출 중에는 화면이 스스로 만료를 선언하지 않는다(서버 응답을 기다린다)', () => {
-  assert.match(FLOW, /if \(!done && !busy && \(expiredByServer \|\| isExpired\(left\)\)\)/,
+  // 판정은 이제 이름을 가진다(expiredNow) — 그 전환에서 제목으로 포커스를 옮기는 효과가
+  // 훅이라, 이른 return 뒤에 둘 수 없어 조건을 먼저 구해야 했다. `!busy` 는 그대로다.
+  assert.match(FLOW, /const expiredNow = !done && !busy && \(expiredByServer \|\| isExpired\(left\)\);/,
     '응답을 기다리는 동안 만료 화면으로 덮으면 방금 접수된 신청이 실패로 보인다');
+  assert.match(FLOW, /if \(expiredNow\) \{/, '만료 화면으로 가는 갈림이 그 판정을 쓰지 않는다');
 });
 
 test('제출 중 만료 보류가 서버 판정을 무르게 하지 않는다(410 은 그대로 만료 화면)', () => {

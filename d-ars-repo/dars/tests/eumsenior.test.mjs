@@ -31,6 +31,8 @@ import {
   historyDepth,
   nextDepth,
   backAction,
+  stepError,
+  errorFor,
 } from '../lib/eumSenior.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
@@ -324,6 +326,41 @@ test('backAction: 1→2→3 을 쌓았다 되돌아가는 왕복이 끝까지 �
   assert.equal(backAction(stack[2], null), 'back');
   assert.equal(backAction(stack[1], null), 'back');
   assert.equal(backAction(stack[0], null), 'follow');
+});
+
+// ── 안내는 자기 단계에만 머문다 ───────────────────────────────────────────
+//
+// 고친 결함: 제출 실패 안내가 글자열 하나였고(`useState('')`), 비우는 곳은 다음 제출의 첫
+// 줄뿐이었다. 단계를 옮기는 길은 어느 쪽도 비우지 않으므로 안내가 **자기 화면을 떠나**
+// 고르는 화면까지 따라다녔다 — 거기서 「아래 단추」는 선택지 버튼이고, 안내대로 누른
+// 어르신은 재시도가 아니라 다음 화면으로 넘어간다.
+test('stepError: 안내는 그것이 속한 단계와 함께만 존재한다(빈 안내는 만들지 않는다)', () => {
+  assert.deepEqual(stepError(3, '연결이 원활하지 않습니다'), { step: 3, text: '연결이 원활하지 않습니다' });
+  // 할 말이 없으면 안내 자체가 없다 — 빈 줄을 그리지 않게.
+  for (const empty of ['', '   ', null, undefined, 42, {}]) {
+    assert.equal(stepError(3, empty), null, `입력: ${String(empty)}`);
+  }
+  // 단계는 언제나 규격 안으로 잘린다(주소·상태가 이상해도 안내가 어느 화면에도 속하지 않는
+  // 유령이 되지 않게 — parseStep 과 같은 규칙으로 1단계로 떨어진다).
+  assert.equal(stepError(9, '가').step, 1);
+  assert.equal(stepError('x', '가').step, 1);
+  assert.equal(stepError(2.7, '가').step, 2);
+});
+
+test('errorFor: 다른 단계의 안내는 한 글자도 그리지 않는다(따라다니지 않는다)', () => {
+  const at3 = stepError(3, '연결이 원활하지 않습니다. 한 번 더 눌러 주세요');
+  assert.equal(errorFor(at3, 3), at3.text);
+  for (const step of [1, 2, 4]) {
+    assert.equal(errorFor(at3, step), '', `${step}단계에 다른 화면의 안내가 남는다`);
+  }
+  // 고르는 화면에 속한 안내는 그 화면에서만 보인다(「처음부터 다시 골라 주세요」).
+  const at1 = stepError(1, '선택이 저장되지 않았습니다. 처음부터 다시 골라 주세요');
+  assert.equal(errorFor(at1, 1), at1.text);
+  assert.equal(errorFor(at1, 3), '');
+  // 안내가 없거나 형식이 다르면 아무것도 그리지 않는다(여기서 던지면 화면이 통째로 죽는다).
+  for (const bad of [null, undefined, '', '문자열', 7, [], ['가'], { step: 3 }, { text: '' }, { text: 1, step: 3 }]) {
+    assert.equal(errorFor(bad, 3), '', `입력: ${JSON.stringify(bad) ?? String(bad)}`);
+  }
 });
 
 test('storageKey: sid 별로 구분되고 값이 없으면 빈 문자열이다', () => {

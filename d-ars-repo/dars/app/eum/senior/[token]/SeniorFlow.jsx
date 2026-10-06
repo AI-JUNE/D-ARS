@@ -329,7 +329,9 @@ export default function SeniorFlow({
       // 오류를 삼키지 않는다 — 사용자가 실패한 줄 모른 채 떠나면 안 된다(QUALITY_BAR §3).
       // 상한을 넘겨 우리가 끊은 경우 요청이 서버에 닿았을 수도 있다. 그래도 다시 눌러도 안전하다 —
       // 이미 접수된 링크는 아래에서 409 로 돌아오고, 오류가 아니라 **완료 화면**이 된다.
-      setError(stepError(at, submitMessage(failure === 'offline' ? 'offline' : 'unreachable')));
+      setError(stepError(at, failure === 'offline'
+        ? submitMessage('offline')     // 브라우저가 단정한 상태 — 눌러도 네트워크를 두드리지 않는다
+        : submitMessage('unreachable')));
       return;
     }
 
@@ -416,7 +418,7 @@ export default function SeniorFlow({
         <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
 
         {/* 만료 임박 안내는 스크린리더도 들어야 한다 — 예전에는 눈으로만 보이는 문단이라
-            보이지 않는 사용자는 화면이 곧 닫힌다는 것을 끝내 알 수 없었다. 문단 자체를 낭독
+            보이지 않는 사용자는 링크가 곧 만료되는 것을 끝내 알 수 없었다. 문단 자체를 낭독
             영역으로 두되, **매초 바뀌는 초 숫자는 aria-hidden** 으로 빼 둔다. 넣어 두면 1초마다
             낭독이 끊기고 처음부터 다시 읽혀 오히려 문장을 들을 수 없다. */}
         {soon ? (

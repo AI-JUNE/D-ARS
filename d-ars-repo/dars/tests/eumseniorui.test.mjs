@@ -86,7 +86,11 @@ test('스크린리더: 선택지 묶음에 라벨이 있고 단계 전환이 낭
   assert.match(flow, /aria-live="polite"/, '단계 표시가 낭독되지 않는다');
   assert.match(flow, /ref=\{headingRef\}\s+tabIndex=\{-1\}/, '단계 전환 시 제목으로 포커스를 옮겨야 한다');
   assert.match(flow, /headingRef\.current\?\.focus\(\)/);
-  assert.match(flow, /role="alert"/, '오류는 즉시 낭독돼야 한다');
+  // 오류는 즉시 낭독돼야 한다. 표현은 ui.jsx 의 Alert 한 곳에 있다 — 자리는 단계마다
+  // 다르지만(그 안내가 가리키는 단추를 밀어내지 않는 자리) 그리는 방법은 하나여야 한다.
+  assert.match(ui, /role="alert"/, '오류는 즉시 낭독돼야 한다');
+  assert.match(flow, /<Alert text=\{alertText\} \/>/, '화면이 안내를 공통 표현으로 그리지 않는다');
+  assert.equal(/role="alert"/.test(flow), false, '안내를 화면에서 손으로 그리면 자리마다 모양이 갈라진다');
 });
 
 test('375px: 폭 100% 요소가 border-box 라 가로 스크롤이 생기지 않는다', () => {
@@ -210,7 +214,9 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
 test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', () => {
   assert.match(page, /tokenMessage\(result\.reason\)/, '사유별 안내를 문구 단일 출처에서 가져와야 한다');
   assert.match(flow, /body=\{tokenMessage\('expired'\)\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
-  assert.match(flow, /setError\(tokenMessage\('signature'\)\)/, '401 안내도 같은 표에서 가져온다');
+  // 401 안내도 같은 표에서 가져온다. 안내는 **그것이 속한 단계와 함께** 들린다(stepError) —
+  // 예전에는 글자열 하나라서 고르는 화면까지 따라다녔다.
+  assert.match(flow, /setError\(stepError\(at, tokenMessage\('signature'\)\)\)/, '401 안내도 같은 표에서 가져온다');
   assert.match(ui, /function Notice/, '만료·오류 패널이 양쪽에서 공유돼야 한다');
 });
 
@@ -348,6 +354,73 @@ test('전송 중: 눌림을 aria-disabled 로 말해 포커스를 잃지 않는�
   // 글자가 바뀐 것을 포커스 위치와 무관하게 알린다.
   assert.match(submit, /aria-live="polite"/, '전송 중 바뀐 글자가 낭독되지 않는다');
   assert.match(submit, /신청하는 중…/);
+});
+
+// ── 안내는 자기 단계에만 머물고, 가리키는 단추를 밀어내지 않는다 ─────────────
+//
+// 고친 결함 둘(같은 한 줄에서 나왔다).
+//   ① **안내가 자기 화면을 떠났다.** 글자열 하나로만 들고 있었고(`useState('')`) 비우는 곳은
+//      다음 제출의 첫 줄뿐이라, 확인 화면에서 실패한 안내가 「다시 고르기」를 누른 뒤 고르는
+//      화면까지 따라왔다 — 거기서 「아래 단추」는 **선택지 버튼**이고, 401 안내는 아직 멀쩡히
+//      고르고 있는 어르신에게 링크가 죽었다고 말한다.
+//   ② **안내가 가리키는 단추를 자기가 밀어냈다.** 자리가 주버튼보다 **위**였으므로, 실패
+//      안내가 끼어드는 순간 주버튼이 아래로 밀려났다. 하필 그 문장이 「한 번 더 눌러
+//      주세요」다 — 자리를 외워 누르는 저시력 어르신의 손 아래에서 단추가 사라진다.
+//      직전 세 회차가 고친 자리와 같은 순간이다(작았다 · 흐렸다 · 들리지 않았다 → 움직였다).
+test('제출 실패 안내가 자기 단계에만 머문다(화면을 떠나 따라다니지 않는다)', () => {
+  // 안내는 단계와 함께 들린다 — setError 를 부르는 **모든** 자리가 stepError 를 거쳐야 한다.
+  const calls = [...stripComments(flow).matchAll(/setError\(([^\n]*)/g)].map((m) => m[1].trim());
+  assert.ok(calls.length >= 5, `setError 호출을 찾지 못했다: ${calls.length}`);
+  for (const arg of calls) {
+    assert.ok(/^(stepError\(|null\))/.test(arg), `단계를 적지 않은 안내가 있다: setError(${arg}`);
+  }
+  // 비우는 길을 늘려 막는 방식이 되살아나면(글자열 하나 + 단계 이동마다 비우기) 한 곳을
+  // 빠뜨리는 날 결함이 그대로 돌아온다 — 안내가 자기 자리를 아는 쪽으로 고정한다.
+  assert.match(flow, /const \[error, setError\] = useState\(null\)/, '안내가 다시 글자열 하나가 됐다');
+  assert.match(flow, /const alertText = errorFor\(error, step\)/, '그리는 자리가 단계를 보지 않는다');
+  assert.equal(/\{error \?/.test(flow), false, '단계를 묻지 않고 안내를 그리는 자리가 되살아났다');
+  // 기다리는 사이 되돌아갔다면 그 화면에는 뜨지 않는다 — 누른 순간의 단계에 매단다.
+  assert.match(flow, /const at = step;/, '안내를 매달 단계를 누른 순간에 붙잡지 않는다');
+});
+
+test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 밀어내지 않게)', () => {
+  const step3 = flow.slice(flow.indexOf('{step === 3 ?'), flow.indexOf('{step === 4 ?'));
+  assert.ok(step3.length > 100, '3단계 블록을 찾지 못했다');
+  const button = step3.indexOf('onClick={submit}');
+  const alert = step3.indexOf('<Alert');
+  assert.ok(button > -1 && alert > -1, '확인 화면에 주버튼과 안내 자리가 모두 있어야 한다');
+  assert.ok(alert > button, '안내가 주버튼보다 앞에 있다 — 생기는 순간 그 단추를 밀어낸다');
+
+  // 고르는 화면(1단계)의 안내는 반대다 — 그 문장이 가리키는 것은 **선택지**이므로 위에 온다.
+  const step1 = flow.slice(flow.indexOf('{step === 1 ?'), flow.indexOf('{step === 2 ?'));
+  assert.ok(step1.indexOf('<Alert') > -1, '고르는 화면에 안내 자리가 없다');
+  assert.ok(step1.indexOf('<Alert') < step1.indexOf('희망 활동 고르기'), '안내가 선택지보다 뒤에 있다');
+
+  // 자리가 둘로 갈렸으므로 **표현은 한 곳**이어야 한다(ui.jsx 의 Alert).
+  assert.match(ui, /export function Alert\(\{ text = '' \}\)/, '안내 표현의 단일 출처가 없다');
+  assert.match(ui, /if \(!text\) return null;/, '할 말이 없으면 빈 줄도 그리지 않는다');
+  assert.equal([...flow.matchAll(/<Alert\b/g)].length, 2, '안내 자리가 두 화면에 하나씩 있어야 한다');
+  // 문구는 자리를 가리키지 않는다 — 문장 쪽 계약은 tests/eummessage.test.mjs 가 본다.
+  assert.equal(/아래 단추/.test(stripComments(flow)), false, '자리를 가리키는 안내가 되살아났다');
+  assert.match(flow, /from '@\/lib\/eumMessage'/, '실패 문구를 단일 출처에서 가져오지 않는다');
+});
+
+// ── 고친 결함: 만료로 화면이 뒤집히는데 아무 말도 하지 않았다 ────────────────
+// 작성 도중 5분이 지나면 흐름이 만료 안내 패널로 통째로 바뀐다. 그때 포커스가 얹혀 있던
+// 요소(선택지·「이대로 신청하기」)가 문서에서 사라지므로 브라우저는 포커스를 body 로
+// 돌려보낸다 — 새로 태어난 `role="status"` 는 리더가 변화로 보지 않는 경우가 많아 들리는
+// 말이 한 마디도 없고, 다음 Tab 은 조작 요소가 없는 이 화면을 지나 브라우저 바깥으로 빠진다.
+// 흐름은 단계마다 제목으로 포커스를 옮기고 있었는데, **화면이 가장 크게 바뀌는 전환**만
+// 빠져 있었다(8회차의 「전송 중 포커스를 잃었다」와 같은 모양).
+test('만료로 화면이 뒤집히는 순간 새 제목으로 포커스를 옮긴다', () => {
+  assert.match(ui, /<h1 style=\{S\.h1\} ref=\{headingRef\} tabIndex=\{-1\}>/, '패널 제목에 포커스를 줄 수 없다');
+  assert.match(ui, /headingRef = null/, '서버 컴포넌트도 쓰는 패널이라 기본값이 있어야 한다');
+  assert.match(flow, /headingRef=\{expiredHeadingRef\}/, '만료 패널이 포커스를 받을 자리를 넘기지 않는다');
+  assert.match(flow, /expiredHeadingRef\.current\?\.focus\(\)/, '전환에서 포커스를 옮기지 않는다');
+  // 판정을 이른 return 보다 먼저 구해야 효과(훅)를 조건 뒤에 두지 않을 수 있다.
+  assert.ok(flow.indexOf('const expiredNow =') < flow.indexOf('if (expiredNow)'), '판정이 효과보다 뒤에 있다');
+  // 서버 쪽 세 화면은 ref 를 넘기지 않는다 — 새로 열린 문서라 브라우저가 문서 앞에서 시작한다.
+  assert.equal(/headingRef=/.test(page), false, '서버 컴포넌트가 ref 를 넘기고 있다');
 });
 
 // ── 고른 것이 **눈에도** 보인다 ───────────────────────────────────────────
