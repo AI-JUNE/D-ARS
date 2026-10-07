@@ -19,7 +19,7 @@ import CopyLink from '@/lib/CopyLink';
 import {
   MAX_NAME, MAX_VIEWS,
   addView, parseViews, removeView, sameQuery, serializeViews, storageKey, viewHref,
-} from '@/lib/savedViews';
+} from '@/lib/savedViews.js'; // 확장자 명시 — SavedViews.jsx(이 파일)와 대소문자 충돌 회피(tests/importcase.test.mjs)
 import {
   exportFileName, importSummary, mergeViews, parseImport, serializeExport,
 } from '@/lib/viewsIO';

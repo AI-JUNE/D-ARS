@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { makeToast } from '@/lib/toast';
+import { makeToast } from '@/lib/toast.js'; // 확장자 명시 — Toast.jsx(이 파일)와 대소문자 충돌 회피(tests/importcase.test.mjs)
 
 // lib/Toast.jsx — 비차단 토스트 알림(108회차) — window.alert() 대체.
 // 접근성: 호스트(role="status")를 **항상 마운트**해 두고 내용만 갈아끼운다

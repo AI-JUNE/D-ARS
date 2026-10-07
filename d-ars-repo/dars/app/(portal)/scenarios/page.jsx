@@ -18,14 +18,18 @@ import { useRangeParam } from '@/lib/useRangeParam';
 import { useUrlState } from '@/lib/useUrlState';
 import { useSortState } from '@/lib/useSortState';
 import { SCENARIO_SORTS } from '@/lib/listSorts';
-import SavedViews from '@/lib/SavedViews';
+import SavedViews from '@/lib/SavedViews.jsx';
 import EmptyRow, { EmptyBox } from '@/lib/EmptyRows';
 import { useRowSelection } from '@/lib/useRowSelection';
 import { exportRunner } from '@/lib/selection';
 import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 import { onSearchEnter } from '@/lib/searchEnter';
 import { pressableProps } from '@/lib/keyActivate';
-import Toast, { useToast } from '@/lib/Toast';
+// 확장자 명시: lib/ 에 Toast.jsx(컴포넌트)·toast.js(순수 로직)가 대소문자만 다르게 공존한다.
+// 확장자 없는 '@/lib/Toast' 는 webpack 이 .js 를 먼저 찾으므로 대소문자 무시 FS(Windows)에서
+// toast.js 로 떨어져 useToast 가 undefined → /scenarios 프리렌더 실패. SavedViews 도 같은 꼴.
+// (회귀 방지: tests/importcase.test.mjs)
+import Toast, { useToast } from '@/lib/Toast.jsx';
 
 /* 표 뷰 + 서버 전체 기준 정렬(2026-07-13 야간 · 14회차).
    기존: 시나리오는 빌더 사이드 목록·보드 뷰뿐이라 **정렬이 불가능**했고(다른 4개 목록 화면은 정렬 헤더 보유),

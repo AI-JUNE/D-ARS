@@ -18,7 +18,7 @@ import { useRangeParam } from '@/lib/useRangeParam';
 import { useUrlState } from '@/lib/useUrlState';
 import { useSortState } from '@/lib/useSortState';
 import { UMS_SORTS } from '@/lib/listSorts';
-import SavedViews from '@/lib/SavedViews';
+import SavedViews from '@/lib/SavedViews.jsx'; // 확장자 명시 — lib/savedViews.js 와 대소문자 충돌 회피(tests/importcase.test.mjs)
 import EmptyRow from '@/lib/EmptyRows';
 import { useRowSelection } from '@/lib/useRowSelection';
 import { exportRunner } from '@/lib/selection';
