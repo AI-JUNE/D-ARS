@@ -89,7 +89,7 @@ export default function EumError({ error, reset }) {
               try {
                 reset();
               } catch {
-                /* reset 불가 — 아래 안내대로 담당자에게 문의하는 길이 남아 있다 */
+                /* reset 불가 — errorHint 가 가리키는 길(담당자에게 말씀하기)이 남아 있다 */
               }
             }}
           >
