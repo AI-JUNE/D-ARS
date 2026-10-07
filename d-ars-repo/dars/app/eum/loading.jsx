@@ -8,7 +8,13 @@
 //
 // 움직이는 원을 쓰지 않는 이유: 어지럼·저시력에 불리하고, 무엇보다 **무슨 일이 일어나는지**
 // 글자로 말하는 편이 낫다. 낭독도 되어야 하므로 role="status" 를 둔다.
+//
+// 문구는 손으로 적지 않는다 — 어르신 화면 문구의 단일 출처(lib/eumMessage)에 둔다.
+// 이 화면은 **문서가 처음 열릴 때만** 보이므로(신청 화면은 Next 라우팅이 아니라 pushState 로
+// 단계를 옮긴다) 오류 화면처럼 포커스를 옮기지 않는다 — 새 문서는 브라우저가 알아서 문서
+// 앞에서 시작한다. 서버 컴포넌트라 ref 를 넘길 수도 없다(ui.jsx 의 Notice 와 같은 이유).
 
+import { EUM_BOUNDARY_MESSAGE as M } from '@/lib/eumMessage';
 import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
 
 export default function EumLoading() {
@@ -17,8 +23,8 @@ export default function EumLoading() {
       <EumStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
-        <h1 style={S.h1}>잠시만 기다려 주세요</h1>
-        <p style={S.body} role="status">신청 화면을 불러오고 있습니다.</p>
+        <h1 style={S.h1}>{M.loadingTitle}</h1>
+        <p style={S.body} role="status">{M.loadingBody}</p>
       </div>
     </main>
   );

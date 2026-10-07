@@ -66,7 +66,11 @@ import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumCons
 // 제출 실패 안내도 같은 자리에서 가져온다 — 예전에는 이 파일이 다섯 문장을 손으로 적었고,
 // 그중 둘이 「아래 단추를…」로 **자리를 가리키고** 있었다(그 자리를 밀어낸 것이 그 안내
 // 자신이었다 · ui.jsx 의 Alert 참조).
-import { submitMessage, tokenMessage } from '@/lib/eumMessage';
+// 완료 화면의 두 문장도 같은 자리에서 가져온다 — 예전에는 이 파일이 손으로 적었고, 같은
+// 사실(「이미 접수됐다」)을 보여 주는 **진입 안내**는 거기서 「담당자에게 문의해 주세요」라고
+// 말했다. 할 일이 없는 사람을 담당자에게 보내면 새 링크가 오고, 명단에 두 건이 남는다
+// (lib/eumMessage.js 의 EUM_DONE_MESSAGE 참조).
+import { EUM_DONE_MESSAGE, submitMessage, tokenMessage } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
 import { S, Notice, Alert, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
 import PriorLocal from './PriorLocal.jsx';
@@ -538,10 +542,12 @@ export default function SeniorFlow({
                이번 선택으로 대신하면 그 자리에서 거짓이 된다. */}
         {step === 4 ? (
           <>
+            {/* 진입 안내(page.jsx 의 「이미 신청하셨습니다」)와 **같은 문장**이다. 예전에는
+                이 자리만 「담당자가 곧 전화로 안내해 드립니다」라고 바르게 말하고, 진입 안내는
+                「담당자에게 문의해 주세요」라고 말했다 — 접수가 끝난 사람에게 할 일을 만들어
+                주면 그 전화가 새 링크를 부르고, 새 링크는 소진 키가 달라 재신청이 통한다. */}
             <p style={S.body} role="status">
-              {already
-                ? '이미 접수된 신청이 있습니다. 담당자가 곧 전화로 안내해 드립니다.'
-                : '신청이 접수되었습니다. 담당자가 곧 전화로 안내해 드립니다.'}
+              {already ? EUM_DONE_MESSAGE.already : EUM_DONE_MESSAGE.accepted}
             </p>
             {doneSummary ? <p style={S.summary}>{doneSummary}</p> : null}
             {/* 진입 화면(page.jsx)의 「이미 신청하셨습니다」와 **같은 갈림**이다 —

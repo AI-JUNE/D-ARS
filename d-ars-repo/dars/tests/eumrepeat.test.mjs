@@ -19,6 +19,7 @@ import {
   createConsumeStore,
   sanitizeNote,
 } from '../lib/eumConsume.js';
+import { EUM_DONE_MESSAGE } from '../lib/eumMessage.js';
 import { parseAccepted } from '../lib/eumSenior.js';
 import { issueEumToken } from '../lib/eumToken.js';
 
@@ -200,6 +201,39 @@ test('진입 안내와 완료 화면의 문구는 단일 출처다(한쪽만 고
   assert.equal(/'바꾸고 싶으시면/.test(FLOW) || />바꾸고 싶으시면/.test(FLOW), false);
 });
 
+// 고친 결함: 바로 위 테스트의 **이름**은 「진입 안내와 완료 화면의 문구는 단일 출처다」인데
+// 실제로 대조한 것은 **뒤에 붙는 두 힌트**뿐이었다. 정작 두 화면의 **본문**은 각자 적혀 있었고,
+// 그래서 같은 사실을 두고 서로 **반대되는 다음 행동**을 말했다 —
+//   · 완료 화면 「담당자가 곧 전화로 안내해 드립니다」(할 일이 없다)
+//   · 진입 안내 「담당자에게 문의해 주세요」(할 일이 있다)
+// 접수가 끝난 어르신이 그 말대로 전화하면 담당자는 새 링크를 보내고, 새 링크는 소진 키가 달라
+// 재신청이 통한다 → 담당자 명단에 두 건. 중복을 막으려고 만든 화면의 첫 문장이 중복을 만들던
+// 셈이고, 그 화면은 바로 다음 줄에서 「이제 이 화면을 닫으셔도 됩니다」로 끝났다.
+// 이름이 코드보다 앞서 있던 또 한 자리다(「1회용」·「단일 출처」·「글자 크기」와 같은 모양).
+test('진입 안내와 완료 화면의 **본문**도 한 벌이다(서로 반대되는 다음 행동 금지)', () => {
+  // 사실을 말하는 문장은 비밀을 모르는 자리 한 곳에만 있고, 소진 안내가 그것을 가리킨다.
+  assert.match(CONSUME, /used:\s*EUM_DONE_MESSAGE\.already/, '소진 안내가 접수 문구 표를 가리키지 않는다');
+  assert.match(CONSUME, /EUM_DONE_MESSAGE[^\n]*from '\.\/eumMessage\.js'/, '표를 import 하지 않는다');
+  // 진입 안내는 그 표를 거쳐 온 문장을 쓴다(consumeMessage('used')).
+  assert.match(PAGE, /body=\{consumeMessage\('used'\)\}/, '진입 안내가 본문을 손으로 적는다');
+  // 접수가 끝난 사람에게 **할 일을 만들지 않는다.** 바꾸고 싶은 경우만이고 그것은 힌트가
+  // 조건부로 말한다 — 본문이 무조건 담당자를 부르면 그 전화가 새 링크를 부른다.
+  assert.equal(/문의해 주세요/.test(EUM_DONE_MESSAGE.already), false,
+    '접수가 끝난 어르신에게 문의할 것은 없다 — 그 전화가 명단의 두 번째 건을 만든다');
+  for (const [k, v] of Object.entries(EUM_DONE_MESSAGE)) {
+    assert.match(v, /접수되었습니다/, `${k}: 접수된 사실을 말하지 않는다`);
+    assert.match(v, /담당자가 곧/, `${k}: 다음에 일어날 일을 말하지 않는다`);
+  }
+  // 사본이 되살아나면 두 화면이 다시 갈라진다(주석은 왜 그런지를 적는 자리라 걷어낸다).
+  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split('\n').map((l) => l.replace(/(^|[^:\w])\/\/.*$/, '$1')).join('\n');
+  for (const [name, src] of Object.entries({ 'SeniorFlow.jsx': FLOW, 'page.jsx': PAGE, 'lib/eumConsume.js': CONSUME })) {
+    for (const v of Object.values(EUM_DONE_MESSAGE)) {
+      assert.ok(!strip(src).includes(v), `${name}: 접수 문구를 손으로 적었다 — ${v}`);
+    }
+  }
+});
+
 test('클라이언트 화면은 eumConsume 에서 **문구만** 가져온다(소진 판정은 서버의 일이다)', () => {
   const line = (FLOW.match(/import \{[^}]*\} from '@\/lib\/eumConsume';/) || [''])[0];
   assert.ok(line, '완료 화면이 문구 단일 출처를 쓰지 않는다');
@@ -217,9 +251,14 @@ test('완료 화면: 409 면 서버가 알려 준 「먼저 접수된 선택」�
     '방금 고른 것을 접수된 것처럼 그리면 안 된다');
 });
 
+// 정정: 이 테스트는 두 문장이 **화면 안에 적혀 있는지**를 보며 통과했다 — 즉 사본을 고정하는
+// 테스트였다(9회차에 없앤 것과 같은 모양). 그 사이 같은 사실을 말하는 진입 안내는 「담당자에게
+// 문의해 주세요」라고 말하고 있었고, 아무 대조도 그것을 보지 않았다. 지금은 두 화면이 같은
+// 표(lib/eumMessage.EUM_DONE_MESSAGE)를 가리키는지 본다.
 test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 문장이 다르다', () => {
-  assert.match(FLOW, /이미 접수된 신청이 있습니다/);
-  assert.match(FLOW, /신청이 접수되었습니다/);
+  assert.notEqual(EUM_DONE_MESSAGE.already, EUM_DONE_MESSAGE.accepted, '두 경우를 같은 말로 덮으면 안 된다');
+  assert.match(FLOW, /\{already \? EUM_DONE_MESSAGE\.already : EUM_DONE_MESSAGE\.accepted\}/,
+    '완료 화면이 접수 문구 단일 출처를 쓰지 않는다');
   assert.match(FLOW, /EUM_CONSUME_CHANGE_HINT/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
 });
 

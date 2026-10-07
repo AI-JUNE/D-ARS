@@ -502,13 +502,41 @@ test('오류 화면: 되돌릴 길은 다시 시도 하나뿐이고 담당자를
   assert.equal(buttons, 1, `버튼 4개 이내 요건 — 오류 화면은 하나로 충분하다: ${buttons}`);
   assert.match(src, /reset\(\)/, '일시적 오류를 되돌릴 수단이 없으면 5분 링크를 잃는다');
   const shown = stripComments(src);
-  assert.match(shown, /담당자/, '어르신에게 「관리자」는 누구인지 알 수 없는 사람이다');
+  // 정정: 예전에는 이 자리에서 `/담당자/` 를 **화면 소스**에서 찾았다. 그 넷은 이 파일 안에
+  // 손으로 적혀 있었고(그중 본문은 11회차가 없앤 「아래 단추」였다) 지금은 문구 단일 출처에
+  // 있다 — 문장 자체의 계약은 tests/eummessage.test.mjs 가 들고, 여기서는 그 표를 쓰는지 본다.
+  assert.match(shown, /EUM_BOUNDARY_MESSAGE/, '문구를 단일 출처에서 가져오지 않는다');
+  assert.match(shown, /M\.errorHint/, '담당자를 가리키는 한 줄이 사라졌다');
   assert.ok(!/관리자/.test(shown), '포털 문구(관리자에게 문의)가 남아 있다');
   // 기술 문구를 화면에 내지 않는다(콘솔에만 남긴다).
   for (const jargon of ['stack', 'digest', 'Error:', '오류 코드']) {
     assert.ok(!shown.includes(jargon), `기술 문구 노출: ${jargon}`);
   }
   assert.match(src, /monitorLine\(buildEvent\(/, '원인 추적 한 줄은 남겨야 한다');
+});
+
+// ── 고친 결함: **오류 화면으로 뒤집히는데도** 아무 말도 하지 않았다 ──────────
+// 11회차는 만료 패널에서 이것을 고쳤다(ui.jsx 의 Notice headingRef) — 흐름이 통째로 다른
+// 화면으로 바뀔 때 포커스가 body 로 떨어져 ① 들리는 말이 한 마디도 없고(새로 태어난
+// role="status" 는 리더가 변화로 보지 않는 경우가 많다) ② 다음 Tab 이 문서 맨 앞에서 시작한다.
+// 그런데 **같은 모양으로 뒤집히는 오류 경계**는 손대지 않았다. 하이드레이션 뒤에 터진 오류는
+// 문서를 그대로 두고 신청 흐름이 있던 자리만 이 화면으로 바꾸므로 조건이 똑같고, 이 화면의
+// 유일한 되돌리기 수단(「다시 시도」)까지 Tab 으로 다시 내려오는 사이 5분 링크가 줄어든다.
+// 「고침이 절반이었던 자리」가 또 한 번 남아 있었다.
+test('오류 화면: 뒤집히는 순간 새 제목으로 포커스를 옮긴다(흐름·만료 전환과 같은 방식)', () => {
+  const src = boundary['app/eum/error.jsx'];
+  assert.match(src, /<h1 style=\{S\.h1\} ref=\{headingRef\} tabIndex=\{-1\}>/,
+    '제목에 포커스를 줄 수 없다 — 탭 순서에는 끼어들지 않게 tabIndex=-1 이어야 한다');
+  assert.match(src, /headingRef\.current\?\.focus\(\)/, '전환에서 포커스를 옮기지 않는다');
+  // 마운트 한 번만 옮긴다 — 오류가 바뀔 때마다(error 의존성) 다시 낚아채면 어르신이 단추로
+  // 옮긴 포커스를 빼앗는다. 원인 기록 쪽만 error 를 본다.
+  assert.match(src, /headingRef\.current\?\.focus\(\)[\s\S]{0,200}\}, \[\]\);/, '마운트 전환이 아니다');
+  assert.match(src, /buildEvent\(\{ err: error[\s\S]{0,200}\}, \[error\]\);/, '원인 기록이 오류를 따라가지 않는다');
+  // 대기 화면은 서버 컴포넌트이고 **문서가 처음 열릴 때만** 보인다(신청 화면은 pushState 로
+  // 단계를 옮긴다) — ref 를 넘길 수 없고 넘길 필요도 없다(Notice 의 서버 쪽 세 화면과 같다).
+  const loading = boundary['app/eum/loading.jsx'];
+  assert.equal(/use client/.test(loading), false, '대기 화면이 클라이언트가 되면 판단 근거가 바뀐다');
+  assert.equal(/headingRef|tabIndex/.test(loading), false, '서버 컴포넌트가 ref 를 넘기고 있다');
 });
 
 test('오류·로딩 특수 파일은 기본 export 만 둔다(route.js 규칙과 같은 취지)', () => {

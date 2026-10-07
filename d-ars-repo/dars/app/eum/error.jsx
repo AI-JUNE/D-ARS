@@ -18,34 +18,68 @@
 // 여기서는 되돌릴 길을 **하나만** 준다 — 다시 시도(reset). 일시적인 오류라면 이 단추 하나로
 // 신청을 이어 갈 수 있고, 링크를 새로 받을 필요도 없다. 실패가 이어지는 경우에 할 수 있는 일은
 // 담당자에게 말하는 것뿐이므로 그것을 문장으로 알린다(어르신이 스스로 재발급할 수단은 없다).
+//
+// ── 고친 결함: **이 화면으로 뒤집히는데 아무 말도 하지 않았다** ─────────────────────────
+// 이 경계는 하이드레이션 뒤에 터진 오류도 받는다 — 그때 문서는 그대로이고 **신청 흐름이 있던
+// 자리만** 이 화면으로 바뀐다. 포커스가 얹혀 있던 요소(선택지 버튼·「이대로 신청하기」)는 그
+// 순간 문서에서 사라지므로 브라우저는 포커스를 **body 로 돌려보낸다**. 그래서
+//   ① 들리는 말이 **한 마디도 없다.** 아래 `role="status"` 는 그 자리에서 함께 태어난 영역이라
+//      리더가 변화로 보지 않는 경우가 많다(살아 있던 영역의 내용이 바뀐 것이 아니다).
+//      화면은 통째로 바뀌었는데 귀에는 아무 일도 일어나지 않은 것과 같다.
+//   ② 다음 Tab 이 **문서 맨 앞**에서 시작한다. 이 화면의 조작 요소는 「다시 시도」 하나이고
+//      그것이 이 화면의 **유일한 되돌리기 수단**인데, 거기까지 Tab 으로 다시 내려오는 사이
+//      5분 링크가 줄어든다.
+// 11회차가 **만료 패널**에서 고친 것이 바로 이것이다(ui.jsx 의 Notice headingRef). 그때
+// 패널 쪽만 고쳤고, **같은 모양으로 뒤집히는 이 화면**은 손대지 않았다 — 「고침이 절반이었던
+// 자리」가 또 한 번 남아 있었다. 그래서 단계 전환·만료 전환과 **같은 방식**으로 새 제목에
+// 포커스를 준다.
+//   왜 조건 없이 마운트에서 옮기는가: 이 경계는 **새로 열린 문서**에서도 그려질 수 있는데
+//   (서버 렌더가 실패한 경우) 그 경우에도 제목 위에 있는 것은 머리말 한 줄뿐이라 포커스가
+//   제목으로 가는 것이 손해가 아니다. 두 경우를 구별할 단서가 없고, 구별하지 못해 잃는 것은
+//   **흐름에서 뒤집힌 경우의 안내 전체**다(더 비싼 쪽을 고른다).
+// 대기 화면(loading.jsx)에는 같은 손질이 필요하지 않다 — 그 화면은 이 흐름에서 **문서가 처음
+// 열릴 때만** 보인다(신청 화면은 Next 라우팅이 아니라 pushState 로 단계를 옮긴다). 서버
+// 컴포넌트라 ref 를 넘길 수도 없다(ui.jsx 의 Notice 가 서버 쪽 세 화면에 ref 를 넘기지 않는
+// 것과 같은 이유).
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 // 순수 포맷터만 가져온다(전송 로직 미사용) — 브라우저에서 외부 통신은 일어나지 않는다.
 // 메시지는 buildEvent 안에서 마스킹되고 스택은 애초에 봉투에 담기지 않는다(lib/monitor 계약).
 import { buildEvent, monitorLine } from '@/lib/monitor';
+// 문구는 어르신 화면 문구의 단일 출처에서 가져온다. 예전에는 이 파일이 넷을 손으로 적었고,
+// 본문은 「잠시 뒤 **아래** 단추를…」로 **자리를 가리켰다** — 11회차가 제출 실패 안내에서
+// 없앤 바로 그 낱말이다(lib/eumMessage.js 의 EUM_BOUNDARY_MESSAGE 참조).
+import { EUM_BOUNDARY_MESSAGE as M } from '@/lib/eumMessage';
 import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
 
 // 특수 파일(error.jsx)에는 기본 export 외에 아무것도 내보내지 않는다 — route.js 규칙과 같은 취지다.
-// 문구는 테스트가 소스에서 읽어 회귀를 잡는다.
-const EUM_ERROR_TITLE = '화면을 불러오지 못했습니다';
-const EUM_ERROR_BODY = '잠시 뒤 아래 단추를 눌러 주세요.';
-const EUM_ERROR_HINT = '같은 일이 되풀이되면 담당자에게 말씀해 주세요.';
-const EUM_ERROR_RETRY = '다시 시도';
 
 export default function EumError({ error, reset }) {
+  const headingRef = useRef(null);
+
   // 원인 추적: 화면에는 기술 문구를 한 줄도 내지 않고 콘솔에만 남긴다(서버 로그와 같은 봉투).
   useEffect(() => {
     if (typeof console === 'undefined') return;
     console.error(monitorLine(buildEvent({ err: error, level: 'fatal', source: 'eum-senior' })));
   }, [error]);
 
+  // 화면이 뒤집힌 순간 새 제목으로 포커스를 옮긴다(위 주석 참조).
+  useEffect(() => {
+    try {
+      headingRef.current?.focus();
+    } catch {
+      /* 포커스 불가 환경 — 화면 동작에는 영향 없다 */
+    }
+  }, []);
+
   return (
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
         <p style={S.kicker}>이음 어르신 신청</p>
-        <h1 style={S.h1}>{EUM_ERROR_TITLE}</h1>
-        <p style={S.body} role="status">{EUM_ERROR_BODY}</p>
+        {/* tabIndex=-1 은 탭 순서에 끼어들지 않는다 — 코드가 옮길 수 있게만 열어 둔다. */}
+        <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{M.errorTitle}</h1>
+        <p style={S.body} role="status">{M.errorBody}</p>
         <div style={S.list}>
           <button
             type="button"
@@ -59,10 +93,10 @@ export default function EumError({ error, reset }) {
               }
             }}
           >
-            {EUM_ERROR_RETRY}
+            {M.errorRetry}
           </button>
         </div>
-        <p style={S.body}>{EUM_ERROR_HINT}</p>
+        <p style={S.body}>{M.errorHint}</p>
       </div>
     </main>
   );

@@ -29,7 +29,7 @@
 // **[승인 필요]** — `createConsumeStore` 와 같은 모양의 어댑터를 끼우면 되도록 인터페이스를
 // 좁게 잡아 두었다.
 
-import { EUM_TOKEN_MESSAGE } from './eumMessage.js';
+import { EUM_DONE_MESSAGE, EUM_TOKEN_MESSAGE } from './eumMessage.js';
 
 export const EUM_CONSUME_MAX = 5000;
 
@@ -196,9 +196,19 @@ export function consumeDepStatus(stats) {
 // 만료·사용 불가는 **토큰 검증 실패와 같은 사실**이고(링크가 열리지 않는다), 어르신이 그
 // 두 경로의 차이를 알 길도 없다. 그래서 문장을 손으로 다시 적지 않고 lib/eumMessage 를
 // 가리킨다 — 예전에는 글자까지 같은 사본이 여기 한 벌 더 있었다(한쪽만 고쳐지면 같은 상태를
-// 두 문장이 설명하게 된다). `used` 만 이 파일 고유의 사실이다.
+// 두 문장이 설명하게 된다).
+//
+// 고친 결함: `used` 만은 이 파일이 손으로 적고 있었고, 그 문장이 **틀렸다** —
+// 「이미 신청이 접수된 링크입니다. **담당자에게 문의해 주세요**」. 같은 사실을 말하는 완료
+// 화면은 「담당자가 곧 전화로 안내해 드립니다」라고 했으니, 두 화면이 서로 **반대되는 다음
+// 행동**을 말하고 있었다. 접수가 끝난 어르신에게 문의할 것은 없고(바꾸고 싶은 경우만이고
+// 그것은 아래 CHANGE_HINT 가 조건부로 말한다), 그 화면은 바로 다음 줄에서 「이제 이 화면을
+// 닫으셔도 됩니다」라고 끝난다 — 한 화면이 세 가지 다른 말을 했다. 더 나쁜 것은 결과다:
+// 그 전화를 받은 담당자는 **새 링크**를 보내고, 새 링크는 소진 키가 달라 재신청이 실제로
+// 통한다 → 명단에 두 건. 중복을 막기 위해 만든 화면의 첫 문장이 중복을 만들고 있었다.
+// 이제 접수 사실은 lib/eumMessage.EUM_DONE_MESSAGE 한 곳에서만 말한다.
 export const EUM_CONSUME_MESSAGE = {
-  used: '이미 신청이 접수된 링크입니다. 담당자에게 문의해 주세요',
+  used: EUM_DONE_MESSAGE.already,
   expired: EUM_TOKEN_MESSAGE.expired,
   unusable: EUM_TOKEN_MESSAGE.malformed,
 };
@@ -220,6 +230,12 @@ export const EUM_CONSUME_CHANGE_HINT = '바꾸고 싶으시면 담당자에게 �
 // 확인할 곳을 알려 준다 — 모른다고 말하고 끝내면 어르신은 무엇이 접수됐는지 알 길이 없다.
 export const EUM_CONSUME_UNKNOWN_HINT = '접수된 내용은 담당자에게 확인해 주세요.';
 
+// 모르는 사유는 가장 보수적인 안내(잘못된 링크)로 떨어진다.
+// 등록부에 **실제로 적힌 문장**일 때만 쓴다 — `EUM_CONSUME_MESSAGE[reason]` 을 그대로 믿으면
+// 'constructor'·'__proto__' 같은 이름이 프로토타입의 값을 끌어와 **참처럼 통과하고**, 그것이
+// 그대로 화면과 409 응답에 실린다(함수 본문이 안내문 자리에 앉는다). 형제 함수인
+// `tokenMessage`·`submitMessage` 는 이 가드를 가졌는데 이 함수만 빠져 있었다.
 export function consumeMessage(reason) {
-  return EUM_CONSUME_MESSAGE[reason] || EUM_CONSUME_MESSAGE.unusable;
+  const msg = EUM_CONSUME_MESSAGE[reason];
+  return typeof msg === 'string' && msg ? msg : EUM_CONSUME_MESSAGE.unusable;
 }
