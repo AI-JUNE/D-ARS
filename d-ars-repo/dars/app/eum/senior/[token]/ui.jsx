@@ -169,9 +169,27 @@ export const S = {
 //     막는 범위는 `.eum-screen` 안쪽뿐이다 — 포털 화면은 한 줄도 바뀌지 않는다.
 //     재발 방지: 전역 CSS 의 요소 선택자를 **전부 분류**하게 하는 양방향 대조
 //     (`lib/sourceLint.cssBareSelectors` + tests/eumseniorui.test.mjs).
+//
+// (3) **문서 바탕색** — 고친 결함이고, 위 (2)의 대조가 왜 절반이었는지를 보여 주는 자리다.
+//     그 대조는 전역 CSS 의 **선택자 이름**을 분류하게 했고 `body` 는 「자간을 끈다」로 분류돼
+//     있었다. 그런데 같은 `body` 규칙은 `background: var(--bg)`(포털 바탕색)도 들고
+//     있었고, 그 속성은 아무도 판정하지 않았다 — 선택자는 이미 목록에 있으니 새 선언이 늘어도
+//     테스트가 아무 말을 하지 않는다(`lib/sourceLint.cssBareDecls` 가 이제 선언까지 센다).
+//     왜 보이는가: `background-color` 는 **문서 캔버스**로 전파된다 — html 에 배경이 없으면
+//     브라우저는 body 의 색으로 캔버스를 칠하고, 그 캔버스가 보이는 자리가 오버스크롤
+//     (iOS 의 고무줄 스크롤)이다. 어르신이 화면 끝에서 한 번 더 밀면 흰 화면 위아래로 포털
+//     베이지 띠가 드러났다. 하필 8회차가 `viewport.themeColor` 를 이 화면의 바탕색으로 맞춰
+//     둔 자리가 **그 띠의 바로 위**(주소창)다 — 주소창은 어르신 색인데 그 아래 한 겹이 포털
+//     색이었으니, 그 고침도 절반이었던 셈이다.
+//     이 규칙만은 `.eum-screen` 안쪽에 둘 수 없다 — 캔버스를 칠하는 것은 문서의 뿌리
+//     (html·body)이고 그것은 범위 **바깥**이다. 대신 이 `<style>` 은 어르신 화면만 그리므로
+//     포털 페이지에는 애초에 실리지 않는다. 범위 없는 규칙은 테스트가 **사유와 함께 등록**하게
+//     하고 그 외에는 실패시킨다(예전 대조는 `.` 으로 시작하지 않는 줄을 건너뛰어, 범위가
+//     아예 없는 규칙은 걸러지지 않았다 — 「범위 안쪽만 끈다」는 이름이 코드보다 앞서 있었다).
 export function EumStyles() {
   return (
     <style>{`
+      html, body { background: ${C.bg}; }
       .${EUM_SCOPE}, .${EUM_SCOPE} * { letter-spacing: normal; }
       .${EUM_SCOPE} a, .${EUM_SCOPE} button { transition: none; }
       .${EUM_SCOPE} button:disabled { opacity: 1; }

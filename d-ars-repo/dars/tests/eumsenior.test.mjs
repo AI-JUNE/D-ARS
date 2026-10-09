@@ -29,6 +29,7 @@ import {
   EUM_HISTORY_ROOT,
   stepState,
   historyDepth,
+  historyStep,
   nextDepth,
   backAction,
   stepError,
@@ -295,6 +296,22 @@ test('historyDepth·nextDepth: 우리가 적은 상태만 깊이로 읽는다', 
   for (const bad of [null, undefined, {}, { depth: '1' }, { depth: -3 }, [1], 'x', 7]) {
     assert.equal(historyDepth(bad), 0, `상태: ${JSON.stringify(bad)}`);
     assert.equal(nextDepth(bad), 1);
+  }
+});
+
+// ── 고친 결함: 떠나는 항목의 주소가 거기서 고른 것을 몰랐다 ──────────────────
+// 고른 것은 쌓는 항목의 주소에만 실려, 되돌아오면 그 항목이 **고른 것이 빠진 주소**를
+// 되살렸다(1단계 항목은 끝까지 단계만 적힌 채였다). 그 주소를 그 자리에서 고쳐 쓰려면
+// "지금 항목이 어느 단계인가" 를 알아야 하는데, 믿을 수 있는 단서는 그 항목에 우리가 적어
+// 둔 `step` 하나뿐이다 — 모르면 **고치지 않는다**(historyDepth 의 "모를 때는 가로채지
+// 않는다" 와 같은 쪽으로 기운다. 어느 화면의 항목인지 모르면서 주소를 바꾸면 주소가 화면을
+// 더 심하게 잘못 설명한다).
+test('historyStep: 우리가 적은 단계만 읽고, 모르면 0(주소를 건드리지 않는다)', () => {
+  assert.equal(historyStep(stepState(2, 1)), 2);
+  assert.equal(historyStep({ step: 4, depth: 3 }), 4);
+  assert.equal(historyStep({ step: 1 }), 1, '깊이가 없어도 단계는 읽는다(예전 형식)');
+  for (const bad of [null, undefined, {}, { step: 0 }, { step: 5 }, { step: '2' }, { step: 2.5 }, [2], 'x', 7]) {
+    assert.equal(historyStep(bad), 0, `상태: ${JSON.stringify(bad)}`);
   }
 });
 

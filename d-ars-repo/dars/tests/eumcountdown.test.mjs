@@ -155,13 +155,26 @@ test('화면에 절대 만료시각을 넘기지 않는다 — 기기 시계와 
   assert.match(flow, /from '@\/lib\/eumCountdown'/, '남은 시간 계산은 단일 출처에서 가져온다');
 });
 
+// 정정: 이 테스트는 한동안 `aria-live` 가 **경고 문단에 붙어 있는지**를 확인하며 통과했다.
+// 그런데 그 모양이 바로 결함이었다 — 영역이 경고와 **함께 태어나면** 리더는 그것을 변화로 보지
+// 않는 경우가 많다(11·12회차가 만료 패널·오류 경계에서 같은 근거로 포커스를 옮기는 쪽을 고쳤다).
+// 그래서 사본이 아니라 **배치**를 본다: 낭독 영역은 조건 **밖**에 늘 있고, 조건은 그 안에 있다.
 test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 낭독에서 빠진다', () => {
   const flow = read('app/eum/senior/[token]/SeniorFlow.jsx');
   const warn = flow.match(/\{soon \? \([\s\S]*?\) : null\}/);
   assert.ok(warn, '만료 임박 안내 블록을 찾지 못했다');
   const block = warn[0];
-  assert.match(block, /aria-live="polite"/, '보이지 않는 사용자는 화면이 곧 닫히는 것을 알 수 없다');
   assert.match(block, /EUM_SOON_MESSAGE/, '안내 문구는 단일 출처에서 가져온다');
   assert.match(block, /aria-hidden="true"[^>]*>[^<]*\{secondsLeft\(left\)\}/,
     '매초 바뀌는 초 숫자가 낭독 영역 안에 있으면 문장이 1초마다 끊긴다');
+
+  // 낭독 영역은 **경고보다 먼저 문서에 있어야** 한다 — 경고가 생기는 순간 함께 태어나면
+  // 「살아 있던 영역의 내용이 바뀐 것」이 아니라서 들리지 않는다.
+  assert.equal(/aria-live|role="status"/.test(block), false,
+    '낭독 영역이 경고와 함께 태어나고 있다(그 순간은 리더가 변화로 보지 않는다)');
+  const region = flow.match(/<div role="status" aria-live="polite">\s*\{soon \?/);
+  assert.ok(region, '늘 문서에 있는 낭독 영역이 조건을 감싸고 있지 않다');
+  // 빈 칸이 화면을 밀어내면 안 된다 — 영역에는 style 을 주지 않는다(내용 없는 블록은 0px).
+  assert.equal(/<div role="status" aria-live="polite" style/.test(flow), false,
+    '빈 낭독 영역에 style 이 붙으면 경고가 없는 화면까지 자리를 잃는다');
 });

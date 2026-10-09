@@ -168,11 +168,37 @@ test('히스토리 항목에 깊이가 함께 실린다(우리가 쌓은 것인�
   // 복원으로 만든 항목은 뿌리다 — 여기서 뒤로 갈 곳은 없다(replaceState 는 쌓지 않는다).
   assert.match(flow, /stepState\(want, EUM_HISTORY_ROOT\)/, '복원 항목이 뿌리로 표시되지 않는다');
   assert.match(flow, /replaceState\(root,/, '복원은 항목을 쌓지 않는다(replaceState)');
-  // 고를 때 쌓는 항목은 한 칸 깊다.
-  assert.match(flow, /stepState\(want, nextDepth\(window\.history\.state\)\)/, '쌓는 항목의 깊이가 늘지 않는다');
+  // 고를 때 쌓는 항목은 한 칸 깊다(기준은 지금 항목의 상태 — go 가 한 번만 읽어 둔다).
+  assert.match(flow, /const here = window\.history\.state;/, '지금 항목의 상태를 읽지 않는다');
+  assert.match(flow, /stepState\(want, nextDepth\(here\)\)/, '쌓는 항목의 깊이가 늘지 않는다');
   assert.match(flow, /pushState\(entry,/, '단계 이동은 항목을 쌓는다(pushState)');
   // 상태를 손으로 적으면 깊이가 빠진 항목이 생기고, 그 자리에서 되돌아가기가 멈춘다.
   assert.equal(/(push|replace)State\(\{\s*step/.test(flow), false, '히스토리 상태를 손으로 조립하면 안 된다');
+});
+
+// ── 고친 결함: 떠나는 화면의 주소는 거기서 고른 것을 몰랐다 ──────────────────
+//
+// 고른 것은 **쌓는 항목**의 주소에만 실렸다. 1단계에서 활동을 고르면 그 값은 2단계 항목의
+// 주소에만 적히고, 방금 떠난 1단계 항목의 주소는 단계만 적힌 채였다. 그래서 되돌아오면
+// `popstate` 가 그 주소를 읽어 **고른 것을 빈 값으로 되살린다** —
+//   · 11회차가 「고른 것이 눈에도 보이게」 넣은 ✓ 표시는 하필 그 회차가 지목한 경로
+//     (「2단계에서 앞 화면으로를 눌러 1단계로 돌아갔을 때」)에서 한 번도 보이지 않았다.
+//   · 3단계에서 「다시 고르기」를 누르면 방금 고른 시간대가 지워진 채 네 선택지가 처음처럼 나온다.
+//   · 같은 단추가 가로채이지 않은 경우('follow')에는 href 에 고른 것이 실려 **남는다** —
+//     같은 단추가 경로에 따라 다르게 동작했다.
+// 6회차의 "고른 것을 주소에 남긴다" 가 **쌓는 쪽만** 고친 것이었다.
+test('떠나는 항목의 주소에도 그 화면에서 고른 것을 적는다(되돌아오면 ✓ 가 살아 있다)', () => {
+  const body = flow.slice(flow.indexOf('const go = useCallback'), flow.indexOf('function chooseActivity'));
+  assert.ok(body.length > 200, 'go 를 찾지 못했다');
+  // 지금 항목의 단계는 **그 항목에 적힌 값**만 믿는다 — 모르면 주소를 건드리지 않는다.
+  assert.match(body, /const at = historyStep\(here\);/, '어느 단계의 항목인지 판정하지 않는다');
+  assert.match(body, /if \(at\) window\.history\.replaceState\(here, '', stepQuery\(at, d\)\);/,
+    '떠나는 항목의 주소를 고치지 않거나, 모르면서 고치고 있다');
+  // 쌓기 **전에** 고쳐야 한다 — 뒤에 하면 방금 쌓은 항목을 고치게 된다.
+  assert.ok(body.indexOf('replaceState(here') < body.indexOf('pushState(entry'),
+    '떠나는 항목이 아니라 새 항목의 주소를 고치고 있다');
+  // 항목을 쌓지 않는 쪽이어야 깊이 판정(backAction)이 그대로 남는다.
+  assert.equal(/pushState\(here/.test(body), false, '떠나는 항목을 고치는 자리에서 항목을 쌓고 있다');
 });
 
 // ── 고친 결함: 화면 문구가 눈에만 맞춰져 있었다 ──────────────────────────────

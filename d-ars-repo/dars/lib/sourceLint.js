@@ -496,9 +496,10 @@ function scanRules(src, start, end, out) {
       if (sel.startsWith('@')) {
         if (NESTED_AT_RULE.test(sel)) scanRules(src, i + 1, close, out);
       } else if (sel) {
+        const body = src.slice(i + 1, close);
         for (const part of sel.split(',')) {
           const s = part.trim().replace(/\s+/g, ' ');
-          if (s && !s.includes('.') && !s.includes('#')) out.push(s);
+          if (s && !s.includes('.') && !s.includes('#')) out.push({ selector: s, body });
         }
       }
       i = close + 1;
@@ -518,11 +519,42 @@ export function cssBareSelectors(css) {
   scanRules(css, 0, css.length, found);
   const out = [];
   const seen = new Set();
-  for (const s of found) {
-    if (seen.has(s)) continue;
-    seen.add(s);
-    out.push(s);
+  for (const { selector } of found) {
+    if (seen.has(selector)) continue;
+    seen.add(selector);
+    out.push(selector);
   }
+  return out;
+}
+
+// ── 선택자 이름이 아니라 **선언**까지 센다 ────────────────────────────────
+//
+// 왜 더 필요한가 — 고친 결함: 위 함수는 선택자를 **중복 제거**해서 돌려주고, 어르신 화면의
+// 대조는 그 이름 목록만 분류하게 했다. 그래서 같은 선택자에 선언이 늘어나는 길
+// (같은 이름의 **두 번째 규칙**이든, 기존 규칙에 한 줄 추가든)에는 아무 신호가 없었다.
+// 실제로 그렇게 들어온 것이 있었다 —
+//   · `*{box-sizing}` 로 분류해 둔 뒤 한참 아래에 `*{scrollbar-width;scrollbar-color}` 가 생겼고,
+//   · `body` 는 「자간만 끈다」로 분류돼 있었는데 같은 규칙이 `background:var(--bg)` 도 들고 있어
+//     어르신 화면의 **문서 바탕색이 포털 것**이었다(ui.jsx 의 EumStyles 참조).
+// 선택자 이름은 그대로인데 닿는 속성이 늘어난 것이고, 「요소 선택자를 전부 분류한다」는
+// 이름은 그 사이에도 참인 채였다 — 검사하지 않는 낱말이 이름에 들어 있던 또 한 자리다.
+//
+// 그래서 **선택자 → 닿는 속성 이름 목록**을 돌려준다(여러 규칙에 흩어져 있어도 한 벌로 합친다 ·
+// 중복 제거 · 이름순). 값은 보지 않는다 — 값까지 고정하면 포털의 색 한 번 손질에 어르신
+// 테스트가 깨지고, 판단에 필요한 것은 "무엇이 닿는가" 다.
+export function cssBareDecls(css) {
+  const out = {};
+  if (typeof css !== 'string' || !css) return out;
+  const found = [];
+  scanRules(css, 0, css.length, found);
+  for (const { selector, body } of found) {
+    const bag = out[selector] || (out[selector] = new Set());
+    // 중첩 블록(있다면)과 주석을 걷어낸 뒤 `prop:` 꼴만 센다. 값 안의 콜론(url(http://…))은
+    // 속성 이름이 될 수 없으므로 **선언 시작 위치**에서만 읽는다.
+    const clean = body.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\{[^}]*\}/g, ' ');
+    for (const m of clean.matchAll(/(^|[;{])\s*(-{0,2}[A-Za-z][\w-]*)\s*:/g)) bag.add(m[2].toLowerCase());
+  }
+  for (const k of Object.keys(out)) out[k] = [...out[k]].sort();
   return out;
 }
 

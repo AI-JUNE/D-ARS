@@ -44,6 +44,7 @@ import {
   stepState,
   nextDepth,
   historyDepth,
+  historyStep,
   backAction,
   stepError,
   errorFor,
@@ -222,9 +223,18 @@ export default function SeniorFlow({
     setStep(want);
     backFromRef.current = null;
     try {
+      const here = window.history.state;
+      // **떠나는 항목의 주소도** 그 자리에서 고른 것으로 고쳐 쓴다. 예전에는 고른 것이 쌓는
+      // 항목에만 실려, 되돌아오면 그 항목은 고른 것이 빠진 주소(단계만 적힌 주소)를 되살렸다 —
+      // 11회차가 넣은 ✓ 표시가 하필 그 회차가 지목한 경로에서 보이지 않던 이유다
+      // (lib/eumSenior 의 「떠나는 화면의 주소도 거기서 고른 것을 안다」).
+      // replaceState 는 항목을 쌓지 않으므로 깊이 판정은 그대로다. 어느 단계의 항목인지
+      // 모르면(우리가 적은 상태가 아니면) 손대지 않는다 → historyStep 이 0.
+      const at = historyStep(here);
+      if (at) window.history.replaceState(here, '', stepQuery(at, d));
       // 쌓는 항목에는 **깊이**를 한 칸 더 적는다 — 되돌아가기가 "여기서 뒤로 갈 곳이 있는가" 를
       // 알 수 있는 유일한 단서다(lib/eumSenior 의 「되돌아가기가 실제로 되돌아가는가」).
-      const entry = stepState(want, nextDepth(window.history.state));
+      const entry = stepState(want, nextDepth(here));
       window.history.pushState(entry, '', stepQuery(want, d));
     } catch {
       /* noop */
@@ -421,16 +431,29 @@ export default function SeniorFlow({
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
         <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
 
-        {/* 만료 임박 안내는 스크린리더도 들어야 한다 — 예전에는 눈으로만 보이는 문단이라
-            보이지 않는 사용자는 링크가 곧 만료되는 것을 끝내 알 수 없었다. 문단 자체를 낭독
-            영역으로 두되, **매초 바뀌는 초 숫자는 aria-hidden** 으로 빼 둔다. 넣어 두면 1초마다
-            낭독이 끊기고 처음부터 다시 읽혀 오히려 문장을 들을 수 없다. */}
-        {soon ? (
-          <p style={S.warn} role="status" aria-live="polite">
-            {EUM_SOON_MESSAGE}
-            <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
-          </p>
-        ) : null}
+        {/* 만료 임박 안내는 스크린리더도 들어야 한다 — 눈으로만 보이는 문단이면 보이지 않는
+            어르신은 링크가 곧 만료되는 것을 끝내 알 수 없다. 매초 바뀌는 초 숫자는
+            **aria-hidden** 으로 빼 둔다(낭독 영역에 넣으면 1초마다 말이 끊기고 처음부터 다시
+            읽혀 오히려 문장을 들을 수 없다).
+
+            고친 결함: 낭독 영역(`role="status"`)이 **경고 문단 자체**에 붙어 있었다. 그러면
+            경고가 생기는 순간 영역도 **함께 태어나고**, 리더는 그것을 변화로 보지 않는 경우가
+            많다 — 살아 있던 영역의 내용이 바뀐 것이 아니기 때문이다. 11회차(만료 패널)·
+            12회차(오류 경계)가 같은 사실을 근거로 포커스를 옮기는 쪽을 고쳤는데, **그 근거를
+            적어 둔 파일의 몇 줄 위**에 같은 모양이 그대로 남아 있었다.
+            여기서는 포커스를 옮길 수 없다 — 이 경고가 뜨는 순간 어르신은 선택지를 고르는 중이고,
+            그 손에서 포커스를 빼앗으면 경고가 하라는 일(남은 1분 안에 신청)을 경고가 막는다.
+            그래서 **영역을 먼저 두고 내용만 나중에 넣는다**: 빈 칸은 화면에 한 픽셀도 차지하지
+            않고(내용 없는 블록), 경고가 들어오는 것은 **살아 있던 영역에 내용이 더해지는 것**
+            이라 리더가 읽는다. 들리지 않으면 이 경고는 아무 일도 하지 않는 문단이다. */}
+        <div role="status" aria-live="polite">
+          {soon ? (
+            <p style={S.warn}>
+              {EUM_SOON_MESSAGE}
+              <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
+            </p>
+          ) : null}
+        </div>
 
         {/* 안내 자리는 **단계마다 다르다** — 그 안내가 가리키는 조작 요소를 밀어내지 않는
             자리여야 하기 때문이다(ui.jsx 의 Alert). 고르는 화면(1단계)에서는 선택지 위,
