@@ -12,7 +12,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { EUM_FONT_PX } from '../lib/eumTheme.js';
 import { muteSeparatorsIn } from '../lib/eumSenior.js';
-import { metadataFields, inlineStringConsts, cssBareSelectors, exportedObjectEntries } from '../lib/sourceLint.js';
+import {
+  metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
+  exportedObjectEntries,
+} from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const dir = resolve(root, 'app/eum/senior/[token]');
@@ -836,6 +839,50 @@ const CSS_ACCEPTED = {
   '::selection': '글자를 끌어 선택했을 때의 반투명 하이라이트 — 글자 자체의 대비는 바뀌지 않는다',
 };
 
+// ── 고친 결함: 분류가 **선택자 이름**까지였다 ─────────────────────────────
+//
+// 위 세 목록은 선택자 이름을 전부 분류하게 한다. 그런데 `cssBareSelectors` 는 이름을 **중복
+// 제거**해 돌려주므로, 같은 선택자에 선언이 늘어나는 길에는 아무 신호가 없었다 — 같은 이름의
+// **두 번째 규칙**이든, 기존 규칙에 한 줄 추가든. 실제로 그렇게 들어온 것이 둘 있었다.
+//   · `*` 를 box-sizing 으로 분류해 둔 뒤 파일 아래쪽에 `*{scrollbar-width;scrollbar-color}` 가
+//     생겼다.
+//   · `body` 를 「자간을 끈다」로 분류해 둔 사이, 같은 규칙이 들고 있던 `background:var(--bg)` 는
+//     아무도 판정하지 않았다 — 그 색이 **문서 캔버스**(오버스크롤에서 보이는 자리)를 칠하므로,
+//     어르신 화면의 바탕이 그 한 겹만 포털 색이었다. 8회차가 주소창 색을 이 화면의 바탕색으로
+//     맞춰 둔 자리가 하필 그 띠의 바로 위다(고침이 절반이었다 · ui.jsx 의 EumStyles (3)).
+// 「요소 선택자를 전부 분류한다」는 이름은 그 사이에도 참이었다 — 검사하지 않는 낱말이 이름에
+// 들어 있던 또 한 자리다. 그래서 **닿는 선택자의 선언 이름까지** 등록하고 양방향으로 대조한다.
+// 값은 고정하지 않는다(포털 색 한 번 손질에 어르신 테스트가 깨지면 안 된다) — 판단에 필요한
+// 것은 "무엇이 닿는가" 다. 닿지 않는다고 분류한 선택자(CSS_ABSENT)는 그 요소가 화면에 없다는
+// 사실을 다른 테스트가 확인하므로 선언을 세지 않는다.
+const CSS_REACHING_DECLS = {
+  ':root': ['--bad', '--bg', '--brand', '--brand-d', '--brand-l', '--brand-xl', '--info', '--ink',
+    '--line', '--muted', '--nav-h', '--ok', '--panel', '--ring', '--shadow', '--shadow-sm',
+    '--side-w', '--sidebar', '--sidebar-2', '--warn'],
+  // scrollbar-* 는 허용이다 — 어르신 흐름의 기기는 스크롤바가 겹쳐 그려지는 휴대폰이고,
+  // 창 스크롤바를 칠하는 것은 문서의 뿌리라 `.eum-screen` 안쪽에서는 닿을 수도 없다.
+  '*': ['box-sizing', 'scrollbar-color', 'scrollbar-width'],
+  html: ['-webkit-text-size-adjust', 'margin', 'overflow-x', 'padding'],
+  // background 는 이제 EumStyles 가 덮는다(캔버스). color·font-family·line-height 는 화면의
+  // <main> 이 인라인으로 다시 적으므로 그 안쪽에는 닿지 않는다.
+  body: ['-moz-osx-font-smoothing', '-webkit-font-smoothing', '-webkit-text-size-adjust',
+    'background', 'color', 'font-family', 'letter-spacing', 'line-height', 'margin',
+    'overflow-x', 'padding'],
+  // color·text-decoration 은 되돌아가기 링크가 인라인으로 다시 적는다(밑줄·주색).
+  a: ['color', 'text-decoration', 'transition'],
+  button: ['font-family', 'transition'],
+  // text-wrap:balance 는 제목 줄바꿈을 고르게 한다 — 크기·대비에 닿지 않고 읽기에 이롭다.
+  h1: ['font-weight', 'letter-spacing', 'text-wrap'],
+  '*::-webkit-scrollbar': ['height', 'width'],
+  '*::-webkit-scrollbar-thumb': ['background', 'background-clip', 'border', 'border-radius'],
+  '*::-webkit-scrollbar-thumb:hover': ['background', 'background-clip'],
+  '::selection': ['background'],
+  // outline:none 은 포커스 링을 지운다. 어르신 화면의 조작 요소는 **전부** .eum-focus 를 달고
+  // (위 「키보드」 테스트가 대조한다) 그 규칙이 링을 다시 그린다.
+  ':focus-visible': ['border-radius', 'box-shadow', 'outline'],
+  'button:disabled': ['box-shadow', 'cursor', 'opacity'],
+};
+
 const eumSources = {
   'app/eum/senior/[token]/page.jsx': page,
   'app/eum/senior/[token]/SeniorFlow.jsx': flow,
@@ -867,6 +914,58 @@ test('닿지 않는다고 분류한 전역 선택자는 그 요소가 어르신 
   }
 });
 
+// ── 규칙이 아닌 것도 닿는다: 전역 CSS 가 바깥으로 걸어 둔 요청 ───────────────
+//
+// 찾았으나 **고치지 못한 것**이라 여기에 사유와 함께 못박아 둔다. `app/globals.css` 의 첫 줄은
+// 제3자 CDN 의 글꼴 스타일시트를 `@import` 하고, 그 파일은 루트 레이아웃이 import 하므로 어르신
+// 화면에도 그대로 내려온다(빌드 산출물로 확인: `/eum`·`/eum/senior` 가 그 CSS 를 링크한다).
+// `@import` 는 중괄호가 없어 규칙 스캐너가 보지 못했고 — 「전역 CSS 를 전부 분류한다」는 대조는
+// 그 줄을 한 번도 지나가지 않았다 — 결과는 이렇다.
+//   · 어르신 화면의 **첫 그림이 제3자 응답을 기다린다**(@import 는 렌더 블로킹이고, 자기 CSS
+//     뒤에 사슬로 붙는다). 느린 회선에서 그 사이 보이는 것은 대기 화면조차 아닌 **빈 화면**이고,
+//     링크 수명은 5분이다.
+//   · 그런데 이 화면은 그 글꼴을 **쓰지도 않는다** — fontFamily 는 system-ui 로 인라인이다.
+// 떼어 내려면 `globals.css` 를 고쳐야 하고 그것은 **포털 전체의 타이포그래피**를 바꾸는 일이라
+// 이 과제의 손 밖이다(**[승인 필요]**). 할 수 있는 것은 새 제3자 요청이 조용히 늘지 않게
+// 막는 것이다 — 호스트가 하나라도 늘면 여기서 실패한다.
+const CSS_EXTERNAL = {
+  'cdn.jsdelivr.net': '포털 글꼴(Pretendard) @import — 어르신 화면은 쓰지 않지만 떼면 포털 타이포그래피가 바뀐다 [승인 필요]',
+};
+
+test('전역 CSS 가 바깥으로 거는 요청이 전부 분류돼 있다(새 제3자는 결정을 강제한다)', () => {
+  const hosts = cssExternalRefs(globalCss);
+  assert.deepEqual(hosts.sort(), Object.keys(CSS_EXTERNAL).sort(),
+    `어르신 화면까지 따라 내려오는 제3자 요청: ${hosts.join(' | ')}`);
+  for (const [host, why] of Object.entries(CSS_EXTERNAL)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 외부 요청: ${host}`);
+  }
+  // 어르신 화면은 그 글꼴을 쓰지 않는다 — 기다리는 값이 실제로 쓰이지 않는다는 사실을 고정한다.
+  assert.match(ui, /fontFamily: 'system-ui/, '어르신 화면이 제3자 글꼴에 의존하기 시작했다');
+  assert.equal(/Pretendard/.test(ui), false, '어르신 화면이 포털 글꼴을 가리키고 있다');
+});
+
+test('닿는 전역 선택자의 선언까지 분류돼 있다(이름은 그대로인데 늘어나는 길을 막는다)', () => {
+  const decls = cssBareDecls(globalCss);
+  assert.ok(Object.keys(decls).length >= 25, '전역 CSS 를 읽지 못했다 — 대조가 무의미해지기 전에 고쳐라');
+  // 닿는 선택자(끄는 것 + 허용하는 것)는 전부 선언 목록을 가져야 한다.
+  const reaching = [...Object.keys(CSS_NEUTRALIZED), ...Object.keys(CSS_ACCEPTED)].sort();
+  assert.deepEqual(Object.keys(CSS_REACHING_DECLS).sort(), reaching,
+    '닿는 선택자와 선언 목록이 어긋난다(분류를 늘렸으면 선언도 적어야 한다)');
+  for (const [selector, props] of Object.entries(CSS_REACHING_DECLS)) {
+    assert.deepEqual(decls[selector], props,
+      `${selector} 에 닿는 선언이 바뀌었다 — 어르신 화면에서 어떻게 할지 다시 정하라`);
+  }
+});
+
+// 정정: 이 테스트의 범위 검사는 한동안 `.` 으로 시작하는 줄만 보았다(`if (!/^\s*\./…) continue`).
+// 그래서 **범위가 아예 없는** 규칙(`button{…}` 꼴)은 그대로 통과했다 — 「범위 안쪽에서만 끈다」는
+// 이름이 코드보다 앞서 있던 자리다. 지금은 범위 없는 선택자를 `cssBareSelectors` 로 긁어
+// (클래스를 가진 선택자는 그 함수가 애초에 세지 않는다) **사유와 함께 등록된 것만** 통과시킨다.
+const EUM_UNSCOPED = {
+  html: '문서 캔버스(오버스크롤에서 보이는 바탕)를 칠하는 것은 문서의 뿌리다 — 범위 안쪽에서는 닿을 수 없다',
+  body: '위와 같은 이유 — html 에 배경이 없으면 브라우저는 body 의 색으로 캔버스를 칠한다',
+};
+
 test('요건을 깨뜨리는 전역 선택자는 ui.jsx 가 어르신 화면 범위 안에서만 끈다', () => {
   assert.match(ui, /EUM_SCOPE = 'eum-screen'/, '범위 표시의 단일 출처가 사라졌다');
   const block = ui.slice(ui.indexOf('export function EumStyles'));
@@ -880,6 +979,24 @@ test('요건을 깨뜨리는 전역 선택자는 ui.jsx 가 어르신 화면 범
     if (!/^\s*\./.test(line)) continue;
     assert.match(line, /\.(?:\$\{EUM_SCOPE\}|eum-screen|eum-focus)/, `범위 없는 전역 규칙: ${line.trim()}`);
   }
+
+  // 범위가 **아예 없는** 규칙은 사유와 함께 등록된 것만 허용한다(양방향 대조).
+  const css = (block.match(/<style>\{`([\s\S]*?)`\}<\/style>/) || [])[1] || '';
+  assert.ok(css.length > 50, 'EumStyles 의 CSS 를 읽지 못했다');
+  const bare = cssBareSelectors(css.replace(/\$\{EUM_SCOPE\}/g, 'eum-screen').replace(/\$\{[^}]*\}/g, 'x'));
+  assert.deepEqual(bare.sort(), Object.keys(EUM_UNSCOPED).sort(),
+    `어르신 화면 밖까지 닿을 수 있는 규칙: ${bare.join(' | ')}`);
+  for (const [selector, why] of Object.entries(EUM_UNSCOPED)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 범위 예외: ${selector}`);
+  }
+  // 예외는 **바탕색 한 줄**까지다 — 글자 크기·대비를 여기서 손보면 포털까지 따라간다.
+  const rootRule = css.match(/\bhtml,\s*body\s*\{((?:[^{}]|\$\{[^}]*\})*)\}/);
+  assert.ok(rootRule, '캔버스 색을 칠하는 규칙이 사라졌다(오버스크롤이 포털 색으로 돌아간다)');
+  assert.match(rootRule[1], /background:\s*\$\{C\.bg\};/, '캔버스 색이 어르신 색 단일 출처에서 오지 않는다');
+  assert.deepEqual(
+    [...rootRule[1].matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]), ['background'],
+    '범위 밖 규칙에 선언이 늘었다',
+  );
 });
 
 test('어르신 화면 전부가 범위 표시와 EumStyles 를 함께 단다(한 화면만 빠지면 그 화면에서 깨진다)', () => {

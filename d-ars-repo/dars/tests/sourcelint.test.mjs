@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -630,4 +630,56 @@ test('cssBareSelectors: 못 읽으면 빈 배열(throw 금지)', () => {
   // 닫히지 않은 블록·짝 없는 닫힘에도 던지지 않는다.
   assert.deepEqual(cssBareSelectors('a{x:1'), ['a']);
   assert.deepEqual(cssBareSelectors('}a{x:1}'), ['a']);
+});
+
+// ── 선언까지 세는 스캐너(cssBareDecls) ────────────────────────────────────
+//
+// 왜 더 필요한가: 위 함수는 선택자 이름을 **중복 제거**해 돌려주므로, 어르신 화면의 분류가
+// 그 이름 목록만 보는 동안 같은 선택자에 선언이 늘어나는 길에는 아무 신호가 없었다.
+// 실제로 그렇게 들어와 요건을 깨뜨린 것이 있었다(`body{background}` → 문서 캔버스가 포털 색).
+test('cssBareDecls: 같은 선택자의 여러 규칙을 한 벌로 합친다', () => {
+  assert.deepEqual(cssBareDecls('*{box-sizing:border-box}\n.btn{a:1}\n*{scrollbar-width:thin}'), {
+    '*': ['box-sizing', 'scrollbar-width'],
+  });
+});
+
+test('cssBareDecls: 쉼표로 묶인 선택자는 각자 같은 선언을 받는다', () => {
+  assert.deepEqual(cssBareDecls('html,body{margin:0;padding:0}'), {
+    html: ['margin', 'padding'],
+    body: ['margin', 'padding'],
+  });
+});
+
+test('cssBareDecls: 값 안의 콜론·주석·벤더 접두어를 가려 읽는다', () => {
+  const css = 'body{background:url(https://x.test/a.png);/* c:1 */-webkit-font-smoothing:antialiased}';
+  assert.deepEqual(cssBareDecls(css), { body: ['-webkit-font-smoothing', 'background'] });
+  // 커스텀 속성도 선언이다 — :root 가 무엇을 들고 있는지 보려면 세야 한다.
+  assert.deepEqual(cssBareDecls(':root{--ring:0 0 0 3px}'), { ':root': ['--ring'] });
+});
+
+test('cssBareDecls: @media 안쪽은 들어가고 클래스·@keyframes 는 세지 않는다', () => {
+  const css = '@media(max-width:900px){h1{font-size:1px} .card{a:1}}\n@keyframes k{50%{opacity:.4}}';
+  assert.deepEqual(cssBareDecls(css), { h1: ['font-size'] });
+});
+
+test('cssBareDecls: 못 읽으면 빈 객체(throw 금지)', () => {
+  for (const bad of [null, undefined, 42, '', {}]) {
+    assert.deepEqual(cssBareDecls(bad), {}, `입력: ${String(bad)}`);
+  }
+  assert.deepEqual(cssBareDecls('a{x:1'), { a: ['x'] }, '닫히지 않은 블록도 읽는다');
+});
+
+// 규칙이 아닌 것도 어르신 화면까지 내려온다 — `@import` 는 중괄호가 없어 위 두 스캐너가
+// 보지 못했고, 그래서 「전역 CSS 를 전부 분류한다」는 대조는 그 줄을 지나가지 않았다.
+test('cssExternalRefs: @import·url() 의 제3자 호스트를 중복 없이 모은다', () => {
+  const css = "@import url('https://cdn.x.test/a/b.css');\nbody{background:url(http://cdn.x.test/i.png)}"
+    + "\n.y{src:url(https://fonts.z.test/f.woff2)}\n.rel{background:url(/local.png)}";
+  assert.deepEqual(cssExternalRefs(css), ['cdn.x.test', 'fonts.z.test']);
+});
+
+test('cssExternalRefs: 같은 오리진·상대 경로는 외부가 아니다 · 못 읽으면 빈 배열', () => {
+  assert.deepEqual(cssExternalRefs('body{background:url("/a.png")}'), []);
+  for (const bad of [null, undefined, 42, '', {}]) {
+    assert.deepEqual(cssExternalRefs(bad), [], `입력: ${String(bad)}`);
+  }
 });

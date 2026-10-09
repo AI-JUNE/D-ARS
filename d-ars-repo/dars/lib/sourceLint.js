@@ -558,6 +558,28 @@ export function cssBareDecls(css) {
   return out;
 }
 
+// CSS 가 **바깥으로 걸어 둔 요청**의 출처(호스트) 목록 — `@import` 와 `url(…)` 둘 다 본다.
+// 중복 제거 · 나타난 순서.
+//
+// 왜 필요한가: 위 두 함수는 규칙(선택자·선언)만 본다. 그런데 어르신 화면에 닿는 것은 그것만이
+// 아니다 — `app/globals.css` 의 **첫 줄**은 제3자 CDN 의 글꼴 스타일시트를 `@import` 하고,
+// 그 파일은 루트 레이아웃이 import 하므로 `/eum` 아래에도 그대로 내려온다. `@import` 는
+// 중괄호가 없어 규칙 스캐너가 보지 못했고, 그래서 「전역 CSS 를 전부 분류한다」는 대조는
+// 그 줄을 **한 번도** 지나가지 않았다(어르신 화면은 그 글꼴을 쓰지도 않는다 — 인라인
+// fontFamily 는 system-ui 다). 새 제3자 요청이 조용히 늘어나는 것을 막는 수단이다.
+export function cssExternalRefs(css) {
+  if (typeof css !== 'string' || !css) return [];
+  const out = [];
+  const seen = new Set();
+  for (const m of css.matchAll(/https?:\/\/([^/\s'")]+)/g)) {
+    const host = m[1].toLowerCase();
+    if (seen.has(host)) continue;
+    seen.add(host);
+    out.push(host);
+  }
+  return out;
+}
+
 // 같은 파일 최상위의 `const NAME = '…'` 문자열 상수를 text 안에서 **값으로 펼친다**.
 // 이유: `description: DESC` 처럼 상수를 가리키는 값은 텍스트만 봐서는 무엇이 들었는지 알 수 없다 —
 // 브랜드 문구가 상수 뒤에 숨으면 대조가 조용히 통과한다.
