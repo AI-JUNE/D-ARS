@@ -48,7 +48,10 @@ import {
   backAction,
   stepError,
   errorFor,
+  submitBlock,
+  takeRetried,
   EUM_HISTORY_ROOT,
+  EUM_VISIT_MIN,
 } from '@/lib/eumSenior';
 import {
   EUM_SOON_MESSAGE,
@@ -103,10 +106,14 @@ export default function SeniorFlow({
   // 첫 렌더부터 복원한 단계로 그린다. 1 로 두고 효과에서 고치면 되살아난 탭이 첫 화면을
   // 한 번 깜빡인 뒤 넘어가, 어르신에게는 "또 처음으로 갔다" 로 보인다.
   const [step, setStep] = useState(() => clampStep(initialStep, { ...restored, done: false }));
+  // 이 화면을 **몇 번째로 밟고 있는가**. 단계만으로는 안내가 머물 자리를 가릴 수 없다 —
+  // 같은 번호의 단계로 몇 번이고 되돌아오기 때문이다(lib/eumSenior 의 「그 화면의 그 방문」).
+  const [visit, setVisit] = useState(EUM_VISIT_MIN);
   const [busy, setBusy] = useState(false);
-  // 안내는 글자열이 아니라 **그것이 속한 단계와 함께** 들고 있는다(lib/eumSenior.stepError).
+  // 안내는 글자열이 아니라 **그것이 속한 단계·방문과 함께** 들고 있는다(lib/eumSenior.stepError).
   // 예전에는 글자열 하나였고, 비우는 곳이 다음 제출의 첫 줄뿐이라 안내가 자기 화면을 떠나
-  // 고르는 화면까지 따라다녔다 — 그 화면에서 「아래 단추」는 선택지 버튼이다.
+  // 고르는 화면까지 따라다녔다 — 그 화면에서 「아래 단추」는 선택지 버튼이다. 단계만 적었을
+  // 때는 되돌아갔다 돌아온 **같은 화면**에 조금 전의 실패가 되살아났다.
   const [error, setError] = useState(null);
   // 서버가 판정한 남은 기간과, 그것을 받은 시점의 단조 눈금. 둘의 차이로만 남은 시간을 센다.
   const [initialLeft] = useState(() => initialLeftMs(remainingMs));
@@ -131,15 +138,34 @@ export default function SeniorFlow({
   // 이것이 없으면 같은 자리의 두 번째 누름이 -1 을 한 번 더 쌓아 **문서 밖**으로 나간다.
   // 되돌아간 뒤(popstate)와 새로 쌓은 뒤(go)에 비운다.
   const backFromRef = useRef(null);
+  // 지금 방문 번호. 상태(visit)와 달리 **그 자리에서** 바뀌므로, 제출이 안내를 매달 때
+  // 「누른 그 순간의 방문」을 집는 데 쓴다(submittingRef 와 같은 이유).
+  const visitRef = useRef(EUM_VISIT_MIN);
+
+  // 단계를 바꾸는 **유일한 자리**. 방문 번호를 함께 한 칸 올린다 — 같은 번호의 단계로
+  // 되돌아오는 것은 같은 화면이지만 **다른 방문**이고, 조금 전의 실패 안내는 그 방문의 것이
+  // 아니다(lib/eumSenior 의 errorFor). 새 이동 경로가 생겨도 여기를 거치지 않으면 안내가
+  // 되살아나므로, 테스트가 `setStep` 이 이 함수 안에만 있는지 소스 순서로 대조한다.
+  const enterStep = useCallback((next) => {
+    visitRef.current += 1;
+    setVisit(visitRef.current);
+    setStep(next);
+  }, []);
 
   // 단계가 바뀌면 제목으로 포커스를 옮긴다.
   // 이유: 이 화면은 주소만 바뀌고 문서는 그대로라, 스크린리더 사용자는 화면이 넘어간 것을 모른 채
   // 이전 위치에 남는다. 제목(tabIndex=-1)에 포커스를 주면 새 제목이 낭독되고 이어지는 Tab 이
   // 새 선택지에서 시작한다. 첫 렌더에는 옮기지 않는다 — 사용자가 아직 아무 조작도 하지 않았다.
+  //
+  // 예외가 하나 있다: **「다시 시도」로 되살아난 화면**이다. 그 단추는 눌린 순간 자기 자신이
+  // 사라지므로(reset) 포커스가 body 로 떨어졌고, 그때는 어르신이 **조작해서 온 것**이라
+  // 위 근거가 성립하지 않는다 — 들리는 말이 한 마디도 없고 다음 Tab 이 문서 맨 앞에서
+  // 시작한다. 오류 경계가 그 사실을 문서에 적어 두고(lib/eumSenior.markRetried) 여기서
+  // **읽고 지운다**(한 번만 쓰이는 사실이다).
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
-      return;
+      if (!takeRetried(typeof document !== 'undefined' ? document.documentElement : null)) return;
     }
     try {
       headingRef.current?.focus();
@@ -153,7 +179,7 @@ export default function SeniorFlow({
   // 그대로 실려 있어도 무조건 1단계로 떨어뜨렸다.
   useEffect(() => {
     const want = clampStep(initialStep, { ...restored, done: false });
-    setStep(want);
+    enterStep(want);
     try {
       // 이 항목은 **복원으로 생긴 뿌리**다 — 깊이 0. replaceState 는 항목을 쌓지 않으므로
       // 여기서 history.back() 을 불러도 갈 곳이 없다. 그 사실을 상태에 적어 두어야
@@ -163,7 +189,7 @@ export default function SeniorFlow({
     } catch {
       /* 히스토리 조작 불가 환경(구형 브라우저) — 화면 동작에는 영향 없다 */
     }
-  }, [initialStep, restored]);
+  }, [initialStep, restored, enterStep]);
 
   // 뒤로가기/앞으로가기 → 주소의 단계와 선택을 함께 되살린다.
   useEffect(() => {
@@ -174,17 +200,17 @@ export default function SeniorFlow({
       // 이때 선택을 주소에서 다시 읽으면 안 된다 — 히스토리 앞쪽 항목에는 아직 고르기 전의
       // 주소(?step=1)가 들어 있어, 방금 접수된 내용을 그린 요약이 빈 칸으로 덮인다.
       if (draftRef.current.done) {
-        setStep(4);
+        enterStep(4);
         return;
       }
       const at = readLocation();
       setActivity(at.activity);
       setTimeslot(at.timeslot);
-      setStep(clampStep(at.step, { ...at, done: false }));
+      enterStep(clampStep(at.step, { ...at, done: false }));
     }
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  }, [enterStep]);
 
   // 남은 시간(1초 간격). 제출이 끝났으면 더 세지 않는다 — 완료 화면이 만료로 덮이지 않게.
   useEffect(() => {
@@ -220,7 +246,7 @@ export default function SeniorFlow({
   const go = useCallback((next, draft) => {
     const d = draft || draftRef.current;
     const want = clampStep(next, d);
-    setStep(want);
+    enterStep(want);
     backFromRef.current = null;
     try {
       const here = window.history.state;
@@ -239,7 +265,7 @@ export default function SeniorFlow({
     } catch {
       /* noop */
     }
-  }, []);
+  }, [enterStep]);
 
   function chooseActivity(k) {
     setActivity(k);
@@ -279,7 +305,7 @@ export default function SeniorFlow({
     try {
       window.history.back();
     } catch {
-      setStep((s) => Math.max(1, s - 1));
+      enterStep(Math.max(1, step - 1));
     }
   }
 
@@ -317,14 +343,30 @@ export default function SeniorFlow({
     // (설령 새어 나가도 서버가 409 로 받아 두 건이 되지는 않는다 — 1회용 판정은 라우트의 몫이다.)
     if (busy || submittingRef.current) return;
     setError(null);
-    // 안내를 매달 단계는 **누른 그 순간의 단계**다. 기다리는 사이 어르신이 되돌아갔다면
-    // 그 화면에는 이 안내가 뜨지 않는다(다른 화면을 가리키는 말을 하지 않는다).
+    // 안내를 매달 자리는 **누른 그 순간의 단계와 방문**이다. 기다리는 사이 어르신이
+    // 되돌아갔다면(또는 되돌아갔다 같은 화면으로 돌아왔다면) 그 화면에는 이 안내가 뜨지
+    // 않는다 — 다른 화면·다른 방문을 가리키는 말을 하지 않는다.
     const at = step;
+    const atVisit = visitRef.current;
     const body = buildPreferences({ sid, activity, timeslot });
     if (!body) {
+      // 막힌 이유에 따라 할 말과 되돌릴 길이 다르다(lib/eumSenior.submitBlock).
+      if (submitBlock({ sid, activity, timeslot }) === 'link') {
+        // 링크에 식별자가 없다 — **다시 고르는 것으로는 되지 않는다.** 예전에는 이 경로까지
+        // 「처음부터 다시 골라 주세요」로 안내하며 1단계로 되돌렸고, 그러면 어르신은 끝없이
+        // 다시 고르다 5분을 잃는다. 그리고 그때 주소는 **확인 화면을 가리킨 채** 남아 있어
+        // (아래 참조) 화면이 다시 그려지면 같은 막다른 자리로 돌아왔다.
+        // 할 수 있는 일은 담당자에게 새 링크를 청하는 것뿐이므로 잘못된 링크와 **같은 문장**을
+        // 그 자리에 둔다(401 안내와 같은 자리·같은 말 · lib/eumMessage).
+        setError(stepError(at, tokenMessage('malformed'), atVisit));
+        return;
+      }
       // 이 안내만 **고르는 화면**에 속한다 — 되돌릴 길이 「처음부터 다시 고르기」이기 때문이다.
-      setError(stepError(1, submitMessage('selection')));
-      setStep(1);
+      // 단계 이동은 `go` 를 거친다: 예전에는 `setStep(1)` 만 해서 주소가 따라오지 않았고,
+      // 주소가 화면을 설명하지 못하는 상태에서 다시 그려지면 **주소가 이긴다**.
+      go(1, { activity, timeslot, done: false });
+      // 안내는 **옮겨 간 뒤의 방문**에 매단다(먼저 적으면 떠나기 전 번호가 박혀 그려지지 않는다).
+      setError(stepError(1, submitMessage('selection'), visitRef.current));
       return;
     }
     submittingRef.current = true;
@@ -345,7 +387,7 @@ export default function SeniorFlow({
       // 이미 접수된 링크는 아래에서 409 로 돌아오고, 오류가 아니라 **완료 화면**이 된다.
       setError(stepError(at, failure === 'offline'
         ? submitMessage('offline')     // 브라우저가 단정한 상태 — 눌러도 네트워크를 두드리지 않는다
-        : submitMessage('unreachable')));
+        : submitMessage('unreachable'), atVisit));
       return;
     }
 
@@ -375,14 +417,14 @@ export default function SeniorFlow({
     if (res.status === 401) {
       // 문구는 서버 쪽 화면(진입 시 잘못된 링크)과 **같은 문장**이어야 한다. 예전에는 여기
       // 적힌 사본에 마침표가 하나 더 붙어, 같은 상태를 두 화면이 미묘하게 다르게 말했다.
-      setError(stepError(at, tokenMessage('signature')));
+      setError(stepError(at, tokenMessage('signature'), atVisit));
       return;
     }
     if (res.status === 429) {
-      setError(stepError(at, submitMessage('tooMany')));
+      setError(stepError(at, submitMessage('tooMany'), atVisit));
       return;
     }
-    setError(stepError(at, submitMessage('rejected')));
+    setError(stepError(at, submitMessage('rejected'), atVisit));
   }
 
   // 화면이 스스로 만료를 선언하는 것은 **남은 시간을 실제로 알 때뿐**이다(isExpired 는 null 에
@@ -419,9 +461,10 @@ export default function SeniorFlow({
   // 예전에는 이 자리에서 `labelOf(…) · labelOf(…)` 로 손수 이어 붙여, 확인 화면과 **형식이
   // 두 벌**이었고 한쪽 라벨을 모를 때 「 · 」만 남은 반쪽 요약이 그려질 수 있었다.
   const doneSummary = already ? summaryText(accepted) : summaryText({ activity, timeslot });
-  // 지금 이 화면에 속한 안내만 그린다. 다른 단계의 것이면 빈 문자열이고 Alert 는 아무것도
-  // 그리지 않는다 — 안내가 자기 화면을 떠나 따라다니던 것을 여기서 끊는다.
-  const alertText = errorFor(error, step);
+  // 지금 이 화면의 **이 방문**에 속한 안내만 그린다. 다른 단계·다른 방문의 것이면 빈
+  // 문자열이고 Alert 는 아무것도 그리지 않는다 — 안내가 자기 화면을 떠나 따라다니던 것과,
+  // 되돌아갔다 돌아온 같은 화면에 조금 전의 실패가 되살아나던 것을 여기서 함께 끊는다.
+  const alertText = errorFor(error, step, visit);
 
   return (
     <main style={S.page} className={EUM_SCOPE}>

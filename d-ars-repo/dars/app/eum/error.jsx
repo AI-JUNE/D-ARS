@@ -41,6 +41,17 @@
 // 열릴 때만** 보인다(신청 화면은 Next 라우팅이 아니라 pushState 로 단계를 옮긴다). 서버
 // 컴포넌트라 ref 를 넘길 수도 없다(ui.jsx 의 Notice 가 서버 쪽 세 화면에 ref 를 넘기지 않는
 // 것과 같은 이유).
+//
+// ── 고친 결함: **나오는 길에서도 아무 말도 하지 않았다** ────────────────────────────────
+// 위 고침은 이 화면으로 **들어오는** 전환만 받았다. 그런데 「다시 시도」는 눌린 순간 자기
+// 자신이 사라지는 단추다 — reset() 이 이 화면을 걷어내고 신청 흐름이 그 자리에 되살아나므로,
+// 포커스는 다시 body 로 떨어진다. 그리고 되살아난 흐름은 **첫 렌더에서 포커스를 옮기지
+// 않는다**(SeniorFlow) — 그 규칙의 근거가 "사용자가 아직 아무 조작도 하지 않았다" 인데,
+// 이 경우엔 조작해서 온 것이다. 그래서 어르신은 단추를 눌렀는데 들리는 말이 한 마디도 없고
+// (멈춘 것과 구별되지 않는다) 다음 Tab 은 문서 맨 앞에서 시작한다. 11~13회차가 세 번 고친
+// 모양이 **같은 전환의 반대 방향**으로 한 번 더 남아 있었던 셈이다.
+// 두 화면은 서로를 모르므로 사실 하나를 문서에 적어 넘긴다(lib/eumSenior 의 EUM_RETRY_FLAG —
+// 모듈 변수·저장소를 쓰지 않는 이유가 거기 적혀 있다).
 
 import { useEffect, useRef } from 'react';
 // 순수 포맷터만 가져온다(전송 로직 미사용) — 브라우저에서 외부 통신은 일어나지 않는다.
@@ -50,6 +61,8 @@ import { buildEvent, monitorLine } from '@/lib/monitor';
 // 본문은 「잠시 뒤 **아래** 단추를…」로 **자리를 가리켰다** — 11회차가 제출 실패 안내에서
 // 없앤 바로 그 낱말이다(lib/eumMessage.js 의 EUM_BOUNDARY_MESSAGE 참조).
 import { EUM_BOUNDARY_MESSAGE as M } from '@/lib/eumMessage';
+// 「다시 시도」는 **자기 자신이 사라지는 단추**다 — 아래 onClick 참조.
+import { markRetried } from '@/lib/eumSenior';
 import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
 
 // 특수 파일(error.jsx)에는 기본 export 외에 아무것도 내보내지 않는다 — route.js 규칙과 같은 취지다.
@@ -86,6 +99,14 @@ export default function EumError({ error, reset }) {
             className="eum-focus"
             style={S.primary}
             onClick={() => {
+              // 이 단추는 눌린 순간 **자기 자신이 사라진다** — reset() 이 이 화면을 걷어내고
+              // 신청 흐름이 그 자리에 되살아난다. 그러면 포커스가 얹혀 있던 이 단추가 문서에서
+              // 사라지므로 브라우저는 포커스를 body 로 돌려보낸다. 위에서 고친 것(흐름 → 이
+              // 화면)과 **같은 전환의 반대 방향**인데, 되살아난 흐름은 첫 렌더에서 포커스를
+              // 옮기지 않는다 — 그 규칙의 근거("아직 아무 조작도 하지 않았다")가 여기서는
+              // 성립하지 않는다(조작해서 온 것이다). 그 사실 하나를 문서에 적어 넘기고,
+              // 흐름이 읽고 지운다(lib/eumSenior 의 EUM_RETRY_FLAG).
+              markRetried(typeof document !== 'undefined' ? document.documentElement : null);
               try {
                 reset();
               } catch {

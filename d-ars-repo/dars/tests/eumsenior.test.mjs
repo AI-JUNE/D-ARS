@@ -34,6 +34,12 @@ import {
   backAction,
   stepError,
   errorFor,
+  visitNo,
+  EUM_VISIT_MIN,
+  submitBlock,
+  EUM_RETRY_FLAG,
+  markRetried,
+  takeRetried,
 } from '../lib/eumSenior.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
@@ -172,6 +178,96 @@ test('buildPreferences: 선택 누락·규격 밖이면 null(제출을 막는다
   assert.equal(buildPreferences({ sid: 's-1', activity: '없는값', timeslot: 'morning' }), null);
   assert.equal(buildPreferences({ sid: '', activity: 'walk', timeslot: 'morning' }), null);
   assert.equal(buildPreferences(null), null);
+});
+
+// ── 고친 결함: 제출이 막히는 이유가 둘인데 화면은 한 가지로만 말했다 ─────────
+//
+// 판정이 `buildPreferences(…) === null` 하나였고, 화면은 그것을 전부 「처음부터 다시 골라
+// 주세요」로 안내하며 1단계로 되돌렸다. 그런데 링크에 식별자(sid)가 없는 경우에는 **몇 번을
+// 다시 골라도 같은 자리에서 막힌다** — 끝없이 처음으로 돌려보내며 되지 않는 일을 시키고,
+// 그 사이 5분이 준다. 되돌릴 길은 고르기가 아니라 담당자에게 새 링크를 청하는 것이다.
+test('submitBlock: 막힌 이유를 구분한다(다시 고르면 되는 것과 되지 않는 것)', () => {
+  assert.equal(submitBlock({ sid: 's-1', activity: 'walk', timeslot: 'morning' }), null);
+  // 링크 쪽 — 다시 고르는 것으로는 되지 않는다.
+  for (const sid of ['', '   ', null, undefined, 42, {}]) {
+    assert.equal(submitBlock({ sid, activity: 'walk', timeslot: 'morning' }), 'link', `sid: ${String(sid)}`);
+  }
+  assert.equal(submitBlock(null), 'link');
+  // 고른 것 쪽 — 다시 고르면 된다.
+  assert.equal(submitBlock({ sid: 's-1', activity: 'walk' }), 'selection');
+  assert.equal(submitBlock({ sid: 's-1', timeslot: 'morning' }), 'selection');
+  assert.equal(submitBlock({ sid: 's-1', activity: '없는값', timeslot: 'morning' }), 'selection');
+  assert.equal(submitBlock({ sid: 's-1', activity: 'walk', timeslot: '없는값' }), 'selection');
+  // 링크가 먼저다 — sid 도 선택도 없을 때 「다시 골라 주세요」라고 하면 되지 않는 일을 시킨다.
+  assert.equal(submitBlock({ sid: '', activity: '없는값', timeslot: '없는값' }), 'link');
+});
+
+test('submitBlock ↔ buildPreferences: 두 판정이 갈라지지 않는다(양방향)', () => {
+  const sids = ['s-1', '', '  s-2  ', null];
+  const acts = ['walk', '없는값', undefined];
+  const slots = ['morning', '', 7];
+  for (const sid of sids) {
+    for (const activity of acts) {
+      for (const timeslot of slots) {
+        const draft = { sid, activity, timeslot };
+        const blocked = submitBlock(draft);
+        const built = buildPreferences(draft);
+        assert.equal(!!blocked, built === null, `어긋남: ${JSON.stringify(draft)} → ${blocked} / ${built}`);
+      }
+    }
+  }
+});
+
+// ── 되살아난 화면이 「방금 다시 시도를 눌렀다」를 안다 ──────────────────────
+//
+// 고친 결함: 오류 경계의 「다시 시도」는 눌린 순간 자기 자신이 사라지는 단추다(reset). 그러면
+// 포커스가 body 로 떨어지는데, 되살아난 흐름은 첫 렌더에서 포커스를 옮기지 않는다 — 그 규칙의
+// 근거("아직 아무 조작도 하지 않았다")가 여기서는 성립하지 않는다. 그래서 어르신은 눌렀는데
+// 들리는 말이 한 마디도 없고 다음 Tab 이 문서 맨 앞에서 시작한다.
+function fakeRoot(initial = {}) {
+  const attrs = new Map(Object.entries(initial));
+  return {
+    attrs,
+    getAttribute: (k) => (attrs.has(k) ? attrs.get(k) : null),
+    setAttribute: (k, v) => attrs.set(k, String(v)),
+    removeAttribute: (k) => attrs.delete(k),
+  };
+}
+
+test('markRetried/takeRetried: 적은 사실은 **한 번만** 읽힌다', () => {
+  const root = fakeRoot();
+  assert.equal(takeRetried(root), false, '적지 않았는데 눌렀다고 한다');
+  assert.equal(markRetried(root), true);
+  assert.equal(root.getAttribute(EUM_RETRY_FLAG), '1');
+  assert.equal(takeRetried(root), true);
+  // 지우지 않으면 같은 문서에서 흐름이 다시 그려질 때마다 누른 적 없는 누름을 근거로
+  // 포커스를 빼앗는다.
+  assert.equal(root.getAttribute(EUM_RETRY_FLAG), null, '읽고 지우지 않았다');
+  assert.equal(takeRetried(root), false);
+});
+
+test('markRetried/takeRetried: 어떤 입력에도 던지지 않는다(단추가 죽으면 안 된다)', () => {
+  for (const bad of [null, undefined, {}, 42, 'html', []]) {
+    assert.equal(markRetried(bad), false, `입력: ${String(bad)}`);
+    assert.equal(takeRetried(bad), false, `입력: ${String(bad)}`);
+  }
+  // 속성 조작이 막힌 환경(던지는 구현)에서도 통째로 죽지 않는다.
+  const hostile = {
+    getAttribute() { throw new Error('nope'); },
+    setAttribute() { throw new Error('nope'); },
+    removeAttribute() { throw new Error('nope'); },
+  };
+  assert.equal(markRetried(hostile), false);
+  assert.equal(takeRetried(hostile), false);
+  // 지울 수단이 없으면 읽지도 않는다 — 한 번만 쓰이는 사실을 되풀이해 쓰지 않는다.
+  const readOnly = { getAttribute: () => '1' };
+  assert.equal(takeRetried(readOnly), true);
+});
+
+test('넘기는 자리는 문서 속성이다(모듈 변수·저장소가 아니다)', () => {
+  // 모듈 변수는 번들 경계마다 갈라지고(12회차의 소진 스토어), 저장소는 문서를 넘겨 살아남아
+  // 다음에 링크를 여는 어르신이 누른 적 없는 누름의 뒤처리를 받는다.
+  assert.match(EUM_RETRY_FLAG, /^data-[a-z-]+$/, '문서 속성 이름이 아니다');
 });
 
 // ── 고른 것을 주소에 남긴다 ────────────────────────────────────────────────
@@ -351,33 +447,67 @@ test('backAction: 1→2→3 을 쌓았다 되돌아가는 왕복이 끝까지 �
 // 줄뿐이었다. 단계를 옮기는 길은 어느 쪽도 비우지 않으므로 안내가 **자기 화면을 떠나**
 // 고르는 화면까지 따라다녔다 — 거기서 「아래 단추」는 선택지 버튼이고, 안내대로 누른
 // 어르신은 재시도가 아니라 다음 화면으로 넘어간다.
-test('stepError: 안내는 그것이 속한 단계와 함께만 존재한다(빈 안내는 만들지 않는다)', () => {
-  assert.deepEqual(stepError(3, '연결이 원활하지 않습니다'), { step: 3, text: '연결이 원활하지 않습니다' });
+// 정정: 이 테스트는 한동안 안내가 **단계만** 들고 있는 모양을 고정했다(deepEqual 에 step·text
+// 둘뿐). 단계는 같은 번호로 몇 번이고 되돌아오는 자리라 그것만으로는 안내가 머물 자리를
+// 가릴 수 없었다 — 아래 「같은 화면의 다른 방문」 참조. 계약을 **더 좁게** 다시 적는다.
+test('stepError: 안내는 그것이 속한 단계·방문과 함께만 존재한다(빈 안내는 만들지 않는다)', () => {
+  assert.deepEqual(stepError(3, '연결이 원활하지 않습니다', 2),
+    { step: 3, visit: 2, text: '연결이 원활하지 않습니다' });
   // 할 말이 없으면 안내 자체가 없다 — 빈 줄을 그리지 않게.
   for (const empty of ['', '   ', null, undefined, 42, {}]) {
-    assert.equal(stepError(3, empty), null, `입력: ${String(empty)}`);
+    assert.equal(stepError(3, empty, 1), null, `입력: ${String(empty)}`);
   }
   // 단계는 언제나 규격 안으로 잘린다(주소·상태가 이상해도 안내가 어느 화면에도 속하지 않는
   // 유령이 되지 않게 — parseStep 과 같은 규칙으로 1단계로 떨어진다).
-  assert.equal(stepError(9, '가').step, 1);
-  assert.equal(stepError('x', '가').step, 1);
-  assert.equal(stepError(2.7, '가').step, 2);
+  assert.equal(stepError(9, '가', 0).step, 1);
+  assert.equal(stepError('x', '가', 0).step, 1);
+  assert.equal(stepError(2.7, '가', 0).step, 2);
+  // 방문 번호도 같다 — 정수가 아니거나 음수면 첫 방문으로 떨어진다(visitNo).
+  for (const bad of [undefined, null, '2', 2.5, -1, NaN, {}]) {
+    assert.equal(stepError(3, '가', bad).visit, EUM_VISIT_MIN, `입력: ${String(bad)}`);
+  }
+  assert.equal(visitNo(7), 7);
 });
 
 test('errorFor: 다른 단계의 안내는 한 글자도 그리지 않는다(따라다니지 않는다)', () => {
-  const at3 = stepError(3, '연결이 원활하지 않습니다. 한 번 더 눌러 주세요');
-  assert.equal(errorFor(at3, 3), at3.text);
+  const at3 = stepError(3, '연결이 원활하지 않습니다. 한 번 더 눌러 주세요', 5);
+  assert.equal(errorFor(at3, 3, 5), at3.text);
   for (const step of [1, 2, 4]) {
-    assert.equal(errorFor(at3, step), '', `${step}단계에 다른 화면의 안내가 남는다`);
+    assert.equal(errorFor(at3, step, 5), '', `${step}단계에 다른 화면의 안내가 남는다`);
   }
   // 고르는 화면에 속한 안내는 그 화면에서만 보인다(「처음부터 다시 골라 주세요」).
-  const at1 = stepError(1, '선택이 저장되지 않았습니다. 처음부터 다시 골라 주세요');
-  assert.equal(errorFor(at1, 1), at1.text);
-  assert.equal(errorFor(at1, 3), '');
+  const at1 = stepError(1, '선택이 저장되지 않았습니다. 처음부터 다시 골라 주세요', 5);
+  assert.equal(errorFor(at1, 1, 5), at1.text);
+  assert.equal(errorFor(at1, 3, 5), '');
   // 안내가 없거나 형식이 다르면 아무것도 그리지 않는다(여기서 던지면 화면이 통째로 죽는다).
-  for (const bad of [null, undefined, '', '문자열', 7, [], ['가'], { step: 3 }, { text: '' }, { text: 1, step: 3 }]) {
-    assert.equal(errorFor(bad, 3), '', `입력: ${JSON.stringify(bad) ?? String(bad)}`);
+  // 방문이 **적혀 있지 않은** 안내도 그리지 않는다 — 어느 방문의 것인지 모르는 안내를
+  // 그리면 이 함수가 막아야 하는 결과가 그대로 돌아온다.
+  for (const bad of [
+    null, undefined, '', '문자열', 7, [], ['가'], { step: 3 }, { text: '' }, { text: 1, step: 3 },
+    { step: 3, text: '가' }, { step: 3, text: '가', visit: '0' },
+  ]) {
+    assert.equal(errorFor(bad, 3, 0), '', `입력: ${JSON.stringify(bad) ?? String(bad)}`);
   }
+});
+
+// ── 고친 결함: 같은 화면의 **다른 방문**에 조금 전의 실패가 되살아났다 ───────
+//
+// 안내에 적힌 것이 단계뿐이었다. 확인 화면(3단계)에서 제출이 실패해 안내가 뜨고, 어르신이
+// 「다시 고르기」로 2단계에 가면 안내는 사라진다(단계가 다르다). 그런데 시간대를 다시 골라
+// 3단계로 돌아오면 **그 안내가 다시 뜬다** — 아직 아무것도 누르지 않았는데 빨간 안내가
+// 이미 떠 있고, 「한 번 더 눌러 주세요」는 누른 적 없는 누름을 가리킨다. 하필 그 경로가 가장
+// 흔하다(실패를 본 어르신이 가장 먼저 누르는 것이 되돌아가기다).
+test('errorFor: 되돌아갔다 돌아온 같은 화면에는 조금 전의 안내가 되살아나지 않는다', () => {
+  // 3단계 첫 방문(번호 2)에서 실패했다.
+  const failed = stepError(3, '연결이 원활하지 않습니다. 한 번 더 눌러 주세요', 2);
+  assert.equal(errorFor(failed, 3, 2), failed.text, '실패한 그 화면에는 떠야 한다');
+  // 「다시 고르기」 → 2단계(번호 3). 단계가 다르므로 보이지 않는다(종전 계약).
+  assert.equal(errorFor(failed, 2, 3), '');
+  // 시간대를 다시 골라 3단계로 **돌아왔다**(번호 4). 단계는 같지만 방문이 다르다.
+  assert.equal(errorFor(failed, 3, 4), '', '같은 단계로 돌아오자 조금 전의 실패가 되살아났다');
+  // 되돌아가기가 가로채이지 않아 번호가 그대로인 경우는 없다 — 단계를 바꾸는 자리가
+  // 하나뿐이고(enterStep) 거기서 번호가 반드시 오른다. 그 계약은 화면 쪽 소스 대조가 든다.
+  assert.notEqual(errorFor(failed, 3, 2), '');
 });
 
 test('storageKey: sid 별로 구분되고 값이 없으면 빈 문자열이다', () => {

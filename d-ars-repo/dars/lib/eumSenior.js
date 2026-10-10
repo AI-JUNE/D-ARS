@@ -306,17 +306,43 @@ export function backAction(state, pendingDepth) {
 // 그래서 안내에 **그것이 속한 단계**를 함께 적는다. 자리를 잊지 않도록 비우는 쪽이 아니라
 // **적는 쪽**으로 고친 이유는, 비우는 길이 늘어날 때마다 한 곳을 빠뜨리면 결함이 그대로
 // 돌아오기 때문이다(기본값을 두지 않는 EUM_NOTICE_FOOT·EUM_PRIOR_TAIL 과 같은 계약).
-export function stepError(step, text) {
-  const t = typeof text === 'string' ? text.trim() : '';
-  if (!t) return null;
-  return { step: parseStep(step), text: t };
+// ── 그리고 그 화면의 **그 방문**에만 머문다 ────────────────────────────────
+//
+// 고친 결함: 안내에 적힌 것이 **단계뿐**이었다. 그런데 단계는 같은 번호로 몇 번이고 되돌아오는
+// 자리다 — 확인 화면(3단계)에서 제출이 실패해 안내가 뜬 뒤 「다시 고르기」로 2단계에 가면
+// 안내는 사라지지만(단계가 다르다), 시간대를 다시 골라 3단계로 돌아오면 **조금 전의 그 안내가
+// 다시 뜬다**. 어르신이 보는 것은 아직 아무것도 누르지 않았는데 빨간 안내가 이미 떠 있는
+// 화면이고, 「한 번 더 눌러 주세요」는 **누른 적 없는 누름**을 가리킨다. 지금 문장들은 그
+// 자리에서도 참이라(연결·한도·링크) 거짓을 말하지는 않지만, 「방금 일어난 일」이 아닌 것을
+// 말하는 것은 바로 위 결함에서 끊으려던 성질 그 자체다 — 고침이 **절반**이었던 셈이다.
+//   하필 그 경로가 가장 흔하다: 실패를 본 어르신이 가장 먼저 누르는 것이 되돌아가기이고,
+//   되돌아가면 다시 고르고, 다시 고르면 확인 화면으로 온다.
+//
+// 그래서 **방문 번호**를 함께 적는다. 단계를 옮기는 자리가 그 번호를 한 칸 올리고(화면은
+// enterStep 한 곳에서만 단계를 바꾼다 — 소스 순서 대조가 그것을 고정한다), 그리는 쪽은
+// 단계와 방문이 **둘 다** 맞을 때만 그린다. 여기서도 비우는 쪽이 아니라 **적는 쪽**으로
+// 고치는 이유는 같다: 비우는 길은 늘어나고, 한 곳을 빠뜨리는 날 결함이 그대로 돌아온다.
+export const EUM_VISIT_MIN = 0;
+
+// 방문 번호를 규격 안의 값으로 좁힌다. 정수가 아니거나 음수면 첫 방문으로 본다.
+export function visitNo(value) {
+  return Number.isInteger(value) && value >= EUM_VISIT_MIN ? value : EUM_VISIT_MIN;
 }
 
-// 지금 그릴 안내 문구. 다른 단계의 것이거나 형식이 다르면 ''(화면은 아무것도 그리지 않는다).
-export function errorFor(error, step) {
+export function stepError(step, text, visit) {
+  const t = typeof text === 'string' ? text.trim() : '';
+  if (!t) return null;
+  return { step: parseStep(step), visit: visitNo(visit), text: t };
+}
+
+// 지금 그릴 안내 문구. 다른 단계·다른 방문의 것이거나 형식이 다르면 ''(화면은 아무것도
+// 그리지 않는다). 방문 번호가 **적혀 있지 않은** 안내도 그리지 않는다 — 어느 방문의 것인지
+// 모르는 안내를 그리면 이 함수가 막아야 하는 결과(따라다니는 안내)가 그대로 돌아온다.
+export function errorFor(error, step, visit) {
   const e = error && typeof error === 'object' && !Array.isArray(error) ? error : null;
   if (!e || typeof e.text !== 'string' || !e.text) return '';
-  return e.step === parseStep(step) ? e.text : '';
+  if (!Number.isInteger(e.visit)) return '';
+  return e.step === parseStep(step) && e.visit === visitNo(visit) ? e.text : '';
 }
 
 // 확인 화면에 읽어 줄 한 줄 요약(보이는 글자와 낭독되는 글자가 **같은 한 벌**이다 —
@@ -328,11 +354,34 @@ export function summaryText(draft) {
   return `${a}${EUM_SUMMARY_JOIN}${t}`;
 }
 
+// ── 제출이 막히는 이유는 하나가 아니다 ────────────────────────────────────
+//
+// 고친 결함: 제출 직전 판정이 `buildPreferences(…) === null` 하나였고, 화면은 그것을 전부
+// 「선택이 저장되지 않았습니다. 처음부터 다시 골라 주세요」로 안내하며 1단계로 되돌렸다.
+// 그런데 막히는 이유는 **둘**이고 어르신이 할 수 있는 일이 서로 다르다.
+//   · 고른 것이 규격 밖이다 → 다시 고르면 **된다**. 안내가 맞다.
+//   · 링크에 식별자(sid)가 없다 → 몇 번을 다시 골라도 같은 자리에서 막힌다. 되돌릴 길은
+//     고르기가 아니라 **담당자에게 새 링크를 청하는 것**인데, 화면은 끝없이 처음으로
+//     돌려보내며 되지 않는 일을 시키고 그 사이 5분이 준다. 「알려진 한계」와 같은 모양으로,
+//     멀쩡해 보이는 화면이 영영 통하지 않는 길을 가리키던 자리다.
+// 그래서 **왜 막혔는지**를 돌려주고 화면이 그에 맞게 말하게 한다.
+//   'link'      — 링크 쪽 문제(sid 없음). 잘못된 링크와 같은 문장을 쓴다(401 과 같은 자리).
+//   'selection' — 고른 것 쪽 문제. 되돌릴 길은 처음부터 다시 고르기다.
+//   null        — 막을 이유 없음.
+export function submitBlock(draft) {
+  const sid = typeof draft?.sid === 'string' ? draft.sid.trim() : '';
+  if (!sid) return 'link';
+  if (!isActivity(draft?.activity) || !isTimeslot(draft?.timeslot)) return 'selection';
+  return null;
+}
+
 // 이음에 보낼 본문. 개인정보는 담지 않는다(sid 는 이음 측 식별자).
 // 규격 밖이면 null — 화면은 제출 버튼을 막고, 라우트는 400 을 낸다.
+// 판정은 위 submitBlock 한 곳에서만 한다(둘이 갈라지면 화면이 「막혔다」와 「왜 막혔다」를
+// 서로 다른 잣대로 말하게 되고, 그때 안내는 일어나지 않은 일을 가리킨다).
 export function buildPreferences(draft, now = Date.now()) {
-  const sid = typeof draft?.sid === 'string' ? draft.sid.trim() : '';
-  if (!sid || !isActivity(draft?.activity) || !isTimeslot(draft?.timeslot)) return null;
+  if (submitBlock(draft)) return null;
+  const sid = draft.sid.trim();
   const t = Number(now);
   return {
     sid,
@@ -442,4 +491,51 @@ export function priorLocalNotice(prior, where) {
   const s = summaryText(prior ? { activity: prior.activity, timeslot: prior.timeslot } : null);
   if (!s || !tail) return '';
   return `이 기기에서 전에 신청하신 내용이 있습니다${EUM_PRIOR_JOIN}${s}. ${tail}`;
+}
+
+// ── 되살아난 화면이 「방금 다시 시도를 눌렀다」를 안다 ──────────────────────
+//
+// 고친 결함: 오류 경계(app/eum/error.jsx)의 「다시 시도」는 누르는 순간 **자기 자신이 사라지는**
+// 단추다 — `reset()` 이 그 화면을 걷어내고 신청 흐름을 되살린다. 그러면 포커스가 얹혀 있던 그
+// 단추가 문서에서 사라지므로 브라우저는 포커스를 body 로 돌려보낸다. 11·12·13회차가 세 번 고친
+// 바로 그 모양인데(흐름 → 만료 패널 · 흐름 → 오류 경계 · 새로 태어난 낭독 영역), **경계에서
+// 나오는 길**만 손대지 않은 채 남아 있었다. 되살아난 흐름은 첫 렌더에서 포커스를 옮기지
+// 않는데(SeniorFlow), 그 규칙의 근거가 "사용자가 아직 아무 조작도 하지 않았다" 인데 이 경우엔
+// **조작해서 온 것**이다. 그래서 어르신은 눌렀는데 들리는 말이 한 마디도 없고, 다음 Tab 은
+// 문서 맨 앞에서 시작한다 — 그 화면은 이 흐름의 유일한 되돌리기 수단이었다.
+//
+// 두 화면은 서로를 모른다(경계는 무엇이 되살아날지 알 수 없고, 흐름은 자기가 왜 다시 그려졌는지
+// 알 수 없다). 그래서 사실 하나를 **문서에** 적어 넘긴다.
+//   · 모듈 변수로 넘기지 않는다 — 두 화면은 서로 다른 번들 엔트리에 실릴 수 있고, 같은 파일이
+//     두 번 평가되면 변수도 두 벌이 된다(12회차에 소진 스토어가 바로 그 길로 갈라졌다).
+//   · 저장소(localStorage·sessionStorage)에 넣지 않는다 — 그것들은 문서를 넘겨 살아남으므로,
+//     다음에 링크를 여는 어르신이 **누른 적 없는 누름**의 뒤처리를 받는다.
+//   문서 뿌리의 속성은 이 문서 안에서만 살고(새로 열면 없다) 번들 경계와 무관하다.
+// 판정은 여기 두고(순수 · 단위 테스트) 화면은 `document.documentElement` 만 넘긴다 —
+// 이 모듈은 DOM 을 import 하지 않는다(서버 라우트도 같은 파일을 쓴다).
+export const EUM_RETRY_FLAG = 'data-eum-retried';
+
+// 적는다. 적지 못해도 **던지지 않는다** — 이 한 줄이 「다시 시도」를 죽이면 안 된다
+// (잃는 것은 포커스 이동 하나이고, 얻는 것이 신청 자체다).
+export function markRetried(root) {
+  try {
+    if (!root || typeof root.setAttribute !== 'function') return false;
+    root.setAttribute(EUM_RETRY_FLAG, '1');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 읽고 **지운다** — 한 번만 쓰이는 사실이다. 지우지 않으면 같은 문서에서 흐름이 다시
+// 그려질 때마다 누른 적 없는 누름을 근거로 포커스를 빼앗는다.
+export function takeRetried(root) {
+  try {
+    if (!root || typeof root.getAttribute !== 'function') return false;
+    if (root.getAttribute(EUM_RETRY_FLAG) === null) return false;
+    if (typeof root.removeAttribute === 'function') root.removeAttribute(EUM_RETRY_FLAG);
+    return true;
+  } catch {
+    return false;
+  }
 }

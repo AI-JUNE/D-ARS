@@ -129,7 +129,8 @@ test('완료 상태는 주소에 싣지 않는다(주소로 완료 화면을 만
   // 접수된 적 없는 신청을 접수됐다고 말하는 화면이다. 완료 판정은 서버 응답에서만 온다.
   assert.ok(!/done=/.test(code), '완료 상태가 주소에 실린다');
   assert.ok(!/DRAFT_PARAM\s*=\s*\{[^}]*done/.test(code), '완료 상태가 주소 파라미터 목록에 있다');
-  assert.match(flow, /draftRef\.current\.done\)\s*\{\s*setStep\(4\)/, '완료 뒤 뒤로가기는 주소를 따르지 않는다');
+  // 단계를 바꾸는 자리는 enterStep 하나다(방문 번호가 함께 오른다 — 아래 「다른 방문」 참조).
+  assert.match(flow, /draftRef\.current\.done\)\s*\{\s*enterStep\(4\)/, '완료 뒤 뒤로가기는 주소를 따르지 않는다');
 });
 
 // ── 고친 결함: 되돌아가기가 되돌아가지 않았다 ────────────────────────────────
@@ -245,7 +246,7 @@ test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', ()
   assert.match(flow, /body=\{tokenMessage\('expired'\)\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
   // 401 안내도 같은 표에서 가져온다. 안내는 **그것이 속한 단계와 함께** 들린다(stepError) —
   // 예전에는 글자열 하나라서 고르는 화면까지 따라다녔다.
-  assert.match(flow, /setError\(stepError\(at, tokenMessage\('signature'\)\)\)/, '401 안내도 같은 표에서 가져온다');
+  assert.match(flow, /setError\(stepError\(at, tokenMessage\('signature'\), atVisit\)\)/, '401 안내도 같은 표에서 가져온다');
   assert.match(ui, /function Notice/, '만료·오류 패널이 양쪽에서 공유돼야 한다');
 });
 
@@ -406,10 +407,67 @@ test('제출 실패 안내가 자기 단계에만 머문다(화면을 떠나 따
   // 비우는 길을 늘려 막는 방식이 되살아나면(글자열 하나 + 단계 이동마다 비우기) 한 곳을
   // 빠뜨리는 날 결함이 그대로 돌아온다 — 안내가 자기 자리를 아는 쪽으로 고정한다.
   assert.match(flow, /const \[error, setError\] = useState\(null\)/, '안내가 다시 글자열 하나가 됐다');
-  assert.match(flow, /const alertText = errorFor\(error, step\)/, '그리는 자리가 단계를 보지 않는다');
+  assert.match(flow, /const alertText = errorFor\(error, step, visit\)/, '그리는 자리가 단계·방문을 보지 않는다');
   assert.equal(/\{error \?/.test(flow), false, '단계를 묻지 않고 안내를 그리는 자리가 되살아났다');
-  // 기다리는 사이 되돌아갔다면 그 화면에는 뜨지 않는다 — 누른 순간의 단계에 매단다.
+  // 기다리는 사이 되돌아갔다면 그 화면에는 뜨지 않는다 — 누른 순간의 단계·방문에 매단다.
   assert.match(flow, /const at = step;/, '안내를 매달 단계를 누른 순간에 붙잡지 않는다');
+  assert.match(flow, /const atVisit = visitRef\.current;/, '방문 번호를 누른 순간에 붙잡지 않는다');
+});
+
+// ── 고친 결함: 같은 화면의 **다른 방문**에 조금 전의 실패가 되살아났다 ───────
+//
+// 안내에 적힌 것이 단계뿐이었는데, 단계는 같은 번호로 몇 번이고 되돌아오는 자리다 —
+// 확인 화면에서 실패한 뒤 「다시 고르기」 → 시간대 재선택으로 돌아오면 **그 시도의 안내**가
+// 다시 뜬다(아직 아무것도 누르지 않았는데 「한 번 더 눌러 주세요」가 떠 있다). 그 고침이
+// 성립하려면 **단계를 바꾸는 자리가 하나**여야 한다 — 새 이동 경로가 생겨 방문 번호를
+// 올리지 않으면 결함이 그대로 돌아오기 때문이다(비우는 쪽이 아니라 적는 쪽으로 고치는
+// 이 과제의 계약: EUM_NOTICE_FOOT·EUM_PRIOR_TAIL 과 같은 모양).
+test('단계를 바꾸는 자리는 enterStep 하나뿐이고, 거기서 방문 번호가 오른다', () => {
+  const shown = stripComments(flow);
+  const head = shown.indexOf('const enterStep = useCallback(');
+  assert.ok(head > -1, 'enterStep 이 없다 — 단계 이동이 흩어지면 방문 번호가 어긋난다');
+  const body = shown.slice(head, shown.indexOf('}, []);', head) + 7);
+  assert.match(body, /visitRef\.current \+= 1;/, '방문 번호를 올리지 않는다');
+  assert.match(body, /setVisit\(visitRef\.current\);/, '상태에 방문 번호를 반영하지 않는다');
+  assert.match(body, /setStep\(next\);/, '단계를 바꾸지 않는다');
+
+  // 양방향 대조: setStep·setVisit 은 **이 함수 안에만** 있어야 한다. 바깥에 하나라도 남으면
+  // 그 경로로 들어온 화면은 조금 전의 안내를 그대로 들고 있다.
+  for (const name of ['setStep', 'setVisit']) {
+    const at = [...shown.matchAll(new RegExp(`${name}\\(`, 'g'))].map((m) => m.index);
+    assert.equal(at.length, 1, `${name} 호출이 흩어졌다: ${at.length}곳`);
+    assert.ok(at[0] > head && at[0] < head + body.length, `${name} 이 enterStep 밖에 있다`);
+  }
+  // 단계를 옮기는 알려진 길이 전부 enterStep 을 거치는지 — 수가 줄면 어딘가 직접 바꾸고 있다.
+  const uses = [...shown.matchAll(/enterStep\(/g)].length;
+  assert.ok(uses >= 5, `enterStep 을 거치는 자리가 줄었다: ${uses}`);
+});
+
+// ── 고친 결함: 되지 않는 신청에 「다시 골라 주세요」라고 말하고 있었다 ────────
+//
+// 제출 직전 판정이 `buildPreferences(…) === null` 하나였고 화면은 그것을 전부 「처음부터 다시
+// 골라 주세요」로 안내하며 `setStep(1)` 만 했다. 두 가지가 함께 어긋나 있었다 —
+//   ① 링크에 식별자가 없는 경우에는 몇 번을 다시 골라도 같은 자리에서 막힌다(되돌릴 길은
+//      담당자에게 새 링크를 청하는 것이다). 끝없이 처음으로 돌려보내는 사이 5분이 준다.
+//   ② 주소는 **확인 화면을 가리킨 채** 남았다(`go` 를 거치지 않았다) — 그 상태에서 화면이
+//      다시 그려지면 주소가 이기므로 어르신은 같은 막다른 확인 화면으로 돌아온다.
+test('제출이 막힌 이유에 따라 할 말과 되돌릴 길이 다르다(주소도 함께 따라간다)', () => {
+  const shown = stripComments(flow);
+  assert.match(shown, /submitBlock\(\{ sid, activity, timeslot \}\) === 'link'/,
+    '막힌 이유를 구분하지 않는다 — 되지 않는 신청에 다시 고르라고 말하게 된다');
+  // 링크 쪽: 잘못된 링크와 **같은 문장**(401 과 같은 자리·같은 말). 단계를 옮기지 않는다.
+  const linkAt = shown.indexOf("=== 'link'");
+  const linkBranch = shown.slice(linkAt, shown.indexOf('return;', linkAt));
+  assert.match(linkBranch, /setError\(stepError\(at, tokenMessage\('malformed'\), atVisit\)\)/,
+    '링크가 통하지 않는 사실을 다른 화면과 다른 말로 하고 있다');
+  assert.ok(!/go\(1,|enterStep\(/.test(linkBranch), '되지 않는 길(다시 고르기)로 데려가고 있다');
+  // 선택 쪽: `go` 를 거쳐 주소가 화면을 따라오고, 안내는 **옮겨 간 뒤의 방문**에 매달린다.
+  const goAt = shown.indexOf('go(1, { activity, timeslot, done: false });');
+  assert.ok(goAt > -1, '주소가 확인 화면을 가리킨 채 남는다 — 다시 그려지면 주소가 이긴다');
+  const selErrAt = shown.indexOf("setError(stepError(1, submitMessage('selection'), visitRef.current))");
+  assert.ok(selErrAt > -1, '고르는 화면의 안내가 그 화면의 방문에 매달리지 않는다');
+  // 순서 대조: 먼저 적으면 **떠나기 전 방문 번호**가 박혀 안내가 한 번도 그려지지 않는다.
+  assert.ok(selErrAt > goAt, '안내가 이동보다 먼저 적힌다');
 });
 
 test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 밀어내지 않게)', () => {
@@ -566,6 +624,33 @@ test('오류 화면: 뒤집히는 순간 새 제목으로 포커스를 옮긴다
   const loading = boundary['app/eum/loading.jsx'];
   assert.equal(/use client/.test(loading), false, '대기 화면이 클라이언트가 되면 판단 근거가 바뀐다');
   assert.equal(/headingRef|tabIndex/.test(loading), false, '서버 컴포넌트가 ref 를 넘기고 있다');
+});
+
+// ── 고친 결함: **나오는 길에서도** 아무 말도 하지 않았다 ────────────────────
+//
+// 위 고침은 이 화면으로 **들어오는** 전환만 받았다. 그런데 「다시 시도」는 눌린 순간 자기
+// 자신이 사라지는 단추다 — reset() 이 이 화면을 걷어내고 신청 흐름이 그 자리에 되살아나므로
+// 포커스는 다시 body 로 떨어진다. 그리고 되살아난 흐름은 **첫 렌더에서 포커스를 옮기지
+// 않는다** — 그 규칙의 근거("아직 아무 조작도 하지 않았다")가 여기서는 성립하지 않는다
+// (조작해서 온 것이다). 11~13회차가 세 번 고친 모양이 **같은 전환의 반대 방향**으로 한 번 더
+// 남아 있었던 셈이다. 두 화면은 서로를 모르므로 사실 하나를 문서에 적어 넘긴다.
+test('「다시 시도」 뒤에도 되살아난 화면이 제목으로 포커스를 옮긴다(양쪽 대조)', () => {
+  const src = stripComments(boundary['app/eum/error.jsx']);
+  // 적는 쪽 — reset() **보다 먼저** 적어야 한다(이 화면은 그 뒤 사라진다).
+  assert.match(src, /markRetried\(/, '되살아난 화면에 넘길 사실을 적지 않는다');
+  assert.ok(src.indexOf('markRetried(') < src.indexOf('reset()'), '적기 전에 화면이 사라진다');
+  assert.match(src, /from '@\/lib\/eumSenior'/, '판정을 화면이 손으로 짓고 있다');
+  // 읽는 쪽 — 흐름의 **첫 렌더**에서만 예외로 쓰이고, 읽은 뒤 지운다(지움은 lib 쪽 계약).
+  const first = flow.indexOf('if (!mountedRef.current) {');
+  assert.ok(first > -1, '첫 렌더 분기를 찾지 못했다');
+  const branch = flow.slice(first, flow.indexOf('}', flow.indexOf('return;', first)));
+  assert.match(branch, /takeRetried\(/, '되살아난 화면이 그 사실을 읽지 않는다');
+  assert.match(branch, /document\.documentElement/, '문서 뿌리 말고 다른 자리를 보고 있다');
+  // 저장소로 넘기면 문서를 넘겨 살아남아, 다음에 링크를 여는 어르신이 누른 적 없는 누름의
+  // 뒤처리를 받는다. 모듈 변수는 번들 경계마다 갈라진다(12회차의 소진 스토어).
+  for (const wrong of ['sessionStorage', 'localStorage']) {
+    assert.ok(!src.includes(wrong), `오류 화면이 ${wrong} 로 사실을 넘기고 있다`);
+  }
 });
 
 test('오류·로딩 특수 파일은 기본 export 만 둔다(route.js 규칙과 같은 취지)', () => {
