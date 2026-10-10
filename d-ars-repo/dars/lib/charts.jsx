@@ -18,7 +18,7 @@ function usePlay() {
 }
 
 /* ── 그라데이션 영역 차트 (라인 드로우 + 영역 페이드 + 포인트 + 툴팁) ── */
-export function AreaChart({ data = [], labels = [], color = '#be5535', height = 176, unit = '', mini = false }) {
+export function AreaChart({ data = [], labels = [], color = '#2563eb', height = 176, unit = '', mini = false }) {
   const on = usePlay();
   const [idx, setIdx] = useState(-1);
   const uid = useId().replace(/:/g, '');
@@ -54,7 +54,7 @@ export function AreaChart({ data = [], labels = [], color = '#be5535', height = 
             <stop offset="100%" stopColor={color} stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        {grid.map((gy, i) => <line key={i} x1={padX} y1={gy} x2={W - padX} y2={gy} stroke="#eadfd8" strokeWidth="1" strokeDasharray="3 4" />)}
+        {grid.map((gy, i) => <line key={i} x1={padX} y1={gy} x2={W - padX} y2={gy} stroke="#eef2f7" strokeWidth="1" strokeDasharray="3 4" />)}
         <path d={areaPath} fill={`url(#fill${uid})`} style={{ opacity: on ? 1 : 0, transition: 'opacity .9s ease .35s' }} />
         <path d={linePath} fill="none" stroke={color} strokeWidth={mini ? 2 : 2.6} strokeLinecap="round" strokeLinejoin="round"
           style={{ strokeDasharray: len, strokeDashoffset: on ? 0 : len, transition: 'stroke-dashoffset 1.15s cubic-bezier(.4,.1,.2,1)' }} />
@@ -64,7 +64,7 @@ export function AreaChart({ data = [], labels = [], color = '#be5535', height = 
         ))}
         {!mini && idx >= 0 && <line x1={X(idx)} y1={padT} x2={X(idx)} y2={H - padB} stroke={color} strokeWidth="1" strokeDasharray="3 3" opacity="0.5" />}
         {!mini && labels.length > 0 && labels.map((lb, i) => (
-          <text key={i} x={X(i)} y={H - 8} textAnchor="middle" fontSize="9.5" fill="#9a8b82">{lb}</text>
+          <text key={i} x={X(i)} y={H - 8} textAnchor="middle" fontSize="9.5" fill="#64748b">{lb}</text>
         ))}
       </svg>
       {!mini && idx >= 0 && (
@@ -95,8 +95,8 @@ export function GroupedBars({ data = [], series = [], height = 210, labelKey = '
   return (
     <div style={{ position: 'relative' }}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="auto" style={{ display: 'block', overflow: 'visible' }} role="img" aria-label={barsLabel(data, series)}>
-        {grid.map((gy, i) => <line key={i} x1={padX} y1={gy} x2={W - padX} y2={gy} stroke="#eadfd8" strokeWidth="1" strokeDasharray="3 4" />)}
-        <line x1={padX} y1={baseY} x2={W - padX} y2={baseY} stroke="#e0d2c9" strokeWidth="1.2" />
+        {grid.map((gy, i) => <line key={i} x1={padX} y1={gy} x2={W - padX} y2={gy} stroke="#eef2f7" strokeWidth="1" strokeDasharray="3 4" />)}
+        <line x1={padX} y1={baseY} x2={W - padX} y2={baseY} stroke="#e2e8f0" strokeWidth="1.2" />
         {data.map((d, i) => {
           const cx = padX + gw * i + gw / 2;
           const x0 = cx - groupW / 2;
@@ -112,7 +112,7 @@ export function GroupedBars({ data = [], series = [], height = 210, labelKey = '
                     style={{ transform: on ? 'scaleY(1)' : 'scaleY(0)', transformBox: 'fill-box', transformOrigin: 'bottom', transition: `transform .75s cubic-bezier(.2,.85,.25,1) ${0.05 * i + 0.06 * j}s` }} />
                 );
               })}
-              <text x={cx} y={H - 10} textAnchor="middle" fontSize="9.5" fill="#9a8b82">{fmtMD(d[labelKey])}</text>
+              <text x={cx} y={H - 10} textAnchor="middle" fontSize="9.5" fill="#64748b">{fmtMD(d[labelKey])}</text>
             </g>
           );
         })}
@@ -133,14 +133,14 @@ export function GroupedBars({ data = [], series = [], height = 210, labelKey = '
 }
 
 /* ── 채워지는 진행바 (퍼센트 카운트업) ── */
-export function ProgressRow({ label, value, total, color = '#be5535', suffix = '' }) {
+export function ProgressRow({ label, value, total, color = '#2563eb', suffix = '' }) {
   const on = usePlay();
   const p = total ? Math.round((value / total) * 100) : 0;
   return (
     <div style={{ margin: '12px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 5 }}>
         <b>{label}</b>
-        <span className="muted">{value}/{total}{suffix} · <b style={{ color: '#9c4025' }}><Counter value={`${p}%`} /></b></span>
+        <span className="muted">{value}/{total}{suffix} · <b style={{ color: '#1d4ed8' }}><Counter value={`${p}%`} /></b></span>
       </div>
       <div className="bar2" role="progressbar" aria-valuenow={Math.max(0, Math.min(100, p))} aria-valuemin={0} aria-valuemax={100} aria-label={meterLabel(label, value, total, suffix)}>
         <i style={{ width: on ? `${p}%` : '0%', background: `linear-gradient(90deg,${color},${color}cc)`, transition: 'width 1s cubic-bezier(.25,.8,.3,1)' }} />
@@ -150,7 +150,7 @@ export function ProgressRow({ label, value, total, color = '#be5535', suffix = '
 }
 
 /* ── 도넛 (원호 스윕 + 중앙 퍼센트 카운트업) ── */
-export function Donut({ value = 0, size = 96, stroke = 11, color = '#be5535', label = '' }) {
+export function Donut({ value = 0, size = 96, stroke = 11, color = '#2563eb', label = '' }) {
   const on = usePlay();
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -159,12 +159,12 @@ export function Donut({ value = 0, size = 96, stroke = 11, color = '#be5535', la
     <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
       <div style={{ position: 'relative', width: size, height: size }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${label ? label + ' ' : ''}${p}%`}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#efe4dd" strokeWidth={stroke} />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#eef2f7" strokeWidth={stroke} />
           <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
             transform={`rotate(-90 ${size / 2} ${size / 2})`}
             style={{ strokeDasharray: c, strokeDashoffset: on ? c * (1 - p / 100) : c, transition: 'stroke-dashoffset 1.1s cubic-bezier(.3,.8,.3,1)' }} />
         </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#9c4025', fontSize: size * 0.22 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', fontWeight: 800, color: '#1d4ed8', fontSize: size * 0.22 }}>
           <Counter value={`${p}%`} />
         </div>
       </div>
@@ -174,7 +174,7 @@ export function Donut({ value = 0, size = 96, stroke = 11, color = '#be5535', la
 }
 
 /* ── 공통 KPI 카드 (아이콘·카운트업·델타 배지·스파크라인·등장) ── */
-export function KpiCard({ icon, n, l, delta, deltaDir = 'up', spark, color = '#be5535', delay = 0 }) {
+export function KpiCard({ icon, n, l, delta, deltaDir = 'up', spark, color = '#2563eb', delay = 0 }) {
   return (
     <div className="card kpi2 reveal" style={{ animationDelay: `${delay}s` }}>
       <div className="top">

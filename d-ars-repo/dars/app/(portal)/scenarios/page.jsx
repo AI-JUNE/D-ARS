@@ -203,7 +203,7 @@ export default function Scenarios() {
                      pressableProps(role="button"·tabIndex·keydown)로 마감 — 표시·레이아웃 불변(WCAG 2.1.1) */
                   <div key={s.id} className="node" style={{cursor:'pointer'}}
                     {...pressableProps(()=>{select(s);setView('builder');}, `${s.name} 시나리오 빌더에서 열기`)}>
-                    <div className="ic" style={{background:'#be5535',fontSize:12}}>{s.type==='아웃바운드'?'OB':'IB'}</div>
+                    <div className="ic" style={{background:'#2563eb',fontSize:12}}>{s.type==='아웃바운드'?'OB':'IB'}</div>
                     <div className="body"><b>{s.name}</b><span>v{s.version} · {(s.nodes||[]).length}노드 · {s.updated_by||''}</span>
                       <div style={{display:'flex',gap:3,marginTop:5,flexWrap:'wrap'}}>
                         {(s.nodes||[]).map(n=>{const t=NODE_TYPES[n.type];return <span key={n.id} title={t?.name} style={{fontSize:13}}>{t?t.ic:'●'}</span>;})}

@@ -12,7 +12,7 @@ import { sumBy, fmtNum, lastDelta, activeSessions, completionRate } from '@/lib/
 import { RANGE_PRESETS, statsUrl, rangeLabel, readRange } from '@/lib/statsRange';
 import { useRangeParam } from '@/lib/useRangeParam';
 
-function Kpi2({ icon, n, l, delta, deltaDir = 'up', spark, color = '#be5535', delay = 0 }) {
+function Kpi2({ icon, n, l, delta, deltaDir = 'up', spark, color = '#2563eb', delay = 0 }) {
   return (
     <div className="card kpi2 reveal" style={{ animationDelay: `${delay}s` }}>
       <div className="top">
@@ -27,9 +27,9 @@ function Kpi2({ icon, n, l, delta, deltaDir = 'up', spark, color = '#be5535', de
 }
 
 const BAR_SERIES = [
-  { key: 'multimodal', label: '멀티모달', color: '#be5535' },
-  { key: 'completed', label: '완료', color: '#2e8b57' },
-  { key: 'dropped', label: '이탈', color: '#c0392b' },
+  { key: 'multimodal', label: '멀티모달', color: '#2563eb' },
+  { key: 'completed', label: '완료', color: '#0f6b37' },
+  { key: 'dropped', label: '이탈', color: '#9f1239' },
 ];
 
 export default function Dashboard() {
@@ -123,17 +123,17 @@ export default function Dashboard() {
 
       <div className="grid g4">
         {/* 증감 배지는 시계열이 있는 지표에만 표시(가짜 증감률 제거) */}
-        <Kpi2 icon="📡" n={fmtNum(activeSessions(sessAgg))} l="진행 중 세션" spark={col('inbound')} color="#be5535" delay={0} />
-        <Kpi2 icon="🚀" n={fmtNum(mmSum)} l={`멀티모달 전환 (${days})`} delta={dMm?.text} deltaDir={dMm?.dir} spark={col('multimodal')} color="#be5535" delay={0.06} />
-        <Kpi2 icon="✉️" n={fmtNum(umsTotal)} l="문자발송(UMS)" spark={col('completed')} color="#3b6ea5" delay={0.12} />
-        <Kpi2 icon="✅" n={`${done}%`} l="사용 완료율" delta={dDone?.text} deltaDir={dDone?.dir} spark={col('completed')} color="#2e8b57" delay={0.18} />
+        <Kpi2 icon="📡" n={fmtNum(activeSessions(sessAgg))} l="진행 중 세션" spark={col('inbound')} color="#2563eb" delay={0} />
+        <Kpi2 icon="🚀" n={fmtNum(mmSum)} l={`멀티모달 전환 (${days})`} delta={dMm?.text} deltaDir={dMm?.dir} spark={col('multimodal')} color="#2563eb" delay={0.06} />
+        <Kpi2 icon="✉️" n={fmtNum(umsTotal)} l="문자발송(UMS)" spark={col('completed')} color="#1d4ed8" delay={0.12} />
+        <Kpi2 icon="✅" n={`${done}%`} l="사용 완료율" delta={dDone?.text} deltaDir={dDone?.dir} spark={col('completed')} color="#0f6b37" delay={0.18} />
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
         <div className="card reveal" style={{ animationDelay: '.1s' }}>
           <h3>📈 일별 멀티모달 전환</h3><div className="d">{days} · 지점에 마우스를 올리면 값 표시</div>
           {daily.length > 0
-            ? <AreaChart data={col('multimodal')} labels={labels} unit="건" color="#be5535" />
+            ? <AreaChart data={col('multimodal')} labels={labels} unit="건" color="#2563eb" />
             : <div className="skl" style={{ height: 176 }} />}
         </div>
         <div className="card reveal" style={{ animationDelay: '.16s' }}>

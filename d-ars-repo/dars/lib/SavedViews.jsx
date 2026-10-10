@@ -140,7 +140,7 @@ export default function SavedViews({ screen, label = '저장된 뷰', clearable 
             key={v.name}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 2, maxWidth: '100%',
-              border: '1px solid ' + (on ? '#be5535' : '#e2d5cd'), borderRadius: 999,
+              border: '1px solid ' + (on ? '#2563eb' : '#e2e8f0'), borderRadius: 999,
               background: on ? 'rgba(190,85,53,.08)' : '#fff', overflow: 'hidden',
             }}
           >
@@ -153,7 +153,7 @@ export default function SavedViews({ screen, label = '저장된 뷰', clearable 
               style={{
                 border: 0, background: 'transparent', borderRadius: 0, maxWidth: 180,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                color: on ? '#be5535' : 'inherit', fontWeight: on ? 700 : 500,
+                color: on ? '#2563eb' : 'inherit', fontWeight: on ? 700 : 500,
               }}
             >
               {v.name}
@@ -164,7 +164,7 @@ export default function SavedViews({ screen, label = '저장된 뷰', clearable 
               aria-label={`저장된 뷰 ${v.name} 삭제`}
               title="삭제"
               onClick={() => del(v)}
-              style={{ border: 0, background: 'transparent', borderRadius: 0, padding: '0 8px 0 0', color: '#a2938b', flex: '0 0 auto' }}
+              style={{ border: 0, background: 'transparent', borderRadius: 0, padding: '0 8px 0 0', color: '#94a3b8', flex: '0 0 auto' }}
             >
               ×
             </button>

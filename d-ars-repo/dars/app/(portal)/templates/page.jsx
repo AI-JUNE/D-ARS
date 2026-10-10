@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { NODE_TYPES } from '@/lib/ui';
 
 /* 화면 템플릿 — 보이는 ARS에서 고객 휴대폰에 표출되는 화면 카드 템플릿 갤러리.
-   시나리오 노드에 연결해 재사용. 정적/읽기 전용 · 모바일 우선 · 브랜드 #be5535. */
+   시나리오 노드에 연결해 재사용. 정적/읽기 전용 · 모바일 우선 · 브랜드 #2563eb. */
 
 const TEMPLATES = [
   { id: 'T-ORDER', node: 'SHOW_CARD', name: '주문 상세 카드', use: 8, desc: '상품·주문번호·결제금액을 카드로 안내',
@@ -21,13 +21,13 @@ const TEMPLATES = [
 ];
 
 function Preview({ t }) {
-  const nt = NODE_TYPES[t.node] || { ic: '🗂️', c: '#be5535' };
+  const nt = NODE_TYPES[t.node] || { ic: '🗂️', c: '#2563eb' };
   return (
     <div style={{ background: '#f4f1ee', borderRadius: 16, padding: 12, border: '1px solid var(--line)' }}>
-      <div style={{ background: 'linear-gradient(135deg,#be5535,#9c4025)', color: '#fff', borderRadius: '12px 12px 0 0', padding: '10px 12px', fontSize: 12, fontWeight: 700 }}>
+      <div style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', borderRadius: '12px 12px 0 0', padding: '10px 12px', fontSize: 12, fontWeight: 700 }}>
         📞 보이는 ARS · 화면 안내
       </div>
-      <div style={{ background: '#fff', border: '1px solid #e6ddd7', borderTop: 0, borderRadius: '0 0 12px 12px', padding: 12 }}>
+      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderTop: 0, borderRadius: '0 0 12px 12px', padding: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <span style={{ width: 28, height: 28, borderRadius: 8, background: nt.c, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 15 }}>{nt.ic}</span>
           <b style={{ fontSize: 13 }}>{t.name}</b>
@@ -84,7 +84,8 @@ export default function Templates() {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
           화면 템플릿은 시나리오 노드(정보 카드·필요서류 안내·메뉴 표출·RAG 응답·채널 전환)에 연결되어
-          고객 휴대폰에 표출됩니다. 브랜드 컬러·레이아웃은 <b>#be5535</b> 기준으로 통일됩니다.
+          고객 휴대폰에 표출됩니다. 색과 배치는 <b>전 화면 공통 브랜드 규격</b>으로 통일되며,
+          템플릿마다 따로 지정하지 않습니다.
         </div>
       </div>
     </>

@@ -7,8 +7,8 @@ export default function manifest() {
     display: 'standalone',
     orientation: 'portrait',
     lang: 'ko',
-    background_color: '#fbf3ef',
-    theme_color: '#be5535',
+    background_color: '#f8fafc',
+    theme_color: '#2563eb',
     icons: [
       { src: '/icon.svg', type: 'image/svg+xml', sizes: 'any', purpose: 'any' },
       { src: '/icon.svg', type: 'image/svg+xml', sizes: 'any', purpose: 'maskable' },

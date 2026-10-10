@@ -10,7 +10,7 @@ export default function ErrorBanner({ message, onRetry, retryLabel = '다시 시
       style={{
         display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         margin: '12px 0', padding: '10px 12px', borderRadius: 10,
-        background: '#fdf3f0', border: '1px solid #eccdc4', color: '#8c3a27',
+        background: '#eef4ff', border: '1px solid #bfdbfe', color: '#8c3a27',
         fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
       }}
     >

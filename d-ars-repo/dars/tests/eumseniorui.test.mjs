@@ -851,8 +851,9 @@ test('파일 규약으로 끼어드는 head 항목(매니페스트·아이콘)�
 });
 
 test('어르신 화면의 주소창 색은 제품 브랜드색이 아니라 이 화면의 바탕색이다', () => {
-  // 루트는 포털 브랜드색(#be5535)을 themeColor 로 선언하고, viewport 도 metadata 처럼 상속된다.
-  assert.match(rootLayout, /themeColor:\s*'#be5535'/, '루트 선언이 바뀌었다 — 덮을 값을 다시 보라');
+  // 루트는 포털 브랜드색(AICC 라인 #2563eb)을 themeColor 로 선언하고, viewport 도 metadata 처럼 상속된다.
+  // 값이 테라코타에서 블루로 바뀐 것은 포털 쪽 사정이고, 덮어야 하는 **사실**은 그대로다.
+  assert.match(rootLayout, /themeColor:\s*'#2563eb'/, '루트 선언이 바뀌었다 — 덮을 값을 다시 보라');
   assert.match(eumLayout, /export const viewport\s*=/, '어르신 화면이 viewport 를 덮지 않는다');
   assert.match(eumLayout, /themeColor:\s*EUM_COLORS\.bg/, '색은 lib/eumTheme 단일 출처에서 가져와야 한다');
   const hex = [...stripComments(eumLayout).matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0]);
@@ -941,9 +942,12 @@ const CSS_ACCEPTED = {
 // 것은 "무엇이 닿는가" 다. 닿지 않는다고 분류한 선택자(CSS_ABSENT)는 그 요소가 화면에 없다는
 // 사실을 다른 테스트가 확인하므로 선언을 세지 않는다.
 const CSS_REACHING_DECLS = {
+  // --panel2·--line2 는 AICC 라인 이식(콘솔 셸)이 들여온 두 칸이다. 이름만 늘었고 어르신 화면은
+  // 여전히 이 변수들을 **하나도 쓰지 않는다**(인라인 style 과 lib/eumTheme 가 단일 출처) —
+  // 커스텀 속성 선언은 그 자체로 아무것도 칠하지 않으므로 판정은 ':root' 허용 사유 그대로다.
   ':root': ['--bad', '--bg', '--brand', '--brand-d', '--brand-l', '--brand-xl', '--info', '--ink',
-    '--line', '--muted', '--nav-h', '--ok', '--panel', '--ring', '--shadow', '--shadow-sm',
-    '--side-w', '--sidebar', '--sidebar-2', '--warn'],
+    '--line', '--line2', '--muted', '--nav-h', '--ok', '--panel', '--panel2', '--ring', '--shadow',
+    '--shadow-sm', '--side-w', '--sidebar', '--sidebar-2', '--warn'],
   // scrollbar-* 는 허용이다 — 어르신 흐름의 기기는 스크롤바가 겹쳐 그려지는 휴대폰이고,
   // 창 스크롤바를 칠하는 것은 문서의 뿌리라 `.eum-screen` 안쪽에서는 닿을 수도 없다.
   '*': ['box-sizing', 'scrollbar-color', 'scrollbar-width'],

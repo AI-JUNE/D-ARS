@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react';
 
 /* 런처 설정 — 보이는 ARS가 고객 휴대폰에 "언제/어떻게" 표출되는지 구성.
-   단일 HTML 포털의 런처 설정을 Next로 이식. 정적/클라이언트 상태 · 모바일 우선 · 브랜드 #be5535.
+   단일 HTML 포털의 런처 설정을 Next로 이식. 정적/클라이언트 상태 · 모바일 우선 · 브랜드 #2563eb.
    저장은 데모(로컬 상태)로 동작하며 실제 반영은 콜봇 런처 연동 예정. */
 
 const DEFAULTS = {
@@ -39,7 +39,7 @@ function Toggle({ on, onClick, label }) {
     <button type="button" onClick={onClick} aria-pressed={on} aria-label={label}
       style={{
         width: 46, height: 26, borderRadius: 999, border: 0, cursor: 'pointer', padding: 3,
-        background: on ? 'var(--brand)' : '#cfc3bc', transition: 'background .15s', flex: '0 0 auto',
+        background: on ? 'var(--brand)' : '#cbd5e1', transition: 'background .15s', flex: '0 0 auto',
         display: 'flex', justifyContent: on ? 'flex-end' : 'flex-start',
       }}>
       <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,.25)' }} />
@@ -83,7 +83,7 @@ export default function Launcher() {
                     </span>
                     <span style={{
                       width: 18, height: 18, borderRadius: '50%', flex: '0 0 auto',
-                      border: '2px solid ' + (on ? 'var(--brand)' : '#cbbfb8'),
+                      border: '2px solid ' + (on ? 'var(--brand)' : '#cbd5e1'),
                       background: on ? 'var(--brand)' : '#fff',
                       boxShadow: on ? 'inset 0 0 0 3px #fff' : 'none',
                     }} />
@@ -113,7 +113,7 @@ export default function Launcher() {
                 <input className="input" value={cfg.brandName} onChange={e => set('brandName', e.target.value)} aria-label="브랜드 표기" style={{ width: '100%', maxWidth: 240 }} />
               </Row>
               <Row label="브랜드 컬러" hint="전 화면 공통(고정)">
-                <span className="tag" style={{ background: 'var(--brand)', color: '#fff' }}>#be5535</span>
+                <span className="tag" style={{ background: 'var(--brand)', color: '#fff' }}>#2563eb</span>
               </Row>
             </div>
           </div>
@@ -163,16 +163,16 @@ export default function Launcher() {
             )}
 
             <div className="muted" style={{ fontSize: 11, marginBottom: 6 }}>② 런처 화면</div>
-            <div style={{ border: '9px solid #201814', borderRadius: 30, overflow: 'hidden', boxShadow: 'var(--shadow)', background: '#201814' }}>
+            <div style={{ border: '9px solid #0f172a', borderRadius: 30, overflow: 'hidden', boxShadow: 'var(--shadow)', background: '#0f172a' }}>
               <div style={{ background: '#f4f1ee' }}>
-                <div style={{ background: 'linear-gradient(135deg,#be5535,#9c4025)', color: '#fff', padding: '14px 14px 12px' }}>
+                <div style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', padding: '14px 14px 12px' }}>
                   <div style={{ fontSize: 10.5, opacity: .85, fontWeight: 700, letterSpacing: .3 }}>📞 {cfg.brandName || 'GOWON'}</div>
                   <div style={{ fontSize: 14, fontWeight: 800, marginTop: 3 }}>{cfg.header || '보이는 ARS'}</div>
                 </div>
                 <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ background: '#fff', border: '1px solid #e6ddd7', borderRadius: 12, padding: 12 }}>
+                  <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 12 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{ width: 26, height: 26, borderRadius: 8, background: '#2e8b57', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 14 }}>🗂️</span>
+                      <span style={{ width: 26, height: 26, borderRadius: 8, background: '#0f6b37', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 14 }}>🗂️</span>
                       <b style={{ fontSize: 12.5 }}>주문 상세 카드</b>
                     </div>
                     {[['상품', '한우 등심 세트'], ['주문번호', '2026-0703-8841'], ['결제금액', '₩129,000']].map(([k, v], i) => (
@@ -182,7 +182,7 @@ export default function Launcher() {
                     ))}
                   </div>
                   <button type="button" style={{ background: 'var(--brand)', color: '#fff', border: 0, borderRadius: 10, padding: '10px', fontSize: 12.5, fontWeight: 700 }}>필요서류 안내받기</button>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 5, fontSize: 10, color: '#9a8a82', marginTop: 2 }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: 5, fontSize: 10, color: '#64748b', marginTop: 2 }}>
                     <span>⏱ {cfg.timeout}분 무응답 시 종료</span>
                     {cfg.fallbackVoice && <span>· 🎧 음성 유지</span>}
                   </div>

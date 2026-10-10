@@ -21,7 +21,7 @@ export default function Error({ error, reset }) {
         padding:'40px 26px',boxShadow:'var(--shadow)'}}>
         <div aria-hidden style={{width:64,height:64,margin:'0 auto 18px',borderRadius:'50%',
           display:'grid',placeItems:'center',fontSize:30,
-          background:'var(--brand-xl)',color:'var(--bad,#c0392b)'}}>⚠️</div>
+          background:'var(--brand-xl)',color:'var(--bad,#9f1239)'}}>⚠️</div>
         <h1 style={{margin:'0 0 8px',fontSize:'clamp(17px,5vw,20px)',wordBreak:'keep-all'}}>
           일시적인 오류가 발생했어요
         </h1>

@@ -1,10 +1,10 @@
 export const NODE_TYPES = {
-  VISUAL_LAUNCH:{ic:'🚀',c:'#be5535',name:'보이는 ARS 런칭'},
-  SHOW_MENU:{ic:'🧭',c:'#3b6ea5',name:'메뉴 표출'},
-  SHOW_CARD:{ic:'🗂️',c:'#2e8b57',name:'정보 카드'},
-  REQUEST_DOC:{ic:'📋',c:'#c9902a',name:'필요서류 안내'},
+  VISUAL_LAUNCH:{ic:'🚀',c:'#2563eb',name:'보이는 ARS 런칭'},
+  SHOW_MENU:{ic:'🧭',c:'#1d4ed8',name:'메뉴 표출'},
+  SHOW_CARD:{ic:'🗂️',c:'#0f6b37',name:'정보 카드'},
+  REQUEST_DOC:{ic:'📋',c:'#92400e',name:'필요서류 안내'},
   RAG_ANSWER:{ic:'📚',c:'#7d5ba6',name:'RAG 응답'},
-  CHANNEL_SWITCH:{ic:'🔀',c:'#c0392b',name:'채널 전환'},
+  CHANNEL_SWITCH:{ic:'🔀',c:'#9f1239',name:'채널 전환'},
   END:{ic:'🏁',c:'#555',name:'종료'},
 };
 export const journey=['런칭','본인확인','상담','안내·발송','완료'];

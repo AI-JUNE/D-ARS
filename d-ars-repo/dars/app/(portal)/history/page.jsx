@@ -26,7 +26,7 @@ import { SelectAllTh, SelectTd, SelectionNote } from '@/lib/RowSelect';
 import { onSearchEnter } from '@/lib/searchEnter';
 
 /* 멀티모달 이력 — 보이는 ARS 상호작용 로그(화면·음성·문자·RAG·전환)를
-   한 화면에서 조회·필터·내보내기. 읽기 전용 · 모바일 우선 · 브랜드 #be5535.
+   한 화면에서 조회·필터·내보내기. 읽기 전용 · 모바일 우선 · 브랜드 #2563eb.
 
    서버 검색·"더 보기" 페이징 전환(2026-07-12):
    - 목록은 /api/multimodal?limit&offset&q&channel&meta=1 (50건씩 누적 로드)
@@ -130,15 +130,15 @@ export default function History() {
         <div className="card reveal" style={{ animationDelay: '.1s' }}>
           <h3>🎯 처리 결과 분포</h3><div className="d">완료 · 이탈 · 상담원 전환 비율 (현재 조건 전체)</div>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center', padding: '10px 0 2px' }}>
-            <Donut value={pct(done, total)} color="#2e8b57" label={`완료 ${done}건`} />
-            <Donut value={pct(drop, total)} color="#c0392b" label={`이탈 ${drop}건`} />
-            <Donut value={pct(swap, total)} color="#c9902a" label={`상담원 전환 ${swap}건`} />
+            <Donut value={pct(done, total)} color="#0f6b37" label={`완료 ${done}건`} />
+            <Donut value={pct(drop, total)} color="#9f1239" label={`이탈 ${drop}건`} />
+            <Donut value={pct(swap, total)} color="#92400e" label={`상담원 전환 ${swap}건`} />
           </div>
         </div>
         <div className="card reveal" style={{ animationDelay: '.16s' }}>
           <h3>📡 채널별 상호작용</h3><div className="d">건수 비중 · 상위 채널 (현재 조건 전체)</div>
           {chDist.length > 0
-            ? chDist.map(c => <ProgressRow key={c.name} label={c.name} value={c.count} total={total} suffix="건" color="#be5535" />)
+            ? chDist.map(c => <ProgressRow key={c.name} label={c.name} value={c.count} total={total} suffix="건" color="#2563eb" />)
             : <div className="muted" style={{ padding: '18px 0', textAlign: 'center' }}>조건에 맞는 이력이 없습니다.</div>}
         </div>
       </div>

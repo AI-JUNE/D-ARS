@@ -48,9 +48,9 @@ export default function Help() {
         <h3>자주 묻는 질문</h3>
         <div style={{marginTop:8}}>
           {FAQ.map(([q, a], i) => (
-            <details key={i} style={{borderBottom:'1px solid #efe4dd', padding:'10px 2px'}}>
+            <details key={i} style={{borderBottom:'1px solid #eef2f7', padding:'10px 2px'}}>
               <summary style={{cursor:'pointer', fontWeight:700, fontSize:14.5, listStyle:'none'}}>
-                <span style={{color:'#be5535', marginRight:8}}>Q</span>{q}
+                <span style={{color:'#2563eb', marginRight:8}}>Q</span>{q}
               </summary>
               <div className="muted" style={{marginTop:8, lineHeight:1.6, fontSize:13.5, paddingLeft:22}}>{a}</div>
             </details>

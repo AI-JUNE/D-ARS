@@ -15,9 +15,9 @@ import { exportSubtitle } from '@/lib/conditionSummary';
 // 기간 선택(2026-07-13 야간): 7·30·90일/전체를 골라 인쇄할 수 있다. 선택 컨트롤은 인쇄에서 숨기고(noprint),
 // 리포트 머리말에는 **서버가 실제로 적용한 구간**을 찍는다(라벨-숫자 불일치 방지). 기본값 '전체' = 기존 동작.
 const BAR_SERIES = [
-  { key: 'multimodal', label: '멀티모달', color: '#be5535' },
-  { key: 'completed', label: '완료', color: '#2e8b57' },
-  { key: 'dropped', label: '이탈', color: '#c0392b' },
+  { key: 'multimodal', label: '멀티모달', color: '#2563eb' },
+  { key: 'completed', label: '완료', color: '#0f6b37' },
+  { key: 'dropped', label: '이탈', color: '#9f1239' },
 ];
 export default function Report() {
   const [stats, setStats] = useState(null);
@@ -155,7 +155,7 @@ export default function Report() {
           </tbody>
         </table>
 
-        <div className="rp-foot">본 리포트는 D-ARS 관리자 포털에서 자동 생성되었습니다. 고객 번호는 마스킹 처리됩니다. · #be5535</div>
+        <div className="rp-foot">본 리포트는 D-ARS 관리자 포털에서 자동 생성되었습니다. 고객 번호는 마스킹 처리됩니다.</div>
       </div>
     </>
   );

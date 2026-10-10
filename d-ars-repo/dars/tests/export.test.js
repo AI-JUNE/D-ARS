@@ -44,6 +44,6 @@ test('toExcelHTML: HTML 특수문자 이스케이프 + 라벨/브랜드색/전�
   const html = toExcelHTML([{ v: '<b>&' }], [{ label: '값<>', value: 'v' }], '시트');
   assert.ok(html.includes('&lt;b&gt;&amp;'));
   assert.ok(html.includes('값&lt;&gt;'));
-  assert.ok(html.includes('#be5535'));
+  assert.ok(html.includes('#2563eb')); // AICC 라인 브랜드색(머리 행) — 테라코타는 이음 라인 전용이다
   assert.ok(html.includes('mso-number-format'));
 });

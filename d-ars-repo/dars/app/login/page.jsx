@@ -82,26 +82,29 @@ export default function LoginPage() {
       </form>
 
       <style>{`
-        .auth-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px 16px;background:linear-gradient(160deg,#fbf3ef,#f0d9cf);}
-        .auth-card{width:100%;max-width:380px;background:#fff;border:1px solid #e8ddd6;border-radius:18px;padding:26px 22px;box-shadow:0 12px 40px rgba(70,35,22,.14);}
-        .auth-brand{display:flex;align-items:center;gap:8px;color:#9c4025;font-size:16px;margin-bottom:18px;flex-wrap:wrap}
-        .auth-brand small{color:#8a7a72;font-weight:600;font-size:12px}
-        .auth-dot{width:12px;height:12px;border-radius:50%;background:#be5535;box-shadow:0 0 0 4px rgba(190,85,53,.28)}
-        .auth-h1{margin:0 0 4px;font-size:22px;color:#241a16}
-        .auth-sub{margin:0 0 18px;color:#8a7a72;font-size:13px}
-        .auth-lbl{display:block;font-size:12.5px;font-weight:700;color:#241a16;margin:12px 0 6px}
+        /* AICC 라인 이식 — 기준 원본 admin.html 의 .login/.loginbox 규격
+           (radial-gradient #eef4ff→바탕 · 라운드 18 · 전역 토큰 상속). 랜딩은 블루인데
+           로그인만 테라코타여서 「서비스 홈 → 로그인 → 콘솔」 세 화면의 색이 중간에 끊겼다. */
+        .auth-wrap{min-height:100dvh;display:grid;place-items:center;padding:24px 16px;background:radial-gradient(120% 80% at 50% 0%,var(--brand-xl),var(--bg));}
+        .auth-card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px 22px;box-shadow:0 12px 40px rgba(15,23,42,.12);}
+        .auth-brand{display:flex;align-items:center;gap:8px;color:var(--brand-d);font-size:16px;margin-bottom:18px;flex-wrap:wrap}
+        .auth-brand small{color:var(--muted);font-weight:600;font-size:12px}
+        .auth-dot{width:12px;height:12px;border-radius:50%;background:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,.18)}
+        .auth-h1{margin:0 0 4px;font-size:22px;color:var(--ink)}
+        .auth-sub{margin:0 0 18px;color:var(--muted);font-size:13px}
+        .auth-lbl{display:block;font-size:12.5px;font-weight:700;color:var(--ink);margin:12px 0 6px}
         .auth-inp{width:100%;box-sizing:border-box}
         .auth-btn{width:100%;justify-content:center;margin-top:18px;padding:12px;font-size:15px}
-        .auth-err{background:#fbeceb;color:#c0392b;border:1px solid #f0c9c4;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:4px}
-        .auth-demo{margin-top:20px;padding-top:16px;border-top:1px dashed #e8ddd6}
-        .auth-demo-t{font-size:11.5px;color:#8a7a72;font-weight:700;margin-bottom:9px;line-height:1.5}
+        .auth-err{background:#fbe2e7;color:var(--bad);border:1px solid #f3cbd5;border-radius:9px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:4px}
+        .auth-demo{margin-top:20px;padding-top:16px;border-top:1px dashed var(--line)}
+        .auth-demo-t{font-size:11.5px;color:var(--muted);font-weight:700;margin-bottom:9px;line-height:1.5}
         .auth-chips{display:flex;flex-wrap:wrap;gap:7px}
-        .auth-chip{border:1px solid #e8ddd6;background:#fbf3ef;color:#9c4025;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
-        .auth-chip:hover{background:#f0d9cf}
-        .auth-demo-p{margin-top:10px;font-size:12px;color:#8a7a72}
-        .auth-demo-p code{background:#f5f2ef;border:1px solid #e8ddd6;border-radius:6px;padding:1px 6px;font-size:12px}
+        .auth-chip{border:1px solid var(--line);background:var(--brand-xl);color:var(--brand-d);border-radius:100px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer}
+        .auth-chip:hover{background:var(--brand-l)}
+        .auth-demo-p{margin-top:10px;font-size:12px;color:var(--muted)}
+        .auth-demo-p code{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:12px}
         .auth-foot{margin-top:18px;text-align:center;font-size:13px}
-        .auth-foot a{color:#9c4025;font-weight:600;text-decoration:none}
+        .auth-foot a{color:var(--brand-d);font-weight:600;text-decoration:none}
         .auth-foot a:hover{text-decoration:underline}
       `}</style>
     </main>

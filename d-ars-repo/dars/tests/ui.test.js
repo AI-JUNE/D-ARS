@@ -26,6 +26,6 @@ test('tagClass: 알려진 상태 매핑, 미지정은 t-mut 기본', () => {
 });
 
 test('NODE_TYPES/journey: 구조 상수 무결성', () => {
-  assert.equal(NODE_TYPES.VISUAL_LAUNCH.c, '#be5535'); // 브랜드 컬러
+  assert.equal(NODE_TYPES.VISUAL_LAUNCH.c, '#2563eb'); // 브랜드 컬러(AICC 라인 primary)
   assert.ok(Array.isArray(journey) && journey.length === 5);
 });

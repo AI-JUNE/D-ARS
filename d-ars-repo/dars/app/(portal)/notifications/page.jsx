@@ -8,10 +8,10 @@ import {
 } from '@/lib/notifyRules';
 
 const LEVEL = {
-  bad:  { tag:'t-bad',  label:'긴급',   dot:'#c0392b' },
-  warn: { tag:'t-warn', label:'주의',   dot:'#c9902a' },
-  info: { tag:'t-info', label:'정보',   dot:'#3b6ea5' },
-  ok:   { tag:'t-ok',   label:'정상',   dot:'#2e8b57' },
+  bad:  { tag:'t-bad',  label:'긴급',   dot:'#9f1239' },
+  warn: { tag:'t-warn', label:'주의',   dot:'#92400e' },
+  info: { tag:'t-info', label:'정보',   dot:'#1d4ed8' },
+  ok:   { tag:'t-ok',   label:'정상',   dot:'#0f6b37' },
 };
 const FILTERS = [['all','전체'],['bad','긴급'],['warn','주의'],['info','정보']];
 
@@ -113,9 +113,9 @@ export default function Notifications() {
 
       <div className="grid g4" style={{ margin: '16px 0' }}>
         <div className="card kpi"><div className="n">{notes.length}</div><div className="l">전체 알림</div></div>
-        <div className="card kpi"><div className="n" style={{ color:'#c0392b' }}>{data.summary?.bad ?? 0}</div><div className="l">긴급</div></div>
-        <div className="card kpi"><div className="n" style={{ color:'#c9902a' }}>{data.summary?.warn ?? 0}</div><div className="l">주의</div></div>
-        <div className="card kpi"><div className="n" style={{ color:'#3b6ea5' }}>{unread}</div><div className="l">안읽음</div></div>
+        <div className="card kpi"><div className="n" style={{ color:'#9f1239' }}>{data.summary?.bad ?? 0}</div><div className="l">긴급</div></div>
+        <div className="card kpi"><div className="n" style={{ color:'#92400e' }}>{data.summary?.warn ?? 0}</div><div className="l">주의</div></div>
+        <div className="card kpi"><div className="n" style={{ color:'#1d4ed8' }}>{unread}</div><div className="l">안읽음</div></div>
       </div>
 
       <div className="card">

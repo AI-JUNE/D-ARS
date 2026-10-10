@@ -145,7 +145,7 @@ export default function Sessions() {
       <div className="sectionhead"><h2>실시간 보이는 ARS 세션</h2>
         {/* role="status": SSE 연결/폴백 전환을 스크린리더에도 낭독(WCAG 4.1.3) — 점은 장식이라 aria-hidden */}
         <span className="d" role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: live ? '#2e9e5b' : '#c9a23a', boxShadow: live ? '0 0 0 3px rgba(46,158,91,.15)' : 'none', flex: '0 0 auto' }} />
+          <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: live ? '#0f6b37' : '#92400e', boxShadow: live ? '0 0 0 3px rgba(15,107,55,.15)' : 'none', flex: '0 0 auto' }} />
           {live ? '실시간 스트림 연결됨' : '자동 갱신(4초) · 번호 마스킹'}
         </span>
         <span className="sp" /><button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button></div>
@@ -180,7 +180,7 @@ export default function Sessions() {
               <td><b>{s.id}</b></td><td>{s.phone}</td><td>{s.scenario}</td>
               <td><span className="tag t-info">{nt ? nt.ic + ' ' + nt.name : s.node}</span></td>
               <td><div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>{journey.map((j, i) =>
-                <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i <= s.step ? '#be5535' : '#e2d5cd' }} />)}</div></td>
+                <span key={i} style={{ width: 9, height: 9, borderRadius: '50%', background: i <= s.step ? '#2563eb' : '#e2e8f0' }} />)}</div></td>
               <td title={fmtDur(s.elapsed)} aria-label={'경과 ' + fmtDur(s.elapsed)}>{fmt(s.elapsed)}</td><td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{s.step >= 4 ? '완료' : '진행'}</span></td>
             </tr>); })}
             {view.length === 0 && (

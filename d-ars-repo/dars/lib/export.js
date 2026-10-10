@@ -66,15 +66,15 @@ export function toExcelHTML(rows, columns, sheetName = 'Sheet1', opts = {}) {
   const esc = (v) => String(v ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const cap = opts.subtitle
-    ? `<tr><td colspan="${columns.length}" style="background:#faf5f2;color:#8a7970;border:1px solid #e6dcd6;`
+    ? `<tr><td colspan="${columns.length}" style="background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;`
       + `padding:6px 10px;font-size:12px">${esc(opts.subtitle)}</td></tr>`
     : '';
   const th = columns.map(c =>
-    `<th style="background:#be5535;color:#fff;border:1px solid #d8c7bf;padding:6px 10px;font-weight:700">${esc(c.label)}</th>`
+    `<th style="background:#2563eb;color:#fff;border:1px solid #cbd5e1;padding:6px 10px;font-weight:700">${esc(c.label)}</th>`
   ).join('');
   const body = rows.map(r => '<tr>' + columns.map(c => {
     const v = typeof c.value === 'function' ? c.value(r) : r[c.value];
-    return `<td style="border:1px solid #e6dcd6;padding:5px 10px;mso-number-format:'\\@'">${esc(v)}</td>`;
+    return `<td style="border:1px solid #e2e8f0;padding:5px 10px;mso-number-format:'\\@'">${esc(v)}</td>`;
   }).join('') + '</tr>').join('');
   return `<html lang="ko" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">`
     + `<head><meta charset="utf-8">`
@@ -116,22 +116,22 @@ export function printPDF(title, rows, columns, opts = {}) {
   const sub = subtitle ? `<div class="sub">${esc(subtitle)}</div>` : '';
   const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
 *{box-sizing:border-box}
-body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#2b201c;margin:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.brand{display:flex;align-items:center;gap:8px;font-weight:800;color:#be5535;font-size:13px}
-.brand .dot{width:11px;height:11px;border-radius:50%;background:#be5535;display:inline-block}
-h1{font-size:20px;margin:8px 0 2px}.meta,.sub{color:#8a7970;font-size:12px}.sub{margin-top:2px}
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;margin:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;color:#2563eb;font-size:13px}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:#2563eb;display:inline-block}
+h1{font-size:20px;margin:8px 0 2px}.meta,.sub{color:#64748b;font-size:12px}.sub{margin-top:2px}
 table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}
-th{background:#be5535;color:#fff;text-align:left;padding:7px 10px;border:1px solid #d8c7bf;font-weight:700}
-td{padding:6px 10px;border:1px solid #e6dcd6;word-break:break-word}tbody tr:nth-child(even){background:#faf5f2}
-td.empty{text-align:center;color:#8a7970;padding:18px}
-.foot{margin-top:18px;color:#a2938b;font-size:11px;border-top:1px solid #ece3dd;padding-top:8px}
+th{background:#2563eb;color:#fff;text-align:left;padding:7px 10px;border:1px solid #cbd5e1;font-weight:700}
+td{padding:6px 10px;border:1px solid #e2e8f0;word-break:break-word}tbody tr:nth-child(even){background:#f8fafc}
+td.empty{text-align:center;color:#64748b;padding:18px}
+.foot{margin-top:18px;color:#94a3b8;font-size:11px;border-top:1px solid #eef2f7;padding-top:8px}
 @page{margin:14mm}
 </style></head><body>
 <div class="brand"><span class="dot"></span> D-ARS · 보이는 ARS</div>
 <h1>${esc(title)}</h1>
 <div class="meta">생성 ${esc(now)} · 운영 GOWON · ${list.length}건</div>${sub}
 <table><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>
-<div class="foot">본 문서는 D-ARS 관리자 포털에서 자동 생성되었습니다. 고객 번호는 마스킹 처리됩니다. · #be5535</div>
+<div class="foot">본 문서는 D-ARS 관리자 포털에서 자동 생성되었습니다. 고객 번호는 마스킹 처리됩니다.</div>
 </body></html>`;
   const iframe = document.createElement('iframe');
   iframe.setAttribute('aria-hidden', 'true');
