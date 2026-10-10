@@ -10,7 +10,9 @@ export default function ErrorBanner({ message, onRetry, retryLabel = '다시 시
       style={{
         display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         margin: '12px 0', padding: '10px 12px', borderRadius: 10,
-        background: '#eef4ff', border: '1px solid #bfdbfe', color: '#8c3a27',
+        /* 실패 배너는 브랜드 틴트가 아니라 경고 계열로 읽혀야 한다 — globals.css 의
+           .t-bad·.auth-err 와 같은 한 벌(배경 #fbe2e7 · 글자 var(--bad)). */
+        background: '#fbe2e7', border: '1px solid #f3cbd5', color: '#9f1239',
         fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
       }}
     >
@@ -52,7 +54,7 @@ export function OfflineBanner() {
       style={{
         display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
         margin: '0 0 12px', padding: '10px 12px', borderRadius: 10,
-        background: '#fff8e6', border: '1px solid #eddcb0', color: '#7a5a12',
+        background: '#fff8e6', border: '1px solid #eddcb0', color: '#92400e',
         fontSize: 13, lineHeight: 1.5, wordBreak: 'break-word',
       }}
     >

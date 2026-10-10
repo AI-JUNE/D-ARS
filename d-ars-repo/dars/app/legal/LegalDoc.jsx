@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { LEGAL_META } from '@/lib/legalContent';
 
-const TR='#bd5a40', INK='#3a2b24', MUT='#9c8b80', PAGE='#f6ece2', CARD='#ffffff', LINE='#ece0d5', BADGE='#f4e3da';
+const TR='#2563eb', INK='#0f172a', MUT='#64748b', PAGE='#f8fafc', CARD='#ffffff', LINE='#e2e8f0', BADGE='#eef4ff';
 
 // 약관/방침 공용 렌더러 (서버 컴포넌트, 정적).
 export default function LegalDoc({ title, sections }) {
@@ -15,7 +15,7 @@ export default function LegalDoc({ title, sections }) {
           {LEGAL_META.service} · 운영 {LEGAL_META.operator} · 시행일 {LEGAL_META.effectiveDate}
         </p>
         {draft && (
-          <div style={{ background:BADGE, color:'#8a3a22', border:'1px solid '+LINE, borderRadius:12, padding:'12px 14px', fontSize:13, lineHeight:1.6, margin:'12px 0 8px' }}>
+          <div style={{ background:BADGE, color:'#1d4ed8', border:'1px solid '+LINE, borderRadius:12, padding:'12px 14px', fontSize:13, lineHeight:1.6, margin:'12px 0 8px' }}>
             ⚠️ 본 문서는 <b>법무 검토 전 초안</b>입니다. 정식 게시 전 회사 정보·연락처·보관기간·수집항목을 확정하고 검토를 받아야 합니다. <b>[승인 필요]</b>
           </div>
         )}
@@ -23,7 +23,7 @@ export default function LegalDoc({ title, sections }) {
           {sections.map((s, i) => (
             <section key={i} style={{ background:CARD, border:'1px solid '+LINE, borderRadius:16, padding:'18px 20px', marginBottom:12 }}>
               <h2 style={{ fontSize:16.5, fontWeight:800, color:INK, margin:'0 0 8px' }}>{s.h}</h2>
-              <p style={{ color:'#5a4a40', fontSize:14.5, lineHeight:1.75, margin:0, whiteSpace:'pre-line' }}>{s.body}</p>
+              <p style={{ color:'#475569', fontSize:14.5, lineHeight:1.75, margin:0, whiteSpace:'pre-line' }}>{s.body}</p>
             </section>
           ))}
         </div>

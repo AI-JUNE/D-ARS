@@ -4,8 +4,8 @@ import { LEGAL_META } from '@/lib/legalContent';
 // 루트 템플릿 '%s · D-ARS' 가 접미를 붙이므로 세그먼트 제목만 지정(중복 '· D-ARS · D-ARS' 방지).
 export const metadata = { title: '요금제', description: 'D-ARS(보이는 ARS) 요금제 — 파일럿 · 표준 · 기관' };
 
-const TR='#bd5a40', TRD='#9c4025', INK='#3a2b24', MUT='#9c8b80';
-const PAGE='#f6ece2', CARD='#ffffff', LINE='#ece0d5', BADGE='#f4e3da';
+const TR='#2563eb', TRD='#1d4ed8', INK='#0f172a', MUT='#64748b';
+const PAGE='#f8fafc', CARD='#ffffff', LINE='#e2e8f0', BADGE='#eef4ff';
 
 // ⚠️ [승인 필요] 아래 금액은 안내용 초안이다. 실제 구독 결제는 승인·검수 전까지
 //   비활성이며, 현재 CTA 는 결제가 아닌 "도입 문의" 로 연결한다.
@@ -56,7 +56,7 @@ export default function PricingPage() {
           <p style={{ color:MUT, fontSize:'clamp(14px,3.5vw,16px)', maxWidth:600, margin:'0 auto', lineHeight:1.6 }}>
             파일럿으로 먼저 검증하고, 표준·기관 요금제로 확장하세요. 공공·대규모 도입은 맞춤 견적으로 안내합니다.
           </p>
-          <div style={{ display:'inline-block', marginTop:14, background:BADGE, color:'#8a3a22', border:'1px solid '+LINE, borderRadius:999, padding:'6px 14px', fontSize:12.5 }}>
+          <div style={{ display:'inline-block', marginTop:14, background:BADGE, color:'#1d4ed8', border:'1px solid '+LINE, borderRadius:999, padding:'6px 14px', fontSize:12.5 }}>
             ⚠️ 구독 결제 연동은 준비 중입니다 · 현재는 도입 문의로 진행 <b>[승인 필요]</b>
           </div>
         </div>
@@ -79,7 +79,7 @@ export default function PricingPage() {
               </div>
               <ul style={{ listStyle:'none', padding:0, margin:'16px 0 20px', flex:1 }}>
                 {p.feats.map((f, i) => (
-                  <li key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:13.5, color:'#5a4a40', lineHeight:1.5, marginBottom:9 }}>
+                  <li key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', fontSize:13.5, color:'#475569', lineHeight:1.5, marginBottom:9 }}>
                     <span style={{ color:TR, fontWeight:800, flex:'0 0 auto' }}>✓</span>{f}
                   </li>
                 ))}

@@ -253,7 +253,7 @@ export default function SavedViews({ screen, label = '저장된 뷰', clearable 
         aria-live="polite"
         style={{
           flexBasis: '100%', minWidth: 0, fontSize: 12, wordBreak: 'break-word',
-          color: msg ? (msg.ok ? '#2f7a4d' : '#b3261e') : 'transparent',
+          color: msg ? (msg.ok ? '#0f6b37' : '#9f1239') : 'transparent',
           height: msg ? 'auto' : 0, overflow: 'hidden',
         }}
       >

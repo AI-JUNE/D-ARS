@@ -133,51 +133,51 @@ export default function Visual() {
 
   // 109회차: 루트 div → main 랜드마크(WCAG 1.3.1). 인라인 스타일 그대로 — 표시 불변
   return (
-    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'radial-gradient(1200px 600px at 50% -10%, #f7ece6, #e7ddd5)', padding: '20px 12px' }}>
+    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'radial-gradient(1200px 600px at 50% -10%, #eef4ff, #dbe5f7)', padding: '20px 12px' }}>
       {/* 시각적으로는 휴대폰 목업이 곧 화면 전부라 보이는 제목이 없지만, 문서 구조상 h1 부재는
           전 라우트 중 이 페이지가 유일(WCAG 1.3.1 · 스크린리더 헤딩 탐색 H키 랜드마크).
           .sr-only(globals.css)로 화면 표시 0 변경 — 103회차 메타 title(보이는 ARS 데모)과 동일 명칭. */}
       <h1 className="sr-only">보이는 ARS 데모</h1>
       <style>{`@keyframes eumdot{0%,60%,100%{opacity:.25}30%{opacity:1}}@keyframes eumpulse{0%,100%{opacity:.5}50%{opacity:1}}`}</style>
-      <div style={{ width: 'min(390px,100%)', background: '#0d0b0a', borderRadius: 44, padding: 12, boxShadow: '0 8px 30px rgba(60,30,20,.2)' }}>
-        <div style={{ background: '#f4f1ee', borderRadius: 34, overflow: 'hidden', height: 'min(760px,84vh)', minHeight: 540, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: 'linear-gradient(135deg,#be5535,#9c4025)', color: '#fff', padding: '20px 18px 13px' }}>
+      <div style={{ width: 'min(390px,100%)', background: '#0f172a', borderRadius: 44, padding: 12, boxShadow: '0 8px 30px rgba(15,23,42,.2)' }}>
+        <div style={{ background: '#f8fafc', borderRadius: 34, overflow: 'hidden', height: 'min(760px,84vh)', minHeight: 540, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', padding: '20px 18px 13px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <b style={{ fontSize: 15.5 }}>D-ARS · 보이는 ARS</b>
               <span style={{ fontSize: 11, background: 'rgba(255,255,255,.18)', padding: '4px 9px', borderRadius: 999 }}>{live ? '● 실시간 연동' : '● 통화 연결됨'}</span>
             </div>
             <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>통화 중 화면 동반 안내 · 데모 화면</div>
           </div>
-          <div style={{ background: '#fff7f3', borderBottom: '1px solid #e6ddd7', color: '#8a5a44', fontSize: 11, padding: '7px 16px' }}>
+          <div style={{ background: '#eef4ff', borderBottom: '1px solid #e2e8f0', color: '#1d4ed8', fontSize: 11, padding: '7px 16px' }}>
             ℹ️ 본 상담은 생성형 AI가 함께 응대합니다 (AI 기본법 제31조 고지). · 본 화면은 데모이며 실제 고객 데이터가 아닙니다.</div>
           {/* 장애 폴백 안내: 항상 DOM 에 두고(display:none 이면 aria-live 낭독이 누락된다) 끊겼을 때만 내용·높이를 채운다.
-              색 대비: #7a1f0a on #fdeae4 ≈ 7.9:1 (어르신 배율에도 S() 로 확대). */}
-          <div role="status" aria-live="assertive" style={{ background: '#fdeae4', borderBottom: lost ? '1px solid #f0c9bb' : 0, color: '#7a1f0a', fontSize: S(13), fontWeight: 700, padding: lost ? '9px 16px' : 0, lineHeight: 1.45 }}>
+              색 대비: #9f1239 on #fbe2e7 ≈ 6.5:1 (어르신 배율에도 S() 로 확대). */}
+          <div role="status" aria-live="assertive" style={{ background: '#fbe2e7', borderBottom: lost ? '1px solid #f3cbd5' : 0, color: '#9f1239', fontSize: S(13), fontWeight: 700, padding: lost ? '9px 16px' : 0, lineHeight: 1.45 }}>
             {lost ? `📞 ${SCREEN_LOST_MESSAGE}` : ''}</div>
           <div style={{ display: 'flex', gap: 6, padding: '9px 14px 4px', alignItems: 'center' }}>
-            <span style={{ fontSize: 10.5, color: '#8a7a72', fontWeight: 700 }}>세대별 화면</span>
+            <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 700 }}>세대별 화면</span>
             {GENS.map((g) => (
               <button key={g.k} type="button" aria-pressed={gen === g.k} onClick={() => setGen(g.k)} style={{
                 fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
-                border: gen === g.k ? '0' : '1px solid #e0d5cd', background: gen === g.k ? '#be5535' : '#fff', color: gen === g.k ? '#fff' : '#8a7a72',
+                border: gen === g.k ? '0' : '1px solid #e2e8f0', background: gen === g.k ? '#2563eb' : '#fff', color: gen === g.k ? '#fff' : '#64748b',
               }}>{g.label}</button>
             ))}
           </div>
           <div style={{ display: 'flex', padding: '6px 14px 4px' }}>
             {journey.map((j, i) => (
-              <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: i <= step ? '#9c4025' : '#8a7a72', fontWeight: 600 }}>
-                <div style={{ width: 16, height: 16, borderRadius: '50%', margin: '0 auto 4px', background: i <= step ? '#be5535' : '#e2d5cd', transition: 'background .4s' }} />{j}</div>))}
+              <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 10, color: i <= step ? '#1d4ed8' : '#64748b', fontWeight: 600 }}>
+                <div style={{ width: 16, height: 16, borderRadius: '50%', margin: '0 auto 4px', background: i <= step ? '#2563eb' : '#e2e8f0', transition: 'background .4s' }} />{j}</div>))}
           </div>
           <div ref={boxRef} style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10, scrollBehavior: 'smooth' }}>
             {msgs.map((m, i) => (<Bubble key={i} m={m} S={S} />))}
             {typing && <Typing S={S} />}
           </div>
-          <div style={{ padding: '8px 14px', minHeight: 34, fontSize: S(12), color: listening ? '#9c4025' : '#8a7a72', fontWeight: 600 }}>
+          <div style={{ padding: '8px 14px', minHeight: 34, fontSize: S(12), color: listening ? '#1d4ed8' : '#64748b', fontWeight: 600 }}>
             {listening ? '🎙️ 고객님 말씀을 듣고 있어요…' : (typing ? '💬 안내를 준비하고 있어요…' : '메뉴를 누르거나 통화를 시작하세요')}</div>
           <div style={{ padding: '6px 12px 10px', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {MENU.map(([node, label]) => (
               <button type="button" key={node} onClick={() => pick(node)} style={{ ...btnStyle, fontSize: S(12.5) }}>{label}</button>))}
-            <button type="button" onClick={play} disabled={playing} style={{ ...btnStyle, background: playing ? '#d8a493' : '#be5535', color: '#fff', flex: '1 1 100%', fontSize: S(13), cursor: playing ? 'default' : 'pointer' }}>
+            <button type="button" onClick={play} disabled={playing} style={{ ...btnStyle, background: playing ? '#93b4f5' : '#2563eb', color: '#fff', flex: '1 1 100%', fontSize: S(13), cursor: playing ? 'default' : 'pointer' }}>
               {playing ? '● 시연 진행 중…' : '▶ 자동 시연'}</button>
           </div>
         </div>
@@ -186,12 +186,12 @@ export default function Visual() {
   );
 }
 
-const btnStyle = { flex: '1 1 30%', border: '1px solid #e6ddd7', background: '#fff', borderRadius: 11, padding: '11px 6px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: '#3a2b24' };
+const btnStyle = { flex: '1 1 30%', border: '1px solid #e2e8f0', background: '#fff', borderRadius: 11, padding: '11px 6px', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', color: '#0f172a' };
 
 function Typing({ S }) {
   return (
-    <div style={{ maxWidth: '60%', alignSelf: 'flex-start', background: '#fff', border: '1px solid #e6ddd7', borderRadius: 16, padding: '11px 14px', display: 'flex', gap: 4, alignItems: 'center' }}>
-      {[0, 1, 2].map((i) => (<span key={i} style={{ width: S(7), height: S(7), borderRadius: '50%', background: '#be5535', display: 'inline-block', animation: `eumdot 1.2s ${i * 0.2}s infinite` }} />))}
+    <div style={{ maxWidth: '60%', alignSelf: 'flex-start', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: '11px 14px', display: 'flex', gap: 4, alignItems: 'center' }}>
+      {[0, 1, 2].map((i) => (<span key={i} style={{ width: S(7), height: S(7), borderRadius: '50%', background: '#2563eb', display: 'inline-block', animation: `eumdot 1.2s ${i * 0.2}s infinite` }} />))}
     </div>
   );
 }
@@ -200,10 +200,12 @@ function Bubble({ m, S }) {
   const bot = m.who === 'bot';
   return (
     <div style={{
-      maxWidth: '88%', alignSelf: bot ? 'flex-start' : 'flex-end', background: bot ? '#fff' : '#f7e7df', border: bot ? '1px solid #e6ddd7' : '0',
-      borderRadius: 16, padding: '10px 13px', fontSize: S(13.5), lineHeight: 1.55, color: bot ? '#241a16' : '#4a2c1e',
+      maxWidth: '88%', alignSelf: bot ? 'flex-start' : 'flex-end', background: bot ? '#fff' : '#eef4ff', border: bot ? '1px solid #e2e8f0' : '0',
+      borderRadius: 16, padding: '10px 13px', fontSize: S(13.5), lineHeight: 1.55, color: bot ? '#0f172a' : '#1e3a6e',
     }}>
-      <div style={{ fontSize: S(10), fontWeight: 800, marginBottom: 3, color: bot ? '#be5535' : '#a06a4e' }}>{bot ? '보이는 ARS · AI' : '고객 발화 (STT)'}</div>
+      {/* 말한 쪽 표시: 브랜드색은 봇에만 쓰고 고객 쪽은 중립 회색으로 둔다 — 블루 한 색으로
+          옮기면서 종전(테라코타/브라운)이 갖고 있던 두 화자의 구분이 사라지지 않게. */}
+      <div style={{ fontSize: S(10), fontWeight: 800, marginBottom: 3, color: bot ? '#2563eb' : '#64748b' }}>{bot ? '보이는 ARS · AI' : '고객 발화 (STT)'}</div>
       {m.text}
       {m.node && <NodeCard node={m.node} S={S} />}
     </div>
@@ -211,30 +213,30 @@ function Bubble({ m, S }) {
 }
 
 function NodeCard({ node, S }) {
-  const box = { background: '#fff', border: '1px solid #e6ddd7', borderRadius: 12, padding: 11, marginTop: 8, fontSize: S(12.5) };
-  const title = (t) => <b style={{ fontSize: S(13), color: '#9c4025' }}>{t}</b>;
-  const kv = (k, v) => (<div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed #eee' }}><span style={{ color: '#9c8b80' }}>{k}</span><b>{v}</b></div>);
-  const chip = (t, done) => (<span style={{ fontSize: S(11), fontWeight: 700, padding: '3px 8px', borderRadius: 999, marginRight: 5, marginTop: 5, display: 'inline-block', background: done ? '#eaf5ee' : '#f4e3da', color: done ? '#2e7d46' : '#a06a4e' }}>{done ? '✓ ' : ''}{t}</span>);
+  const box = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 11, marginTop: 8, fontSize: S(12.5) };
+  const title = (t) => <b style={{ fontSize: S(13), color: '#1d4ed8' }}>{t}</b>;
+  const kv = (k, v) => (<div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed #eee' }}><span style={{ color: '#64748b' }}>{k}</span><b>{v}</b></div>);
+  const chip = (t, done) => (<span style={{ fontSize: S(11), fontWeight: 700, padding: '3px 8px', borderRadius: 999, marginRight: 5, marginTop: 5, display: 'inline-block', background: done ? '#e7f7ee' : '#eef4ff', color: done ? '#0f6b37' : '#1d4ed8' }}>{done ? '✓ ' : ''}{t}</span>);
 
   if (node === 'SHOW_WELFARE_FORM') return (
     <div style={box}>{title('🗣️ 복지 신청 (말로 신청)')}
       <div style={{ margin: '7px 0 3px' }}>{chip('기초연금')}{chip('노인맞춤돌봄')}{chip('에너지바우처')}</div>
       {kv('신청자', '김순자 어르신')}{kv('대상 확인', '자동 조회됨 · 적격')}
-      <div style={{ marginTop: 7, color: '#8a5a44', fontSize: S(11.5) }}>말씀하시면 신청서가 자동으로 채워집니다. 금액·자격은 코디네이터가 확인해 드려요.</div>
+      <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: S(11.5) }}>말씀하시면 신청서가 자동으로 채워집니다. 금액·자격은 코디네이터가 확인해 드려요.</div>
     </div>);
   if (node === 'SHOW_TRIO_MATCH') return (
     <div style={box}>{title('🤝 3세대 트리오 매칭')}
       <div style={{ display: 'flex', gap: 6, margin: '8px 0' }}>
         {[['어르신', '김순자'], ['청년', '이도윤'], ['아동', '박서아']].map(([r, n]) => (
-          <div key={r} style={{ flex: 1, textAlign: 'center', background: '#faf3ee', border: '1px solid #eaddd4', borderRadius: 10, padding: '8px 4px' }}>
-            <div style={{ fontSize: S(10.5), color: '#a06a4e', fontWeight: 700 }}>{r}</div><b style={{ fontSize: S(12) }}>{n}</b></div>))}
+          <div key={r} style={{ flex: 1, textAlign: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 4px' }}>
+            <div style={{ fontSize: S(10.5), color: '#1d4ed8', fontWeight: 700 }}>{r}</div><b style={{ fontSize: S(12) }}>{n}</b></div>))}
       </div>
       {kv('근접', '도보 800m · 같은 동')}{kv('활동', '주 2회 · 말동무·돌봄')}
     </div>);
   if (node === 'SHOW_SAFETY_CHECK') return (
     <div style={box}>{title('🛡️ 4단계 안전검증')}
       <div style={{ marginTop: 6 }}>{chip('본인 면접', 1)}{chip('범죄경력 조회', 1)}{chip('아동학대 전력', 1)}{chip('추천인 확인')}</div>
-      <div style={{ marginTop: 7, color: '#8a5a44', fontSize: S(11.5) }}>검증을 통과한 이웃만 매칭돼요. 안심하고 이용하세요.</div>
+      <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: S(11.5) }}>검증을 통과한 이웃만 매칭돼요. 안심하고 이용하세요.</div>
     </div>);
   if (node === 'SHOW_CARD_POINTS') return (
     <div style={box}>{title('💳 상생카드 · 봉사시간')}
@@ -243,18 +245,18 @@ function NodeCard({ node, S }) {
   if (node === 'TRANSFER_COORDINATOR') return (
     <div style={box}>{title('📞 코디네이터 연결')}
       <div style={{ display: 'flex', gap: 8, marginTop: 7, alignItems: 'center' }}>
-        <span style={{ flex: 1, color: '#9c8b80' }}>담당 상담사 연결 · 예상 대기 30초</span>
-        <button type="button" onClick={(e) => { e.currentTarget.textContent = '연결 중…'; e.currentTarget.style.background = '#2e8b57'; }}
-          style={{ border: 0, background: '#be5535', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>연결</button>
+        <span style={{ flex: 1, color: '#64748b' }}>담당 상담사 연결 · 예상 대기 30초</span>
+        <button type="button" onClick={(e) => { e.currentTarget.textContent = '연결 중…'; e.currentTarget.style.background = '#0f6b37'; }}
+          style={{ border: 0, background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>연결</button>
       </div>
     </div>);
   if (node === 'SHOW_DOCS') return (
     <div style={box}>{title('📋 필요 서류 · 접수')}
       <div style={{ margin: '6px 0' }}>{chip('신분증')}{chip('통장 사본')}{chip('주민등록등본')}</div>
       <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
-        <span style={{ flex: 1, color: '#9c8b80' }}>서류 안내를 문자로 받기</span>
-        <button type="button" onClick={(e) => { e.currentTarget.textContent = '발송완료 ✓'; e.currentTarget.style.background = '#2e8b57'; }}
-          style={{ border: 0, background: '#be5535', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>문자 발송</button>
+        <span style={{ flex: 1, color: '#64748b' }}>서류 안내를 문자로 받기</span>
+        <button type="button" onClick={(e) => { e.currentTarget.textContent = '발송완료 ✓'; e.currentTarget.style.background = '#0f6b37'; }}
+          style={{ border: 0, background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>문자 발송</button>
       </div>
     </div>);
   return null;
