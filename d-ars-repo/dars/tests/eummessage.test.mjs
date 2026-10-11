@@ -22,6 +22,10 @@ import {
   submitMessage,
   EUM_DONE_MESSAGE,
   EUM_BOUNDARY_MESSAGE,
+  EUM_KICKER,
+  EUM_PANEL_ASK,
+  EUM_PANEL_TITLE,
+  panelTitle,
 } from '../lib/eumMessage.js';
 import { muteSeparatorsIn } from '../lib/eumSenior.js';
 
@@ -44,6 +48,8 @@ const SCREENS = {
   'app/eum/senior/page.jsx': read('app/eum/senior/page.jsx'),
   'app/eum/senior/[token]/page.jsx': read('app/eum/senior/[token]/page.jsx'),
   'app/eum/senior/[token]/SeniorFlow.jsx': read('app/eum/senior/[token]/SeniorFlow.jsx'),
+  // 「senior」 안에서 잘린 링크(`/eum/sen` 꼴)를 받는 캐치올. 같은 말을 해야 하는 다섯 번째 자리다.
+  'app/eum/[...rest]/page.jsx': read('app/eum/[...rest]/page.jsx'),
 };
 
 // 금지 사본 검사는 **주석을 걷어낸 코드**에만 적용한다 — 왜 그런지를 적은 주석까지 막으면
@@ -109,7 +115,9 @@ test('문장은 lib/eumMessage.js 한 곳에만 적혀 있다(사본 되살아�
 test('링크 상태를 말하는 화면 전부가 같은 표를 가리킨다', () => {
   for (const [name, src] of Object.entries(SCREENS)) {
     assert.match(src, /from '@\/lib\/eumMessage'/, `${name}: 문구 단일 출처를 import 하지 않는다`);
-    assert.match(src, /tokenMessage\(/, `${name}: 문구를 표에서 가져오지 않는다`);
+    // 제목이 있는 패널은 `panelTitle`·`EUM_PANEL_*`, 제목이 없는 알림 한 줄은 `tokenMessage` —
+    // 어느 쪽이든 **이 표**를 거쳐야 한다(손으로 적은 판본 금지).
+    assert.match(src, /tokenMessage\(|panelTitle\(|EUM_PANEL_/, `${name}: 문구를 표에서 가져오지 않는다`);
     // 비밀을 읽는 모듈에서 문구를 끌어오면 그 모듈이 화면 번들에 따라 들어온다.
     assert.equal(/tokenMessage[^\n]*from '@\/lib\/eumToken'/.test(src), false,
       `${name}: 문구를 lib/eumToken 에서 가져온다`);
@@ -132,6 +140,55 @@ test('호출 자리가 쓰는 사유 이름이 전부 표에 있다(없는 이�
   for (const key of Object.keys(EUM_TOKEN_MESSAGE)) {
     assert.ok(TOKEN_SRC.includes(`'${key}'`), `lib/eumToken 이 내지 않는 사유가 표에 있다: ${key}`);
   }
+});
+
+// ── 고친 결함: 제목이 본문과 **같은 말을 두 번** 했다 ──────────────────────
+//
+// 안내 패널의 제목은 화면 파일마다 손으로 적혀 있었다(네 벌). 본문만 이 표에서 왔으므로
+// 아무도 그 둘을 서로 대조하지 않았고, 그 사이 만료 패널은 제목과 본문의 첫 문장이
+// **글자까지 같았다** — 그 패널은 전환과 함께 제목으로 포커스를 옮기므로(11회차), 듣는
+// 어르신은 제목을 듣고 이어 읽는 본문에서 방금 들은 문장을 한 번 더 듣는다(✓ 표시를
+// aria-hidden 으로 가린 것과 같은 이유로 피해야 하는 중복이다). 보는 어르신에게는 24px 넘는
+// 글자 두 줄이 같은 말을 하는 화면이고, 되돌릴 단추가 없는 화면에서 둘 중 하나는 쓸모가 없었다.
+// 지금은 제목이 **무엇이 잘못됐는가**, 본문이 **무엇을 하면 되는가**이고 둘은 같은 토막에서
+// 나온다 — 한쪽만 고쳐져 갈라지는 길이 없다.
+test('패널 제목: 사유별 알림 문장과 같은 토막에서 나온다(양방향)', () => {
+  const keys = Object.keys(EUM_TOKEN_MESSAGE);
+  assert.ok(keys.length >= 4, `표가 줄었다: ${keys.length}`);
+  for (const reason of keys) {
+    const title = panelTitle(reason);
+    assert.ok(title && Object.values(EUM_PANEL_TITLE).includes(title), `${reason}: 제목이 등록부 밖이다`);
+    // 알림 한 줄(제목 없는 자리)은 「무엇이 잘못됐는가 + 무엇을 하면 되는가」를 이어 쓴다.
+    assert.equal(tokenMessage(reason), `${title}. ${EUM_PANEL_ASK}`,
+      `${reason}: 제목과 알림 문장이 다른 토막에서 나온다 — 한쪽만 고쳐지면 갈라진다`);
+  }
+  // 모르는 사유는 두 함수가 **같은 쪽**으로 떨어져야 한다(안내가 서로 다른 상태를 말하지 않게).
+  for (const bad of ['알 수 없는 사유', '', null, undefined, 42, 'constructor', '__proto__']) {
+    assert.equal(panelTitle(bad), EUM_PANEL_TITLE.link, `입력: ${String(bad)}`);
+    assert.match(tokenMessage(bad), new RegExp(`^${EUM_PANEL_TITLE.link}`), `입력: ${String(bad)}`);
+  }
+});
+
+test('패널 제목: 본문이 제목을 되풀이하지 않고, 등록부와 화면이 양방향으로 맞는다', () => {
+  // 패널 본문은 제목이 말한 문장을 **담지 않는다**(같은 말을 두 번 하지 않는다).
+  for (const title of Object.values(EUM_PANEL_TITLE)) {
+    assert.ok(!EUM_PANEL_ASK.includes(title), `본문이 제목을 되풀이한다 — ${title}`);
+  }
+  assert.ok(EUM_PANEL_ASK.length > 5 && !EUM_PANEL_ASK.endsWith('.'), '본문 한 줄의 규약이 깨졌다');
+  // 등록부 ↔ 화면 양방향: 쓰이지 않는 제목이 남으면 표가 썩고, 손으로 적은 사본이 생기면
+  // 화면마다 제목이 갈라진다(9회차의 「두 번째 판본」과 같은 모양).
+  const text = Object.values(SCREENS).map(stripComments).join('\n');
+  const used = new Set([...text.matchAll(/EUM_PANEL_TITLE\.(\w+)/g)].map((m) => m[1]));
+  // panelTitle() 로 오는 둘(expired·link)은 이름을 적지 않고 사유로 고른다 — 그 둘은
+  // 위 테스트가 사유별로 대조하므로 여기서는 직접 쓰이는 이름만 더해 비교한다.
+  for (const name of ['expired', 'link']) used.add(name);
+  assert.deepEqual([...used].sort(), Object.keys(EUM_PANEL_TITLE).sort(), '등록부와 화면이 어긋난다');
+  for (const [key, title] of Object.entries(EUM_PANEL_TITLE)) {
+    assert.ok(!text.includes(`"${title}"`) && !text.includes(`'${title}'`),
+      `${key}: 제목을 손으로 적은 화면이 있다 — ${title}`);
+  }
+  // 머리말도 한 줄만 있어야 한다 — 화면 쪽 대조는 tests/eumseniorui 가 한다.
+  assert.ok(EUM_KICKER.length > 3 && !/[.。]$/.test(EUM_KICKER), '머리말 규약이 깨졌다');
 });
 
 // ── 제출이 되지 않았을 때의 안내(알림 자리) ────────────────────────────────
@@ -260,6 +317,11 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     EUM_SUBMIT_MESSAGE,
     EUM_DONE_MESSAGE,
     EUM_BOUNDARY_MESSAGE,
+    // 제목·머리말·할 일 한 줄도 **화면에 그려지는 글자**다. 이 표로 옮겨 오면서 화면 쪽
+    // 대조(tests/eumseniorui)에서 빠졌으므로 여기서 같은 판정으로 받는다 — 11회차가 겪은
+    // "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게.
+    EUM_PANEL_TITLE,
+    EUM_PANEL_TEXT: { ask: EUM_PANEL_ASK, kicker: EUM_KICKER },
   };
   const bad = [];
   let seen = 0;

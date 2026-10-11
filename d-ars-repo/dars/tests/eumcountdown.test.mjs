@@ -172,9 +172,13 @@ test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 
   // 「살아 있던 영역의 내용이 바뀐 것」이 아니라서 들리지 않는다.
   assert.equal(/aria-live|role="status"/.test(block), false,
     '낭독 영역이 경고와 함께 태어나고 있다(그 순간은 리더가 변화로 보지 않는다)');
-  const region = flow.match(/<div role="status" aria-live="polite">\s*\{soon \?/);
+  // 정정: 이 자리를 고칠 때는 영역을 이 파일에서 손으로 적었다(`<div role="status" …>`).
+  // 그런데 같은 모양이 둘 더 있었고(제출 실패 안내 · 보조 사본 안내), 셋을 각자 적으면
+  // 한 곳만 고쳐지는 날 다시 갈라진다 — 지금은 영역을 만드는 길이 ui.jsx 의 `Live` 하나다
+  // (등록부 대조는 tests/eumseniorui 의 「낭독 영역을 만드는 길은 …」).
+  const region = flow.match(/<Live>\s*\{soon \?/);
   assert.ok(region, '늘 문서에 있는 낭독 영역이 조건을 감싸고 있지 않다');
   // 빈 칸이 화면을 밀어내면 안 된다 — 영역에는 style 을 주지 않는다(내용 없는 블록은 0px).
-  assert.equal(/<div role="status" aria-live="polite" style/.test(flow), false,
+  assert.equal(/<Live[^>]*style/.test(flow), false,
     '빈 낭독 영역에 style 이 붙으면 경고가 없는 화면까지 자리를 잃는다');
 });

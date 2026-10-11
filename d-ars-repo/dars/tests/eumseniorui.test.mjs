@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { EUM_FONT_PX } from '../lib/eumTheme.js';
 import { muteSeparatorsIn } from '../lib/eumSenior.js';
+import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
   metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
   exportedObjectEntries,
@@ -53,9 +54,48 @@ test('page 는 서버에서 토큰을 검증한다("use client" 금지)', () => 
   assert.match(page, /dynamic\s*=\s*'force-dynamic'/, '만료 판정이 정적 캐시되면 안 된다');
 });
 
+// 정정: 이 테스트는 한동안 화면 소스에서 **글자**를 찾으며 통과했다(`/이음 어르신 신청/`).
+// 그것이 통과하는 동안 같은 글자가 화면 네 곳에 **손으로 적혀** 있었고(여기·SeniorFlow·오류·
+// 대기), 아무도 그 넷을 서로 대조하지 않았다 — 「표현은 ui.jsx 단일 출처」라는 서술이 그
+// 안의 글자에는 해당되지 않던 자리다. 이제 머리말은 등록부에서 오고, 사본이 되살아나면
+// 아래 「머리말」 테스트가 실패한다. head 쪽 제목은 리터럴 그대로 둔다(아래 사유 참조).
 test('제목이 「이음 어르신 신청」 이고 제품 브랜드 템플릿을 쓰지 않는다', () => {
   assert.match(page, /absolute:\s*'이음 어르신 신청'/);
-  assert.ok(/이음 어르신 신청/.test(flow) && /이음 어르신 신청/.test(ui), '화면 상단 표기 누락');
+  assert.ok(/EUM_KICKER/.test(flow) && /EUM_KICKER/.test(ui), '화면 상단 표기 누락');
+});
+
+// ── 고친 결함: 머리말이 화면 네 곳에 손으로 적혀 있었다 ─────────────────────
+//
+// 이 화면군의 **표현**은 ui.jsx 가 단일 출처이고 **문구**는 lib/eumMessage 가 단일 출처인데,
+// 머리말 한 줄만 그 둘 어디에도 없이 화면마다 적혀 있었다(14회차 메모가 지목한 자리다).
+// 글자가 같아 보이는 동안에는 아무 일도 일어나지 않는 종류의 결함이고, 한 곳만 고쳐지는 날
+// 어르신이 어느 화면을 밟느냐에 따라 머리말이 달라진다 — 9회차의 「마침표가 하나 더 붙은
+// 두 번째 판본」과 같은 모양이다.
+test('머리말: 화면 전부가 등록부 한 줄을 가리킨다(손으로 적은 사본 금지)', () => {
+  const screens = {
+    'app/eum/senior/[token]/ui.jsx': ui,
+    'app/eum/senior/[token]/SeniorFlow.jsx': flow,
+    'app/eum/error.jsx': boundary['app/eum/error.jsx'],
+    'app/eum/loading.jsx': boundary['app/eum/loading.jsx'],
+  };
+  let drawn = 0;
+  for (const [name, src] of Object.entries(screens)) {
+    const code = stripComments(src);
+    assert.match(code, /EUM_KICKER/, `${name}: 머리말을 등록부에서 가져오지 않는다`);
+    assert.match(code, /style=\{S\.kicker\}>\{EUM_KICKER\}</, `${name}: 머리말 자리가 등록부를 쓰지 않는다`);
+    drawn += 1;
+  }
+  assert.equal(drawn, 4, `머리말을 그리는 화면이 줄었다: ${drawn}`);
+  // head 쪽 제목(metadata)은 **리터럴 그대로 둔다** — 브랜드 누출 대조는 소스에 적힌 글자를
+  // 읽어 판정하므로(inlineStringConsts 는 같은 파일의 const 까지만 푼다) import 한 이름으로
+  // 바꾸면 그 대조가 아무 글자도 보지 못하고 조용히 통과한다. 화면에 그려지는 머리말과 head
+  // 제목이 같은 글자라는 사실은 여기서 대조한다.
+  assert.equal(EUM_KICKER, '이음 어르신 신청');
+  for (const file of eumPageFiles()) {
+    const fields = metadataFields(readFileSync(file, 'utf8'));
+    assert.match(fields.title || '', /absolute: '이음 어르신 신청'/,
+      `${file.slice(root.length + 1)}: head 제목이 머리말과 다른 글자다`);
+  }
 });
 
 test('로고·도입사례·요금표를 표시하지 않는다(표시 금지 요건)', () => {
@@ -91,9 +131,13 @@ test('스크린리더: 선택지 묶음에 라벨이 있고 단계 전환이 낭
   assert.match(flow, /headingRef\.current\?\.focus\(\)/);
   // 오류는 즉시 낭독돼야 한다. 표현은 ui.jsx 의 Alert 한 곳에 있다 — 자리는 단계마다
   // 다르지만(그 안내가 가리키는 단추를 밀어내지 않는 자리) 그리는 방법은 하나여야 한다.
-  assert.match(ui, /role="alert"/, '오류는 즉시 낭독돼야 한다');
+  // 오류는 즉시 낭독돼야 한다 — 영역을 만드는 자리는 ui.jsx 의 Live 하나이고, 안내는
+  // assertive 로 받는다(주석이 아니라 **코드**에서 본다: 예전 검사는 raw 소스를 훑어
+  // 주석에 적힌 role 로도 통과할 수 있었다).
+  assert.match(stripComments(ui), /role=\{assertive \? 'alert' : 'status'\}/, '오류는 즉시 낭독돼야 한다');
+  assert.match(stripComments(ui), /<Live assertive>/, '안내가 assertive 영역을 쓰지 않는다');
   assert.match(flow, /<Alert text=\{alertText\} \/>/, '화면이 안내를 공통 표현으로 그리지 않는다');
-  assert.equal(/role="alert"/.test(flow), false, '안내를 화면에서 손으로 그리면 자리마다 모양이 갈라진다');
+  assert.equal(/role="alert"/.test(stripComments(flow)), false, '안내를 화면에서 손으로 그리면 자리마다 모양이 갈라진다');
 });
 
 test('375px: 폭 100% 요소가 border-box 라 가로 스크롤이 생기지 않는다', () => {
@@ -232,7 +276,10 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
       if (marks.length) bad.push(`${name}: "${s}" → ${marks.join('')}`);
     }
   }
-  assert.ok(seen >= 20, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
+  // 기준이 20 → 12 로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다(제목·머리말). 그 표들은
+  // tests/eummessage.test.mjs 의 「모든 문구 표에 …」가 같은 판정으로 본다 — 11회차 메모가
+  // 적은 "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게, 옮긴 자리에서 함께 세운다.
+  assert.ok(seen >= 12, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
   assert.deepEqual(bad, [], `낭독되지 않는 기호로 문구를 가르고 있다\n${bad.join('\n')}`);
 });
 
@@ -241,9 +288,15 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
 // 두 번째 판본), 이 테스트는 그 사본이 **있는지**를 확인하며 통과하고 있었다. 사본을 없애는 쪽이
 // 맞으므로 표를 비밀 없는 자리(lib/eumMessage)로 떼고, 양쪽이 같은 표를 가리키는지 본다.
 // (문장 자체의 계약·사본 금지 대조는 tests/eummessage.test.mjs)
+// (정정: 이 테스트는 패널 **본문**이 표에서 오는지만 보았다. 제목은 화면마다 손으로 적혀
+//  있었고, 그래서 만료 패널은 제목과 본문이 **같은 문장**이었다 — 제목으로 포커스가 옮겨 간
+//  직후 같은 말을 한 번 더 듣는 화면이다. 지금 제목은 사유별 등록부(panelTitle)에서 오고,
+//  본문은 제목이 말하지 않은 것(할 일)만 말한다.)
 test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', () => {
-  assert.match(page, /tokenMessage\(result\.reason\)/, '사유별 안내를 문구 단일 출처에서 가져와야 한다');
-  assert.match(flow, /body=\{tokenMessage\('expired'\)\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
+  assert.match(page, /title=\{panelTitle\(result\.reason\)\}/, '사유별 제목을 문구 단일 출처에서 가져와야 한다');
+  assert.match(page, /body=\{EUM_PANEL_ASK\}/, '할 일 안내를 손으로 적으면 화면마다 갈라진다');
+  assert.match(flow, /title=\{EUM_PANEL_TITLE\.expired\}/, '작성 중 만료 제목을 손으로 적으면 두 화면이 갈라진다');
+  assert.match(flow, /body=\{EUM_PANEL_ASK\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
   // 401 안내도 같은 표에서 가져온다. 안내는 **그것이 속한 단계와 함께** 들린다(stepError) —
   // 예전에는 글자열 하나라서 고르는 화면까지 따라다녔다.
   assert.match(flow, /setError\(stepError\(at, tokenMessage\('signature'\), atVisit\)\)/, '401 안내도 같은 표에서 가져온다');
@@ -304,7 +357,14 @@ test('보조 사본을 읽어 「전에 낸 신청」을 알린다(막지는 않
   assert.match(prior, /localStorage\.getItem/, '쓰기만 하고 읽지 않으면 사본은 아무 일도 하지 않는다');
   assert.match(prior, /parsePriorLocal\(/, '저장소 값은 화이트리스트를 거쳐야 한다(누구나 고칠 수 있다)');
   assert.match(prior, /priorLocalNotice\(prior, where\)/, '문구는 lib/eumSenior 단일 출처에서 가져온다');
-  assert.match(prior, /if \(!message\) return null;/, '할 말이 없으면 빈 줄도 그리지 않는다');
+  // 정정: 예전 계약은 「할 말이 없으면 **아무것도** 그리지 않는다」(`return null`)였다. 그래서
+  // 낭독 영역까지 **글자와 함께** 태어났고, 저장소는 효과 안에서만 읽으므로 이 한 줄은 늘
+  // 나중에 들어온다 — 리더가 변화로 보지 않는 경우가 많고, 이 문단은 조작 요소가 아니라
+  // Tab 으로도 닿지 않는다. 즉 이 사실이 **눈에만** 전해지고 있었다. 지금은 자리를 미리 두고
+  // (ui.jsx 의 Live) **글자만** 조건부로 그린다 — 빈 영역은 한 픽셀도 차지하지 않는다.
+  assert.match(prior, /<Live>\{message \? <p style=\{S\.warn\}>\{message\}<\/p> : null\}<\/Live>/,
+    '할 말이 없으면 글자를 그리지 않되, 낭독 영역은 미리 둔다');
+  assert.ok(!/return null;/.test(stripComments(prior)), '영역까지 내용과 함께 태어나는 모양이 되살아났다');
   // 하이드레이션: 서버 렌더에는 localStorage 가 없으므로 렌더 중에 읽으면 화면이 어긋난다.
   assert.ok(!/useState\([^)]*localStorage/.test(prior), '저장소는 효과 안에서만 읽는다');
   assert.match(prior, /useEffect\(\(\) => \{\s*try \{/, '저장소 접근이 막혀도(시크릿 모드) 던지면 안 된다');
@@ -485,7 +545,12 @@ test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 
 
   // 자리가 둘로 갈렸으므로 **표현은 한 곳**이어야 한다(ui.jsx 의 Alert).
   assert.match(ui, /export function Alert\(\{ text = '' \}\)/, '안내 표현의 단일 출처가 없다');
-  assert.match(ui, /if \(!text\) return null;/, '할 말이 없으면 빈 줄도 그리지 않는다');
+  // 정정: 예전 계약은 `if (!text) return null`(아무것도 그리지 않는다)였고, 그래서 낭독 영역이
+  // 실패하는 순간 **글자와 함께** 태어났다. role="alert" 는 끼워 넣어도 읽는 리더가 일반적이라
+  // 「같은 결함」이라 단정할 수 없는 자리였지만(14회차 메모), 영역을 먼저 두면 어느 해석에서도
+  // 읽히므로 실기기 확인을 기다릴 이유가 없다. 지금은 글자만 조건부다(ui.jsx 의 Live).
+  assert.match(ui, /<Live assertive>\{text \? <p style=\{S\.alert\}>\{text\}<\/p> : null\}<\/Live>/,
+    '할 말이 없으면 글자를 그리지 않되, 낭독 영역은 미리 둔다');
   assert.equal([...flow.matchAll(/<Alert\b/g)].length, 2, '안내 자리가 두 화면에 하나씩 있어야 한다');
   // 문구는 자리를 가리키지 않는다 — 문장 쪽 계약은 tests/eummessage.test.mjs 가 본다.
   assert.equal(/아래 단추/.test(stripComments(flow)), false, '자리를 가리키는 안내가 되살아났다');
@@ -553,12 +618,18 @@ const boundary = {
   // 더 짧게 잘린 링크(`/eum`). 이 주소는 「알려진 한계」에 "루트 404(포털)로 간다" 고 적혀
   // 있었지만, 한 칸 아래에서 이미 쓴 수단(세그먼트 page)으로 그대로 받을 수 있었다.
   'app/eum/page.jsx': readFileSync(resolve(root, 'app/eum/page.jsx'), 'utf8'),
+  // 「senior」 글자 **안에서** 잘린 링크(`/eum/s`~`/eum/senio`)와 그 밖의 어긋난 주소.
+  // 「알려진 한계」는 "잘릴 수 있는 지점마다 라우트를 깔 수는 없다" 를 근거로 이 다섯을
+  // 포털 404 에 두기로 결론지었는데, 지점마다 깔 필요가 없었다 — 캐치올 하나로 들어온다.
+  'app/eum/[...rest]/page.jsx': readFileSync(resolve(root, 'app/eum/[...rest]/page.jsx'), 'utf8'),
 };
 
 test('경계 상태(로딩·오류·토큰 없음) 화면이 모두 어르신 화면으로 존재한다', () => {
   for (const [name, src] of Object.entries(boundary)) {
     assert.ok(src.length > 200, `${name}: 비어 있다`);
-    assert.match(src, /이음 어르신 신청/, `${name}: 어르신 화면 표기 누락`);
+    // 머리말을 직접 그리는 화면은 등록부를, 패널(Notice)로 그리는 화면은 그 패널을 쓴다 —
+    // 어느 쪽이든 「이음 어르신 신청」이 그 화면에 **한 번은** 나온다(ui.jsx 가 그린다).
+    assert.ok(/EUM_KICKER/.test(src) || /<Notice\b/.test(src), `${name}: 어르신 화면 표기 누락`);
     // 표현은 어르신 화면의 단일 출처(ui.jsx)를 쓴다 — 크기·색 요건이 한 곳에서만 관리되도록.
     assert.match(src, /ui\.jsx'/, `${name}: 어르신 화면 표현을 쓰지 않는다`);
   }
@@ -662,17 +733,35 @@ test('오류·로딩 특수 파일은 기본 export 만 둔다(route.js 규칙�
   }
 });
 
+// ── 고친 결함: 「senior」 안에서 잘린 링크는 아직 포털 404 로 갔다 ──────────
+//
+// 문자 앱이 어디서 줄을 자르느냐는 우리가 고를 수 없다. 토큰 안에서 잘리면 `[token]` 이
+// 받고(가장 흔한 경우 — 토큰이 가장 길다), `/eum/senior`·`/eum` 은 10회차가 받아 두었다.
+// 남은 것은 **낱말 안에서** 잘린 다섯(`/eum/s`·`/eum/se`·`/eum/sen`·`/eum/seni`·`/eum/senio`)이고,
+// 「알려진 한계」는 "잘릴 수 있는 지점마다 라우트를 깔 수는 없다" 를 근거로 그 다섯을 포털
+// 404 에 남겨 두기로 **결론지었다**. 앞의 사실은 맞지만 결론은 틀렸다 — 지점마다 깔 필요가
+// 없었다. 캐치올 한 라우트가 `/eum` 아래의 어긋난 주소를 몇 가지든 받는다(10회차가 "세그먼트
+// not-found 로는 받을 수 없다 → 고칠 수 없다" 를 뒤집은 것과 같은 모양이다).
 test('토큰 없는 진입은 잘못된 링크와 같은 문구를 쓰고, 토큰을 다루지 않는다', () => {
-  // 문자에서 잘린 주소는 어디서 잘리느냐에 따라 둘이다 — `/eum/senior` 와 한 칸 더 짧은 `/eum`.
-  // 앞의 것만 받아 두면 뒤의 것은 루트 404(운영 포털 · 커다란 「404」와 「대시보드」 단추)로 간다.
-  for (const name of ['app/eum/senior/page.jsx', 'app/eum/page.jsx']) {
+  const cut = ['app/eum/senior/page.jsx', 'app/eum/page.jsx', 'app/eum/[...rest]/page.jsx'];
+  for (const name of cut) {
     const src = boundary[name];
-    assert.match(src, /tokenMessage\('missing'\)/, `${name}: 안내 문구 단일 출처를 써야 한다`);
+    assert.match(src, /panelTitle\('missing'\)/, `${name}: 안내 문구 단일 출처를 써야 한다`);
+    assert.match(src, /body=\{EUM_PANEL_ASK\}/, `${name}: 할 일 안내도 같은 자리에서 와야 한다`);
     assert.ok(!/verifyEumToken|consumeStore|claim\(/.test(src), `${name}: 판정은 [token]/page.jsx 한 곳뿐이다`);
     assert.match(src, /absolute: '이음 어르신 신청'/, `${name}: 제품 브랜드 템플릿을 쓰지 않는다`);
     assert.equal(/<button\b/.test(src), false, `${name}: 어르신이 스스로 재발급할 수단이 없으므로 단추를 두지 않는다`);
-    assert.match(src, /링크를 열 수 없습니다/, `${name}: 무엇이 잘못됐는지 말해야 한다`);
+    // 무엇이 잘못됐는지는 **제목**이 말한다(예전에는 결과만 말하는 제목을 손으로 적고
+    // 이유는 본문의 첫 문장에 있었다 — 같은 사실을 두 번 말하던 자리다).
+    assert.equal(EUM_PANEL_TITLE.link, '링크가 올바르지 않습니다');
   }
+  // 캐치올은 세그먼트가 **하나 이상**인 주소만 받는다 — `/eum` 자체는 바로 위 page 가 받고,
+  // 더 구체적인 `/eum/senior`·`/eum/senior/[token]` 은 그 라우트들이 이긴다.
+  assert.ok(existsSync(resolve(root, 'app/eum/[...rest]/page.jsx')), '어긋난 주소를 받는 라우트가 없다');
+  const rest = boundary['app/eum/[...rest]/page.jsx'];
+  // 들어온 주소를 되비추지 않는다 — 그 자리가 곧 반사형 삽입 지점이 되고, 어르신에게 긴
+  // 주소는 읽을 수 있는 정보가 아니다.
+  assert.ok(!/params|searchParams/.test(stripComments(rest)), '들어온 주소를 화면에 되비추고 있다');
 });
 
 // ── 안내 패널의 마무리 문구 ───────────────────────────────────────────────
@@ -694,6 +783,7 @@ test('마무리 문구: Notice 를 그리는 모든 자리가 foot 을 직접 �
     'app/eum/senior/[token]/SeniorFlow.jsx': flow,
     'app/eum/senior/page.jsx': boundary['app/eum/senior/page.jsx'],
     'app/eum/page.jsx': boundary['app/eum/page.jsx'],
+    'app/eum/[...rest]/page.jsx': boundary['app/eum/[...rest]/page.jsx'],
   })) {
     const tags = noticeTags(src);
     assert.ok(tags.length >= 1, `${name}: Notice 호출을 찾지 못했다 — 대조가 무의미해지기 전에 고쳐라`);
@@ -1086,6 +1176,46 @@ test('요건을 깨뜨리는 전역 선택자는 ui.jsx 가 어르신 화면 범
     [...rootRule[1].matchAll(/([a-z-]+)\s*:/g)].map((m) => m[1]), ['background'],
     '범위 밖 규칙에 선언이 늘었다',
   );
+});
+
+// ── 낭독 영역은 내용보다 먼저 있어야 한다 ─────────────────────────────────
+//
+// 13회차는 만료 임박 경고에서 이것을 고쳤다 — 영역이 내용과 **함께** 태어나면 리더가 변화로
+// 보지 않는 경우가 많으므로, 빈 영역을 먼저 두고 내용만 나중에 넣는다. 그런데 같은 모양이
+// 둘 더 있었다(제출 실패 안내 · 보조 사본 안내) — 둘 다 **나중에 들어오는 내용**이다.
+// 그래서 영역을 만드는 길을 ui.jsx 의 `Live` 하나로 묶고, 화면이 손으로 적은 영역은
+// **사유와 함께 등록**해야 통과하게 한다. 판단 기준은 하나다: 내용이 영역보다 늦게 오는가.
+const LIVE_BY_HAND = {
+  // 패널·경계 화면의 본문 — 영역과 **함께** 태어난다. 전환의 낭독은 영역이 아니라 제목
+  // 포커스가 맡는다(11·12회차). 지우지 않는 이유는 손해가 없기 때문이다: 끼워 넣은 영역을
+  // 읽는 리더에게는 한 번 더 전해지고, 읽지 않는 리더에게는 포커스가 대신한다.
+  'app/eum/senior/[token]/ui.jsx': 1,
+  'app/eum/error.jsx': 1,
+  // 대기 화면은 **문서가 처음 열릴 때만** 보인다 — 새 문서라 영역 이야기가 성립하지 않는다.
+  'app/eum/loading.jsx': 1,
+  // 흐름 쪽 셋: 단계 표시(모든 단계에 **늘 있는** 영역 — 단계마다 내용만 바뀐다) ·
+  // 주버튼의 aria-live(단추는 누르기 전부터 있고 글자만 바뀐다) · 완료 화면의 본문
+  // (step 4 와 함께 태어나지만 그 전환은 제목 포커스가 낭독한다).
+  'app/eum/senior/[token]/SeniorFlow.jsx': 3,
+};
+
+test('낭독 영역을 만드는 길은 Live 하나이고, 손으로 적은 영역은 사유와 함께 등록돼 있다', () => {
+  assert.match(stripComments(ui), /export function Live\(\{ assertive = false/, '낭독 영역의 단일 출처가 없다');
+  // 나중에 내용이 들어오는 세 자리는 전부 Live 를 쓴다(보조 사본·실패 안내·만료 임박 경고).
+  assert.match(stripComments(prior), /<Live>/, '보조 사본 안내가 영역을 미리 두지 않는다');
+  assert.match(stripComments(ui), /<Live assertive>/, '실패 안내가 영역을 미리 두지 않는다');
+  assert.match(stripComments(flow), /<Live>\s*\{soon \?/, '만료 임박 경고가 영역을 미리 두지 않는다');
+  // 손으로 적은 영역의 수 ↔ 등록부 양방향 대조. 하나가 늘면 "내용이 나중에 오는가" 를
+  // 다시 판단하게 만든다(새 영역이 조용히 생기는 것이 이 결함의 재발 경로다).
+  // 세는 것은 **요소**다(한 요소가 role·aria-live 를 함께 적어도 한 자리). Live 는 둘 다
+  // 중괄호로 적으므로(`role={…}`) 이 정규식에 걸리지 않는다 — 손으로 적은 것만 센다.
+  const byHand = /<[A-Za-z][^>]*(?:role="(?:status|alert)"|aria-live=")[^>]*>/g;
+  const counted = {};
+  for (const [name, src] of Object.entries(eumSources)) {
+    const n = [...stripComments(src).matchAll(byHand)].length;
+    if (n) counted[name] = n;
+  }
+  assert.deepEqual(counted, LIVE_BY_HAND, '손으로 적은 낭독 영역이 등록부와 어긋난다');
 });
 
 test('어르신 화면 전부가 범위 표시와 EumStyles 를 함께 단다(한 화면만 빠지면 그 화면에서 깨진다)', () => {

@@ -44,6 +44,18 @@ export const metadata = {
   manifest: null,
 };
 
+// 「senior」 글자 안에서 잘린 다섯은 **미리 그려 둔다.** 이유는 둘이다 — 링크 수명이 5분이라
+// 서버를 한 번 덜 거치는 쪽이 낫고(이 주소를 누른 어르신은 이미 한 번 헛걸음한 사람이다),
+// 미리 그린 HTML 이 있으면 head 불변식(포털 매니페스트·아이콘이 매달리지 않는다)을 **빌드
+// 산출물로 확인**할 수 있다. 목록은 세그먼트 이름에서 **파생**한다 — 손으로 적으면 경로가
+// 바뀌는 날 썩는다. 그 밖의 주소는 그대로 서버가 그린다(dynamicParams 기본값).
+const CUT_IN = 'senior';
+
+export function generateStaticParams() {
+  // 's' … 'senio' — 마지막(=실제 세그먼트 이름)은 더 구체적인 라우트가 받으므로 뺀다.
+  return [...CUT_IN].slice(0, -1).map((_, i) => ({ rest: [CUT_IN.slice(0, i + 1)] }));
+}
+
 export default function EumWrongPath() {
   // 이 화면은 닫히지 않는다(토큰이 없다) — 마무리 문구는 「링크를 끝까지 눌러 주세요」다.
   return <Notice title={panelTitle('missing')} body={EUM_PANEL_ASK} foot={EUM_NOTICE_FOOT.link} />;
