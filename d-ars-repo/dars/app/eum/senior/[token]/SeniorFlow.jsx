@@ -74,9 +74,13 @@ import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumCons
 // 사실(「이미 접수됐다」)을 보여 주는 **진입 안내**는 거기서 「담당자에게 문의해 주세요」라고
 // 말했다. 할 일이 없는 사람을 담당자에게 보내면 새 링크가 오고, 명단에 두 건이 남는다
 // (lib/eumMessage.js 의 EUM_DONE_MESSAGE 참조).
-import { EUM_DONE_MESSAGE, submitMessage, tokenMessage } from '@/lib/eumMessage';
+// 제목·머리말도 같은 자리에서 가져온다 — 예전에는 이 파일이 둘 다 손으로 적었고, 만료 패널은
+// 제목과 본문이 **같은 문장**이었다(제목으로 포커스가 옮겨 간 직후 같은 말을 한 번 더 듣는다).
+import {
+  EUM_DONE_MESSAGE, EUM_KICKER, EUM_PANEL_ASK, EUM_PANEL_TITLE, submitMessage, tokenMessage,
+} from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
-import { S, Notice, Alert, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
+import { S, Notice, Alert, Live, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
 import PriorLocal from './PriorLocal.jsx';
 
 // 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
@@ -439,8 +443,8 @@ export default function SeniorFlow({
   if (expiredNow) {
     return (
       <Notice
-        title="링크가 만료되었습니다"
-        body={tokenMessage('expired')}
+        title={EUM_PANEL_TITLE.expired}
+        body={EUM_PANEL_ASK}
         foot={EUM_NOTICE_FOOT.expired}
         headingRef={expiredHeadingRef}
       >
@@ -470,7 +474,7 @@ export default function SeniorFlow({
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>이음 어르신 신청</p>
+        <p style={S.kicker}>{EUM_KICKER}</p>
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
         <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
 
@@ -488,15 +492,18 @@ export default function SeniorFlow({
             그 손에서 포커스를 빼앗으면 경고가 하라는 일(남은 1분 안에 신청)을 경고가 막는다.
             그래서 **영역을 먼저 두고 내용만 나중에 넣는다**: 빈 칸은 화면에 한 픽셀도 차지하지
             않고(내용 없는 블록), 경고가 들어오는 것은 **살아 있던 영역에 내용이 더해지는 것**
-            이라 리더가 읽는다. 들리지 않으면 이 경고는 아무 일도 하지 않는 문단이다. */}
-        <div role="status" aria-live="polite">
+            이라 리더가 읽는다. 들리지 않으면 이 경고는 아무 일도 하지 않는 문단이다.
+
+            (영역을 만드는 길은 이제 `Live` 하나다 — 그때는 이 한 자리만 고쳤고 같은 모양이
+             둘 더 남아 있었다(실패 안내·보조 사본 안내 · ui.jsx 의 Live 참조).) */}
+        <Live>
           {soon ? (
             <p style={S.warn}>
               {EUM_SOON_MESSAGE}
               <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
             </p>
           ) : null}
-        </div>
+        </Live>
 
         {/* 안내 자리는 **단계마다 다르다** — 그 안내가 가리키는 조작 요소를 밀어내지 않는
             자리여야 하기 때문이다(ui.jsx 의 Alert). 고르는 화면(1단계)에서는 선택지 위,

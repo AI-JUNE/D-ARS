@@ -60,7 +60,7 @@ import { buildEvent, monitorLine } from '@/lib/monitor';
 // 문구는 어르신 화면 문구의 단일 출처에서 가져온다. 예전에는 이 파일이 넷을 손으로 적었고,
 // 본문은 「잠시 뒤 **아래** 단추를…」로 **자리를 가리켰다** — 11회차가 제출 실패 안내에서
 // 없앤 바로 그 낱말이다(lib/eumMessage.js 의 EUM_BOUNDARY_MESSAGE 참조).
-import { EUM_BOUNDARY_MESSAGE as M } from '@/lib/eumMessage';
+import { EUM_BOUNDARY_MESSAGE as M, EUM_KICKER } from '@/lib/eumMessage';
 // 「다시 시도」는 **자기 자신이 사라지는 단추**다 — 아래 onClick 참조.
 import { markRetried } from '@/lib/eumSenior';
 import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
@@ -89,7 +89,7 @@ export default function EumError({ error, reset }) {
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>이음 어르신 신청</p>
+        <p style={S.kicker}>{EUM_KICKER}</p>
         {/* tabIndex=-1 은 탭 순서에 끼어들지 않는다 — 코드가 옮길 수 있게만 열어 둔다. */}
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{M.errorTitle}</h1>
         <p style={S.body} role="status">{M.errorBody}</p>

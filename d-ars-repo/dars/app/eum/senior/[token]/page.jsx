@@ -19,7 +19,9 @@
 import { verifyEumToken } from '@/lib/eumToken';
 // 안내 문구는 비밀을 모르는 자리에서 가져온다 — 브라우저에서 도는 화면(SeniorFlow)도 같은
 // 표를 가리켜야 하고, 그 화면은 `lib/eumToken` 을 import 할 수 없다(lib/eumMessage.js 참조).
-import { tokenMessage } from '@/lib/eumMessage';
+// 제목도 같은 자리에서 가져온다 — 예전에는 네 파일이 각자 적었고, 만료 패널은 제목이 본문의
+// 첫 문장과 글자까지 같았다(제목으로 포커스가 간 직후 같은 말을 한 번 더 듣는다).
+import { EUM_PANEL_ASK, EUM_PANEL_TITLE, panelTitle } from '@/lib/eumMessage';
 import { parseDraft, parseStep, storageKey, summaryText } from '@/lib/eumSenior';
 import {
   consumeKey,
@@ -59,10 +61,18 @@ export default async function EumSeniorPage({ params, searchParams }) {
     // 보조 사본이 남아 있으므로, 전에 낸 내용을 아는 경우에만 한 줄 더 말한다.
     // 여기는 서버 컴포넌트라 localStorage 를 읽을 수 없어 그 한 줄만 조각으로 뗐다(PriorLocal).
     // 사유가 만료일 때만 둔다: 잘못된 링크에는 sid 가 없고(서명이 검증되지 않았다) 지어내지 않는다.
+    //
+    // 제목·본문은 **같은 사실을 두 번 말하지 않는다**. 예전에는 제목을 이 파일이 손으로 적고
+    // (「링크가 만료되었습니다」·「링크를 열 수 없습니다」) 본문은 `tokenMessage(reason)` 를
+    // 받았는데, 만료 쪽은 그 둘이 **글자까지 같았다** — 제목으로 포커스가 옮겨 간 직후
+    // (ui.jsx 의 Notice) 어르신은 같은 문장을 한 번 더 듣고, 눈으로는 24px 넘는 글자 두 줄이
+    // 같은 말을 한다. 지금은 제목이 **무엇이 잘못됐는가**, 본문이 **무엇을 하면 되는가**다
+    // (lib/eumMessage 의 EUM_PANEL_TITLE·EUM_PANEL_ASK — 알림 한 줄에 쓰이는 tokenMessage 는
+    // 제목이 없는 자리라 두 토막을 그대로 이어 쓴다).
     return (
       <Notice
-        title={expired ? '링크가 만료되었습니다' : '링크를 열 수 없습니다'}
-        body={tokenMessage(result.reason)}
+        title={panelTitle(result.reason)}
+        body={EUM_PANEL_ASK}
         foot={expired ? EUM_NOTICE_FOOT.expired : EUM_NOTICE_FOOT.link}
       >
         {expired ? <PriorLocal storeKey={storageKey(result.sid)} where="expired" /> : null}
@@ -80,10 +90,15 @@ export default async function EumSeniorPage({ params, searchParams }) {
     // 끝나, 마음을 바꾼 어르신에게는 막다른 길이었다 — 화면에 단추가 없으니 담당자에게 새 링크를
     // 청하고, 새 링크는 소진 키가 달라 재신청이 통한다. 중복 접수를 막으려고 만든 화면이 중복을
     // 만들던 셈이다. 무엇이 접수됐는지 아는지에 따라 할 말이 다르다(요약은 지어내지 않는다).
+    //
+    // 제목은 등록부에서 가져온다(예전에는 이 파일이 손으로 적었다). 본문은 그대로 둔다 —
+    // 이 자리의 본문은 완료 화면과 **같은 문장**이어야 하고(13회차의 계약 · tests/eumrepeat)
+    // 그 계약이 제목·본문의 중복을 줄이는 것보다 먼저다. 남은 중복은 같은 사실을 서로 다른
+    // 낱말로 두 번 말하는 정도이고, 그 대가로 두 화면이 갈라지지 않는다.
     const summary = summaryText(record.note);
     return (
       <Notice
-        title="이미 신청하셨습니다"
+        title={EUM_PANEL_TITLE.used}
         body={consumeMessage('used')}
         detail={summary}
         hint={summary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}

@@ -16,6 +16,9 @@
 // `app/globals.css` 가 루트 레이아웃을 통해 이 화면까지 내려오고, 거기엔 요소 선택자가 있다.
 
 import { EUM_COLORS as C, EUM_FONT_PX as F } from '@/lib/eumTheme';
+// 머리말은 화면 네 곳에 **손으로 적혀** 있었다(여기·SeniorFlow·오류·대기). 이 화면군의 표현은
+// ui.jsx 가 단일 출처인데 그 안의 글자만 네 벌이었던 셈이다 — 문구는 lib/eumMessage 에 둔다.
+import { EUM_KICKER } from '@/lib/eumMessage';
 
 // 375px 폭에서 가로 스크롤이 생기지 않게 하는 공통 규칙.
 // width:100% 인 요소에 padding·border 가 더해지면 부모를 넘겨 화면이 옆으로 밀린다 → border-box 고정.
@@ -207,6 +210,37 @@ export function EumStyles() {
 // 이 글자는 `aria-hidden` 으로 가린다 — 같은 사실을 두 번 낭독하지 않게.
 export const EUM_CHOICE_MARK = '✓';
 
+// ── 낭독 영역은 **내용보다 먼저** 있어야 한다 ──────────────────────────────
+//
+// 고친 결함: 이 화면에는 나중에 내용이 들어오는 낭독 영역이 셋 있었는데, 그중 둘은 영역
+// 자체가 **내용과 함께 태어났다**. 리더는 그것을 변화로 보지 않는 경우가 많다(살아 있던
+// 영역의 내용이 바뀐 것이 아니다) — 즉 그 사실은 **눈에만** 전해졌다.
+//   · 「이 기기에서 전에 신청하신 내용이 있습니다 …」(PriorLocal) — 저장소는 효과 안에서만
+//     읽으므로 이 한 줄은 **반드시 나중에** 들어온다. 그런데 그 자리는 확인 화면이고,
+//     거기서 포커스는 이미 제목에 있다가 다음 Tab 으로 「이대로 신청하기」로 간다 —
+//     이 문단은 조작 요소가 아니라 **Tab 이 지나치고**, 영역도 읽히지 않는다. 그래서
+//     전에 신청을 마친 어르신이 그 사실을 **한 번도 듣지 못한 채** 단추를 누른다. 그 중복이
+//     바로 이 안내가 막으려고 생긴 것이다(담당자 명단에 같은 어르신 두 건).
+//   · 제출 실패 안내(Alert) — 실패하는 순간 `<p role="alert">` 가 새로 생겼다. role="alert"
+//     는 끼워 넣어도 읽는 리더가 일반적이라 **같은 결함이라 단정할 수 없었고**(14회차 메모가
+//     그렇게 적었다), 그래서 실기기 없이는 「고쳤다」고 말할 수 없는 자리였다. 영역을 먼저
+//     두면 두 해석 **어느 쪽에서도** 읽히므로, 확인을 기다리지 않고 지금 닫을 수 있다.
+// 13회차가 만료 임박 경고에서 고친 것이 바로 이 모양이다(영역을 먼저 두고 내용만 나중에
+// 넣는다). 그때는 **그 한 자리**만 고쳤고, 같은 모양이 둘 더 남아 있었다 — 「고침이 절반이었던
+// 자리」가 다섯 번째다. 그래서 이번에는 영역을 만드는 길을 **하나로 묶는다**: 화면이 손으로
+// `role="status"`·`aria-live` 를 적으면 테스트가 사유를 요구한다.
+//
+// 빈 영역은 화면에서 한 픽셀도 차지하지 않는다(내용 없는 블록) — 「할 말이 없으면 빈 줄도
+// 그리지 않는다」는 계약은 그대로다. 그리지 않는 것은 **글자**이고, 미리 두는 것은 자리다.
+export function Live({ assertive = false, children = null }) {
+  // role 과 aria-live 를 함께 적는다 — 암시값에 의존하지 않는 쪽이 리더마다 덜 갈린다.
+  return (
+    <div role={assertive ? 'alert' : 'status'} aria-live={assertive ? 'assertive' : 'polite'}>
+      {children}
+    </div>
+  );
+}
+
 // 제출·선택이 되지 않았을 때의 안내 한 줄. 문구는 `lib/eumMessage` 가 단일 출처다.
 //
 // ── 고친 결함: **안내가 가리키는 단추를 자기가 밀어냈다** ──────────────────────────────
@@ -223,10 +257,10 @@ export const EUM_CHOICE_MARK = '✓';
 // 가리키는 낱말을 없앴다(`lib/eumMessage.EUM_SUBMIT_MESSAGE`). 「아래」는 애초에 눈에만
 // 뜻이 있는 말이었다 — 스크린리더에 위·아래는 없고, 그 순간 포커스는 이미 그 단추에 남아
 // 있다(8회차의 `aria-disabled`). 지금은 안내가 단추 **바로 아래**에 붙어 가리킬 필요도 없다.
-// 할 말이 없으면 **빈 줄도 그리지 않는다**(PriorLocal 과 같은 계약).
+// 할 말이 없으면 **글자를 그리지 않는다**(PriorLocal 과 같은 계약) — 다만 낭독 영역은 미리
+// 둔다(위 Live 참조: 영역이 내용과 함께 태어나면 읽히지 않을 수 있다).
 export function Alert({ text = '' }) {
-  if (!text) return null;
-  return <p style={S.alert} role="alert">{text}</p>;
+  return <Live assertive>{text ? <p style={S.alert}>{text}</p> : null}</Live>;
 }
 
 // 만료·오류 안내 패널. 되돌릴 방법이 없는 상태이므로 **버튼을 두지 않고** 다음 행동만 알려 준다
@@ -296,9 +330,13 @@ export function Notice({ title, body, detail = '', hint = '', foot = '', childre
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>이음 어르신 신청</p>
+        <p style={S.kicker}>{EUM_KICKER}</p>
         {/* tabIndex=-1 은 탭 순서에 끼어들지 않는다 — 코드가 옮길 수 있게만 열어 둔다. */}
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{title}</h1>
+        {/* 이 영역은 패널과 **함께 태어난다**(위 Live 참조) — 그래서 전환의 낭독은 영역이
+            아니라 제목 포커스가 맡는다(headingRef). 그런데도 role 을 지우지 않는 이유는
+            그것이 손해 없는 유일한 선택이기 때문이다: 끼워 넣은 영역을 읽는 리더에게는
+            한 번 더 전해지고, 읽지 않는 리더에게는 포커스가 대신한다. */}
         <p style={S.body} role="status">{body}</p>
         {detail ? <p style={S.summary}>{detail}</p> : null}
         {hint ? <p style={S.body}>{hint}</p> : null}

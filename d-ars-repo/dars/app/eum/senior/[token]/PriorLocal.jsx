@@ -24,7 +24,7 @@
 
 import { useEffect, useState } from 'react';
 import { parsePriorLocal, priorLocalNotice } from '@/lib/eumSenior';
-import { S } from './ui.jsx';
+import { S, Live } from './ui.jsx';
 
 export default function PriorLocal({ storeKey = '', where = '' }) {
   const [prior, setPrior] = useState(null);
@@ -40,7 +40,10 @@ export default function PriorLocal({ storeKey = '', where = '' }) {
     }
   }, [storeKey]);
 
+  // 낭독 영역은 **미리** 둔다. 이 한 줄은 저장소를 읽은 **뒤에** 들어오므로, 영역까지 그때
+  // 함께 만들면 리더가 변화로 보지 않는 경우가 많다 — 그러면 이 사실은 눈에만 전해지고,
+  // 이 문단은 조작 요소가 아니어서 Tab 으로도 닿지 않는다(ui.jsx 의 Live 참조).
+  // 글자는 여전히 모를 때 그리지 않는다 — 빈 영역은 화면을 한 픽셀도 차지하지 않는다.
   const message = priorLocalNotice(prior, where);
-  if (!message) return null;
-  return <p style={S.warn} role="status">{message}</p>;
+  return <Live>{message ? <p style={S.warn}>{message}</p> : null}</Live>;
 }

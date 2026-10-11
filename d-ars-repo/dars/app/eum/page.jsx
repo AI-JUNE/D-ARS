@@ -18,7 +18,7 @@
 // 않으니 담당자에게 다시 청하면 된다는 것. 어르신이 스스로 할 수 있는 일은 그것뿐이라 단추는 두지
 // 않는다. 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `senior/[token]` 한 곳뿐).
 
-import { tokenMessage } from '@/lib/eumMessage';
+import { EUM_PANEL_ASK, panelTitle } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from './senior/[token]/ui.jsx';
 
 export const metadata = {
@@ -33,5 +33,7 @@ export default function EumRootNoLink() {
   // 마무리 문구는 **이 화면에서 참인 것**만 말한다. 예전에는 기본값("이 화면은 안전을 위해
   // 5분이 지나면 닫힙니다")이 조용히 붙었는데, 이 주소는 토큰이 없는 정적 페이지라 닫히지
   // 않는다 — 애초에 열린 적 없는 5분을 두고 한 말이었다(ui.jsx 의 EUM_NOTICE_FOOT 참조).
-  return <Notice title="링크를 열 수 없습니다" body={tokenMessage('missing')} foot={EUM_NOTICE_FOOT.link} />;
+  //
+  // 제목·본문은 같은 사실을 두 번 말하지 않는다(senior/page.jsx 와 같은 자리·같은 이유).
+  return <Notice title={panelTitle('missing')} body={EUM_PANEL_ASK} foot={EUM_NOTICE_FOOT.link} />;
 }
