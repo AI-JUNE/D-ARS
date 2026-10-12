@@ -34,6 +34,7 @@ import {
   backAction,
   stepError,
   errorFor,
+  errorAt,
   visitNo,
   EUM_VISIT_MIN,
   submitBlock,
@@ -508,6 +509,35 @@ test('errorFor: 되돌아갔다 돌아온 같은 화면에는 조금 전의 안�
   // 되돌아가기가 가로채이지 않아 번호가 그대로인 경우는 없다 — 단계를 바꾸는 자리가
   // 하나뿐이고(enterStep) 거기서 번호가 반드시 오른다. 그 계약은 화면 쪽 소스 대조가 든다.
   assert.notEqual(errorFor(failed, 3, 2), '');
+});
+
+// ── 고친 결함: 안내 자리가 **단계 블록 안**에 있어 영역이 단계와 함께 태어났다 ──
+//
+// 안내 자리는 단계마다 다르다(고르는 화면은 선택지 위 · 확인 화면은 주버튼 뒤). 그 둘을
+// 각자의 단계 블록 **안**에 두었더니, 1단계 쪽에서는 낭독 영역이 그 단계와 **함께 태어났다** —
+// 제출이 `'selection'` 으로 막히면 `go(1, …)` 과 `setError` 가 같은 커밋에서 일어난다.
+// 자리는 블록 바로 앞으로 옮기면 그대로이므로(그 자리가 곧 「선택지 위」다) 영역만 꺼냈고,
+// 그 대신 그리는 쪽이 **이 자리의 안내인가**를 묻는다. 묻지 않으면 안내 하나가 두 자리에
+// 그려진다(영역을 블록 밖으로 꺼낸 순간 그 자리는 모든 단계에서 살아 있다).
+test('errorAt: 자기 자리의 안내만 그린다(한 안내가 두 자리에 뜨지 않는다)', () => {
+  const at1 = stepError(1, '선택이 저장되지 않았습니다. 처음부터 다시 골라 주세요', 2);
+  const at3 = stepError(3, '연결이 원활하지 않습니다. 한 번 더 눌러 주세요', 2);
+  // 1단계에 매달린 안내는 1단계 자리에만 — 같은 화면의 확인 화면 자리에는 그려지지 않는다.
+  assert.equal(errorAt(at1, 1, 1, 2), at1.text);
+  assert.equal(errorAt(at1, 3, 1, 2), '');
+  // 확인 화면의 실패도 마찬가지다. 예전처럼 자리를 묻지 않으면 3단계에서 두 자리가 함께 뜬다.
+  assert.equal(errorAt(at3, 3, 3, 2), at3.text);
+  assert.equal(errorAt(at3, 1, 3, 2), '');
+  // 자리 이름이 지금 단계와 같을 때만 errorFor 의 판정으로 넘어간다 — 단계·방문 계약은 그대로다.
+  assert.equal(errorAt(at3, 3, 3, 9), '', '다른 방문의 안내가 자리 판정만으로 통과했다');
+  assert.equal(errorAt(at3, 2, 2, 2), '', '그 단계에 속하지 않은 안내가 그려졌다');
+  // 자리 이름이 규격 밖이면 parseStep 과 같은 규칙으로 1단계로 떨어진다(유령 자리를 만들지 않는다).
+  assert.equal(errorAt(at1, 'x', 1, 2), at1.text);
+  assert.equal(errorAt(at3, 'x', 3, 2), '');
+  // 던지지 않는다 — 여기서 던지면 안내 한 줄 때문에 신청 화면이 통째로 죽는다.
+  for (const bad of [null, undefined, '', 7, [], { step: 3 }]) {
+    assert.equal(errorAt(bad, 3, 3, 2), '', `입력: ${JSON.stringify(bad) ?? String(bad)}`);
+  }
 });
 
 test('storageKey: sid 별로 구분되고 값이 없으면 빈 문자열이다', () => {

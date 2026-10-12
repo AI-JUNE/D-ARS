@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { EUM_FONT_PX } from '../lib/eumTheme.js';
+import { EUM_FONT_PX, EUM_TAP_PX } from '../lib/eumTheme.js';
 import { muteSeparatorsIn } from '../lib/eumSenior.js';
 import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
@@ -341,6 +341,47 @@ test('색·글자 크기는 lib/eumTheme.js 에서 가져온다(하드코딩 금
   assert.deepEqual([...used].sort(), Object.keys(EUM_FONT_PX).sort(), '등록부와 화면이 어긋난다');
 });
 
+// ── 고친 결함: 유일한 되돌리기 수단만 **누를 자리**가 작았다 ──────────────────
+//
+// 주버튼·선택지 버튼은 `minHeight: 72` 로 지어 두었는데 되돌아가기 링크에는 높이가 **없었다**.
+// 그러면 누를 수 있는 자리는 글자 한 줄의 줄 상자뿐이다(24px × 줄간격 1.6 = 38.4px).
+// 하필 그것이 이 화면의 유일한 되돌리기 수단이고(「앞 화면으로」·「다시 고르기」), 같은 링크의
+// **글자 크기**는 6회차에, **동작**은 14회차에 고친 자리다 — 손이 떨려 두 번 누르는 것이 흔한
+// 사용자층이라는 사실은 그때 이미 소스에 적혀 있었는데(submittingRef·backFromRef 가 그 때문에
+// 있다) **누를 넓이**에는 세 회차 동안 닿지 않았다. 빗나간 누름은 아래 글자 위로 떨어져 아무
+// 일도 일어나지 않고, 보이는 모습은 14회차가 고친 「눌러도 꼼짝하지 않는 단추」와 똑같다.
+// (요건 위반은 아니었다 — WCAG 2.2 의 최소 기준(SC 2.5.8)은 24px 이고 38.4px 는 그것을 넘는다.
+//  44px 는 강화 기준(SC 2.5.5)이자 이 화면이 다른 모든 조작 요소에 준 72px 과 같은 방향이다.)
+//
+// 왜 아무도 몰랐나: `fontSize` 에는 등록부 ↔ 화면 양방향 대조가 있었지만(바로 위 테스트)
+// **누를 자리에는 그런 가드가 없었다** — 6회차에 세운 가드가 크기 한 종류만 보고 있었던 셈이다.
+const TAP_LITERAL_OK = {
+  // 화면 전체의 최소 높이이지 **누를 자리가 아니다**(S.page). 숫자가 아니라 뷰포트 단위다.
+  "'100vh'": '화면 바탕이 짧은 내용에서도 끝까지 차게 한다 — 조작 요소가 아니다',
+};
+
+test('누를 자리 높이는 lib/eumTheme.js 에서 가져온다(하드코딩 금지)', () => {
+  const heights = [...ui.matchAll(/minHeight:\s*([^,\n]+)/g)].map((m) => m[1].trim());
+  assert.ok(heights.length >= 4, `누를 자리 높이 선언이 줄었다: ${heights.length}`);
+  const literal = heights.filter((v) => !/^T\.[A-Za-z]\w*$/.test(v) && !(v in TAP_LITERAL_OK));
+  assert.deepEqual(literal, [], `ui.jsx 에 누를 자리 높이 하드코딩: ${literal.join(',')}`);
+  for (const [v, why] of Object.entries(TAP_LITERAL_OK)) {
+    assert.ok(heights.includes(v), `전역에서 사라진 예외: ${v}`);
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 예외: ${v}`);
+  }
+  // 등록부 ↔ 화면 양방향 대조(fontSize 와 같은 계약): 모르는 이름은 undefined 가 되어 높이가
+  // 조용히 사라지고, 아무도 쓰지 않는 이름이 남으면 등록부가 썩는다.
+  const used = heights.filter((v) => v.startsWith('T.')).map((v) => v.slice(2));
+  assert.deepEqual([...new Set(used)].sort(), Object.keys(EUM_TAP_PX).sort(), '등록부와 화면이 어긋난다');
+  // 되돌아가기 링크는 **글자 모양을 그대로 두고 자리만** 키운다 — 패딩으로 키우면 밑줄이
+  // 글자보다 넓어져 단추처럼 보이고, 「버튼 4개 이내」 때문에 링크로 둔 결정이 눈에서 무너진다.
+  const back = ui.slice(ui.indexOf('  back: {'), ui.indexOf('  summary: {'));
+  assert.ok(back.length > 50, 'back 스타일을 찾지 못했다');
+  assert.match(back, /minHeight: T\.back/, '유일한 되돌리기 수단에 누를 자리가 없다');
+  assert.match(back, /alignItems: 'center'/, '높이만 키우면 글자가 위로 붙는다');
+  assert.ok(!/padding/.test(back), '패딩으로 키우면 링크가 단추처럼 보인다');
+});
+
 test('개인정보를 화면에 그리지 않는다(sid 는 전송 본문에만 쓴다)', () => {
   assert.ok(!/\{\s*sid\s*\}/.test(flow), 'sid 를 화면에 출력하면 안 된다');
   for (const pii of ['이름', '전화번호', '생년월일', '주소']) {
@@ -579,6 +620,37 @@ test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 
   assert.match(flow, /from '@\/lib\/eumMessage'/, '실패 문구를 단일 출처에서 가져오지 않는다');
 });
 
+// ── 고친 결함: 안내 자리가 **단계 블록 안**에 있었다 ───────────────────────────
+//
+// 13·15회차가 세운 계약은 「낭독 영역은 내용보다 먼저 있어야 한다」다(영역이 내용과 함께
+// 태어나면 리더가 변화로 보지 않는 경우가 많다). 15회차는 영역을 만드는 길을 `Live` 하나로
+// 묶었지만, **그 영역을 어디에 두는가**는 남아 있었다 — 1단계 안내 자리는 `{step === 1 ? …}`
+// 블록 **안**이었고, 제출이 `'selection'` 으로 막히는 순간은 그 블록이 처음 마운트되는 순간과
+// 같은 커밋이다(`go(1, …)` 과 `setError` 가 함께 일어난다). 즉 영역을 미리 두는 손질이 바로
+// 그 자리에서 성립하지 않았다. 전환은 제목 포커스가 낭독하지만 **막힌 이유**는 전해지지 않는다.
+// 15회차 메모는 「자리가 단계마다 다른 것이 11회차의 고침이므로 한 건으로 따로 서야 한다」로
+// 미뤘는데, 자리를 옮길 필요는 없었다 — 블록 **바로 앞**이 곧 「선택지 위」다.
+test('안내 자리는 단계 블록 밖에 있다(영역이 단계와 함께 태어나지 않게)', () => {
+  const shown = stripComments(flow);
+  // 두 자리 모두 어떤 `{step === n ?` 블록 안에도 들어 있지 않아야 한다. 블록은 중첩되지
+  // 않으므로, 각 블록의 범위를 그 다음 블록의 시작까지로 잡고 안내 자리가 끼었는지 본다.
+  const blocks = [...shown.matchAll(/\{step === (\d) \?/g)].map((m) => ({ step: m[1], at: m.index }));
+  assert.equal(blocks.length, 5, `단계 블록 수가 바뀌었다: ${blocks.length}`);
+  const slots = [...shown.matchAll(/<Alert text=\{(\w+)\} \/>/g)].map((m) => ({ name: m[1], at: m.index }));
+  assert.equal(slots.length, 2, `안내 자리 수가 바뀌었다: ${slots.length}`);
+  for (const slot of slots) {
+    const owner = blocks.filter((b) => b.at < slot.at).pop();
+    if (!owner) continue;
+    // 블록이 끝나는 자리(`) : null}`)가 안내 자리보다 앞에 있어야 블록 **밖**이다.
+    const closed = shown.indexOf(') : null}', owner.at);
+    assert.ok(closed > -1 && closed < slot.at,
+      `${slot.name}: ${owner.step}단계 블록 안에 있다 — 그 단계와 함께 태어나면 낭독되지 않는다`);
+  }
+  // 그래서 자리를 가리는 일은 그리는 쪽이 한다(errorAt) — 묻지 않으면 한 안내가 두 자리에 뜬다.
+  assert.match(shown, /errorAt\(error, 1, step, visit\)/);
+  assert.match(shown, /errorAt\(error, 3, step, visit\)/);
+});
+
 // ── 고친 결함: 만료로 화면이 뒤집히는데 아무 말도 하지 않았다 ────────────────
 // 작성 도중 5분이 지나면 흐름이 만료 안내 패널로 통째로 바뀐다. 그때 포커스가 얹혀 있던
 // 요소(선택지·「이대로 신청하기」)가 문서에서 사라지므로 브라우저는 포커스를 body 로
@@ -651,7 +723,7 @@ test('경계 상태(로딩·오류·토큰 없음) 화면이 모두 어르신 �
     assert.ok(src.length > 200, `${name}: 비어 있다`);
     // 머리말을 직접 그리는 화면은 등록부를, 패널(Notice)로 그리는 화면은 그 패널을 쓴다 —
     // 어느 쪽이든 「이음 어르신 신청」이 그 화면에 **한 번은** 나온다(ui.jsx 가 그린다).
-    assert.ok(/EUM_KICKER/.test(src) || /<Notice\b/.test(src), `${name}: 어르신 화면 표기 누락`);
+    assert.ok(/<Kicker \/>/.test(src) || /<Notice\b/.test(src), `${name}: 어르신 화면 표기 누락`);
     // 표현은 어르신 화면의 단일 출처(ui.jsx)를 쓴다 — 크기·색 요건이 한 곳에서만 관리되도록.
     assert.match(src, /ui\.jsx'/, `${name}: 어르신 화면 표현을 쓰지 않는다`);
   }

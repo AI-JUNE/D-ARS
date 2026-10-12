@@ -11,7 +11,10 @@ import {
   EUM_CONTRAST_MIN,
   EUM_MIN_FONT_PX,
   EUM_FONT_PX,
+  EUM_TAP_MIN_PX,
+  EUM_TAP_PX,
   fontSizeViolations,
+  tapTargetViolations,
   parseHex,
   relativeLuminance,
   contrastRatio,
@@ -96,6 +99,47 @@ test('fontSizeViolations: 이상 입력에도 던지지 않는다(화면 규격 
     assert.deepEqual(fontSizeViolations(bad), [], `예외 없이 빈 결과여야 한다: ${String(bad)}`);
   }
   assert.deepEqual(fontSizeViolations({ body: 24 }, 'nope'), [{ name: 'body', px: 24 }]);
+});
+
+// ── 누를 자리 ──────────────────────────────────────────────────────────────
+//
+// 고친 결함: 주버튼·선택지 버튼은 72px 로 지어 두고 **되돌아가기 링크에는 높이를 주지
+// 않았다**. 그러면 누를 수 있는 자리는 글자 한 줄의 줄 상자뿐이다 — 글자 24px · 줄간격 1.6 →
+// **38.4px**. 하필 그것이 이 화면의 유일한 되돌리기 수단이고, 같은 링크의 글자 크기(6회차)와
+// 동작(14회차)은 이미 한 번씩 고친 자리다. 「손이 떨려 두 번 누르는 것이 흔하다」는 사실이
+// 소스에 적혀 있는데도 **누를 넓이**에는 닿지 않았다.
+// 왜 아무도 몰랐나: 글자 크기에는 등록부 ↔ 화면 양방향 대조가 있었는데(위) 누를 자리에는
+// 그런 가드가 아예 없었다 — 6회차에 세운 가드가 크기 **한 종류만** 보고 있었던 셈이다.
+test('화면이 쓰는 모든 누를 자리가 44px 이상이다', () => {
+  const bad = tapTargetViolations();
+  assert.deepEqual(bad, [], `누를 자리 미달: ${JSON.stringify(bad)}`);
+  for (const name of ['primary', 'choice', 'back']) {
+    assert.equal(typeof EUM_TAP_PX[name], 'number', `누를 자리 등록 누락: ${name}`);
+  }
+  // 기준값의 근거: WCAG 2.2 의 최소 기준(SC 2.5.8)은 24px 이고 그것만으로는 이 사용자층에
+  // 모자라다. 44px 는 강화 기준(SC 2.5.5)이자 이 화면이 다른 조작 요소에 준 값과 같은 방향이다.
+  assert.ok(EUM_TAP_MIN_PX >= 44, `기준이 강화 기준 아래로 내려갔다: ${EUM_TAP_MIN_PX}`);
+  // 되돌아가기 링크가 높이를 잃으면 줄 상자(글자 × 줄간격 1.6)만 남는다 — 그 값이 기준 아래다.
+  const lineBox = EUM_FONT_PX.back * 1.6;
+  assert.ok(lineBox < EUM_TAP_MIN_PX, `줄 상자만으로 기준을 넘으면 이 가드가 무의미하다: ${lineBox}`);
+});
+
+test('tapTargetViolations: 기준 미달·수가 아닌 값을 실제로 잡아낸다(실패 경로)', () => {
+  // 높이를 주지 않았을 때 실제로 남던 자리(24 × 1.6)다 — 되살아나면 반드시 실패해야 한다.
+  assert.deepEqual(tapTargetViolations({ back: 38.4 }), [{ name: 'back', px: 38.4 }]);
+  assert.deepEqual(tapTargetViolations({ back: 24 }), [{ name: 'back', px: 24 }]);
+  // '44px' 처럼 단위가 붙으면 React 는 그대로 쓰지만 우리는 비교할 수 없다 → 통과시키지 않는다.
+  assert.deepEqual(tapTargetViolations({ back: '44px' }), [{ name: 'back', px: null }]);
+  assert.deepEqual(tapTargetViolations({ back: NaN }), [{ name: 'back', px: null }]);
+  // 경계: 기준값과 같은 높이는 통과한다.
+  assert.deepEqual(tapTargetViolations({ back: EUM_TAP_MIN_PX }), []);
+});
+
+test('tapTargetViolations: 이상 입력에도 던지지 않는다(규격 검사가 테스트를 죽이지 않게)', () => {
+  for (const bad of [null, undefined, 42, 'nope', [], {}]) {
+    assert.deepEqual(tapTargetViolations(bad), [], `예외 없이 빈 결과여야 한다: ${String(bad)}`);
+  }
+  assert.deepEqual(tapTargetViolations({ back: 44 }, 'nope'), [{ name: 'back', px: 44 }]);
 });
 
 test('색 이름 집합이 화면 요구를 덮는다(배경·본문·주색·경고)', () => {
