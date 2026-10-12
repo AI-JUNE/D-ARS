@@ -57,6 +57,53 @@ export function fontSizeViolations(sizes = EUM_FONT_PX, min = EUM_MIN_FONT_PX) {
   return out;
 }
 
+// ── 누를 자리의 크기 등록부 ────────────────────────────────────────────────
+//
+// 고친 결함: 이 화면의 조작 요소는 셋이다 — 주버튼·선택지 버튼·되돌아가기 링크. 앞의 둘은
+// `minHeight: 72` 로 크게 지어 두었는데 **되돌아가기 링크만 아무 높이도 주지 않았다**.
+// 그러면 누를 수 있는 넓이는 글자 한 줄의 줄 상자뿐이다 — 24px × 줄간격 1.6 = **38.4px**.
+// 하필 그것이 이 화면의 **유일한 되돌리기 수단**이다(「앞 화면으로」·「다시 고르기」).
+//   · 6회차에 고친 것은 그 링크의 **글자 크기**였다(22px → 24px).
+//   · 14회차에 고친 것은 그 링크의 **동작**이었다(되돌아가지 못하거나 화면 밖으로 데려갔다).
+//   손이 떨려 두 번 누르는 것이 흔한 사용자층이라는 사실은 그때 이미 소스에 적혀 있었고
+//   (`submittingRef`·`backFromRef` 가 그 때문에 있다), 같은 사실이 **누를 넓이**에는 닿지
+//   않은 채 세 번째 회차로 넘어와 있었다. 빗나간 누름은 아래 선택지·요약 글자 위로 떨어져
+//   아무 일도 일어나지 않고, 어르신에게는 「눌렀는데 가만히 있다」로 보인다(14회차가 고친
+//   결함과 **보이는 모습이 똑같다** — 원인만 다르다).
+//
+// 기준값 44px 의 근거: WCAG 2.2 의 최소 기준(SC 2.5.8 Target Size (Minimum))은 24×24 CSS px
+// 이고 38.4px 는 그것을 넘는다 — 즉 **요건 위반은 아니었다.** 44px 는 강화 기준
+// (SC 2.5.5 Target Size (Enhanced) · AAA)이자 이 화면이 스스로 다른 모든 조작 요소에 준
+// 72px 과 같은 방향의 값이다. 저시력·수전증 어르신을 대상으로 지은 화면에서 유일한
+// 되돌리기 수단만 최소 기준 턱걸이로 두는 것은 이 화면이 스스로 정한 눈금과 어긋난다.
+// (72px 로 키우지 않는 이유: 그러면 링크가 단추처럼 보여 「버튼 4개 이내」 요건을 지키려고
+//  링크로 둔 결정이 눈에서 무너진다 — 밑줄 친 글자 한 줄이라는 모양은 그대로 둔다.)
+export const EUM_TAP_MIN_PX = 44;
+
+// 화면이 쓰는 누를 자리 높이를 전부 이름으로 등록한다(글자 크기 등록부와 같은 계약 —
+// 숫자가 화면에 되살아나면 아무 테스트도 그것을 보지 못한다).
+export const EUM_TAP_PX = {
+  primary: 72,  // 주버튼(「이대로 신청하기」·「다시 시도」)
+  choice: 72,   // 선택지 버튼(희망 활동 · 희망 시간대)
+  back: 44,     // 되돌아가기 링크 — 이 화면의 유일한 되돌리기 수단
+};
+
+// 기준(44px) 아래로 내려간 등록 항목 목록. **비어 있어야 정상**이다.
+// 수가 아닌 값(오타·'44px' 같은 단위 문자열)도 위반으로 본다 — 모르는 것을 통과로 넘기지 않는다
+// (fontSizeViolations 와 같은 판정).
+export function tapTargetViolations(sizes = EUM_TAP_PX, min = EUM_TAP_MIN_PX) {
+  const table = sizes && typeof sizes === 'object' ? sizes : {};
+  const floor = Number(min);
+  const out = [];
+  for (const name of Object.keys(table)) {
+    const px = typeof table[name] === 'number' ? table[name] : NaN;
+    if (!Number.isFinite(px) || !Number.isFinite(floor) || px < floor) {
+      out.push({ name, px: Number.isFinite(px) ? px : null });
+    }
+  }
+  return out;
+}
+
 export const EUM_CONTRAST_MIN = 4.5;
 
 // 화면이 쓰는 색은 여기가 단일 출처다(ui.jsx 가 import 한다).

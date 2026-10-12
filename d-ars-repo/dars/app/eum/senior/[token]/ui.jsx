@@ -15,7 +15,8 @@
 // 그리고 **인라인 style 만으로는 이 화면을 다 지킬 수 없다**(아래 EumStyles 참조) —
 // `app/globals.css` 가 루트 레이아웃을 통해 이 화면까지 내려오고, 거기엔 요소 선택자가 있다.
 
-import { EUM_COLORS as C, EUM_FONT_PX as F } from '@/lib/eumTheme';
+// 누를 자리 높이(T)도 숫자를 여기 적지 않는다 — 아래 S.back 주석 참조.
+import { EUM_COLORS as C, EUM_FONT_PX as F, EUM_TAP_PX as T } from '@/lib/eumTheme';
 // 머리말은 화면 네 곳에 **손으로 적혀** 있었다(여기·SeniorFlow·오류·대기). 이 화면군의 표현은
 // ui.jsx 가 단일 출처인데 그 안의 글자만 네 벌이었던 셈이다 — 문구는 lib/eumMessage 에 둔다.
 import { EUM_KICKER } from '@/lib/eumMessage';
@@ -32,7 +33,7 @@ export const EUM_SCOPE = 'eum-screen';
 const PRIMARY = {
   display: 'block',
   width: '100%',
-  minHeight: 72,
+  minHeight: T.primary,
   padding: '18px 20px',
   fontSize: F.choice,
   fontWeight: 700,
@@ -48,7 +49,7 @@ const PRIMARY = {
 const CHOICE = {
   display: 'block',
   width: '100%',
-  minHeight: 72,
+  minHeight: T.choice,
   padding: '18px 20px',
   fontSize: F.choice,
   fontWeight: 600,
@@ -108,8 +109,19 @@ export const S = {
   // cursor 로도 말한다 — 이 버튼은 이제 `disabled` 가 아니라 `aria-disabled` 다(SeniorFlow 참조).
   primaryBusy: { ...PRIMARY, background: C.sub, border: `3px solid ${C.sub}`, cursor: 'progress' },
   // 이 화면에서 유일한 되돌리기 수단이다 — 가장 작게 둘 자리가 아니다(예전 22px).
+  //
+  // 고친 결함: 글자 크기는 6회차에, 동작은 14회차에 고쳤는데 **누를 넓이**는 그대로였다.
+  // 높이를 아무것도 주지 않았으므로 누를 수 있는 자리는 줄 상자 하나뿐이었고(24px × 1.6 =
+  // 38.4px), 같은 화면의 다른 조작 요소는 전부 72px 이었다. 손이 떨려 빗나간 누름은 아래
+  // 선택지·요약 글자 위로 떨어져 아무 일도 일어나지 않는다 — 14회차가 고친 「눌러도 꼼짝하지
+  // 않는 단추」와 **보이는 모습이 똑같다**(원인만 다르다). 기준값의 근거는 lib/eumTheme 참조.
+  //   inline-flex + minHeight 로 **글자 모양은 그대로 두고 자리만** 키운다 — 패딩으로 키우면
+  //   밑줄이 글자보다 넓어져 단추처럼 보이고, 그러면 「버튼 4개 이내」 요건 때문에 링크로 둔
+  //   결정이 눈에서 무너진다.
   back: {
-    display: 'inline-block',
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: T.back,
     marginTop: 8,
     fontSize: F.back,
     color: C.brand,
@@ -204,6 +216,27 @@ export function EumStyles() {
       }
     `}</style>
   );
+}
+
+// ── 머리말은 **자리도** 한 곳이다 ─────────────────────────────────────────
+//
+// 고친 결함: 15회차가 머리말의 **글자**를 등록부로 묶었는데(`EUM_KICKER`) 그것을 그리는
+// **자리**는 네 곳에 그대로 남았다 — `<p style={S.kicker}>{EUM_KICKER}</p>` 가 Notice·
+// SeniorFlow·오류 화면·대기 화면에 각자 적혀 있었다. 15회차 메모가 「머리말이 그려지는 자리는
+// 아직 네 곳이다」로 남긴 자리이고, 그때 미룬 이유는 「한 조각으로 묶으면 **어디가 머리말의
+// 집인가**를 다시 정해야 한다(레이아웃은 화면을 그리지 않는다는 결정과 맞물린다)」였다.
+// 그 걱정은 집을 **레이아웃**으로 옮길 때만 성립한다 — 이 화면군의 표현은 처음부터 ui.jsx
+// 한 곳이고, 조각을 여기 두는 것은 그 결정을 건드리지 않는다(`app/eum/layout.jsx` 는 여전히
+// 아무것도 그리지 않는다). 10·15회차의 「사실은 맞고 결론만 넓었던」 자리와 같은 모양이다.
+//
+// 네 벌이 남아 있는 동안 무엇이 위험했나: 글자는 한 벌이라 **문구가 갈라지는 길은 막혀
+// 있었다.** 남아 있던 것은 ① 자리와 모양(`<p>` · `S.kicker` · 제목 바로 위)이 네 곳에서
+// 각자 정해지는 것과 ② 새 경계 화면이 머리말을 **빠뜨리는** 길이다. ②가 실제 경로인 이유는
+// 이 과제가 10·15회차에 경계 화면을 **두 번** 늘렸기 때문이다(`/eum` · `/eum/[...rest]`) —
+// 그 둘은 Notice 로 그려 머리말을 받았지만, 다음에 직접 그리는 화면이 하나 생기면 그때는
+// 아무도 적어 주지 않는다. 조각 하나면 빠뜨릴 자리가 없어진다.
+export function Kicker() {
+  return <p style={S.kicker}>{EUM_KICKER}</p>;
 }
 
 // 고른 것 표시(S.mark 와 함께 쓴다). 스크린리더에는 `aria-pressed` 가 이미 말하므로
@@ -330,7 +363,7 @@ export function Notice({ title, body, detail = '', hint = '', foot = '', childre
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>{EUM_KICKER}</p>
+        <Kicker />
         {/* tabIndex=-1 은 탭 순서에 끼어들지 않는다 — 코드가 옮길 수 있게만 열어 둔다. */}
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{title}</h1>
         {/* 이 영역은 패널과 **함께 태어난다**(위 Live 참조) — 그래서 전환의 낭독은 영역이

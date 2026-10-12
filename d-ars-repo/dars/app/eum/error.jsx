@@ -60,10 +60,12 @@ import { buildEvent, monitorLine } from '@/lib/monitor';
 // 문구는 어르신 화면 문구의 단일 출처에서 가져온다. 예전에는 이 파일이 넷을 손으로 적었고,
 // 본문은 「잠시 뒤 **아래** 단추를…」로 **자리를 가리켰다** — 11회차가 제출 실패 안내에서
 // 없앤 바로 그 낱말이다(lib/eumMessage.js 의 EUM_BOUNDARY_MESSAGE 참조).
-import { EUM_BOUNDARY_MESSAGE as M, EUM_KICKER } from '@/lib/eumMessage';
+import { EUM_BOUNDARY_MESSAGE as M } from '@/lib/eumMessage';
 // 「다시 시도」는 **자기 자신이 사라지는 단추**다 — 아래 onClick 참조.
 import { markRetried } from '@/lib/eumSenior';
-import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
+// 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker) — 예전에는 이 화면이
+// `<p style={S.kicker}>` 를 손으로 적었고, 그렇게 적는 화면이 넷이었다.
+import { S, EumStyles, EUM_SCOPE, Kicker } from './senior/[token]/ui.jsx';
 
 // 특수 파일(error.jsx)에는 기본 export 외에 아무것도 내보내지 않는다 — route.js 규칙과 같은 취지다.
 
@@ -89,7 +91,7 @@ export default function EumError({ error, reset }) {
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>{EUM_KICKER}</p>
+        <Kicker />
         {/* tabIndex=-1 은 탭 순서에 끼어들지 않는다 — 코드가 옮길 수 있게만 열어 둔다. */}
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{M.errorTitle}</h1>
         <p style={S.body} role="status">{M.errorBody}</p>

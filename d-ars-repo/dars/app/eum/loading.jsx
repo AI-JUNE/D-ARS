@@ -14,15 +14,16 @@
 // 단계를 옮긴다) 오류 화면처럼 포커스를 옮기지 않는다 — 새 문서는 브라우저가 알아서 문서
 // 앞에서 시작한다. 서버 컴포넌트라 ref 를 넘길 수도 없다(ui.jsx 의 Notice 와 같은 이유).
 
-import { EUM_BOUNDARY_MESSAGE as M, EUM_KICKER } from '@/lib/eumMessage';
-import { S, EumStyles, EUM_SCOPE } from './senior/[token]/ui.jsx';
+import { EUM_BOUNDARY_MESSAGE as M } from '@/lib/eumMessage';
+// 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker).
+import { S, EumStyles, EUM_SCOPE, Kicker } from './senior/[token]/ui.jsx';
 
 export default function EumLoading() {
   return (
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>{EUM_KICKER}</p>
+        <Kicker />
         <h1 style={S.h1}>{M.loadingTitle}</h1>
         <p style={S.body} role="status">{M.loadingBody}</p>
       </div>

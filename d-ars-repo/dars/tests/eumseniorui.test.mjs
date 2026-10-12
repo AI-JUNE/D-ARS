@@ -61,7 +61,8 @@ test('page 는 서버에서 토큰을 검증한다("use client" 금지)', () => 
 // 아래 「머리말」 테스트가 실패한다. head 쪽 제목은 리터럴 그대로 둔다(아래 사유 참조).
 test('제목이 「이음 어르신 신청」 이고 제품 브랜드 템플릿을 쓰지 않는다', () => {
   assert.match(page, /absolute:\s*'이음 어르신 신청'/);
-  assert.ok(/EUM_KICKER/.test(flow) && /EUM_KICKER/.test(ui), '화면 상단 표기 누락');
+  // 머리말은 글자도 자리도 한 곳이다 — 글자는 등록부(ui.jsx 가 가리킨다), 자리는 Kicker 조각.
+  assert.ok(/<Kicker \/>/.test(flow) && /EUM_KICKER/.test(ui), '화면 상단 표기 누락');
 });
 
 // ── 고친 결함: 머리말이 화면 네 곳에 손으로 적혀 있었다 ─────────────────────
@@ -71,7 +72,13 @@ test('제목이 「이음 어르신 신청」 이고 제품 브랜드 템플릿�
 // 글자가 같아 보이는 동안에는 아무 일도 일어나지 않는 종류의 결함이고, 한 곳만 고쳐지는 날
 // 어르신이 어느 화면을 밟느냐에 따라 머리말이 달라진다 — 9회차의 「마침표가 하나 더 붙은
 // 두 번째 판본」과 같은 모양이다.
-test('머리말: 화면 전부가 등록부 한 줄을 가리킨다(손으로 적은 사본 금지)', () => {
+// (추가 정정: 그 고침은 **글자**까지였다. 그리는 자리는 네 곳에 그대로 남아
+//  `<p style={S.kicker}>{EUM_KICKER}</p>` 를 각자 적고 있었고, 15회차 메모가 그것을
+//  「머리말이 그려지는 자리는 아직 네 곳이다」로 남겼다. 글자가 한 벌이라 문구가 갈라지는 길은
+//  막혀 있었지만, 다음에 직접 그리는 경계 화면이 하나 생기는 날 머리말을 **빠뜨리는** 길은
+//  열려 있었다 — 이 과제는 10·15회차에 경계 화면을 두 번 늘렸다. 지금은 자리도 한 조각
+//  (ui.jsx 의 Kicker)이고, 손으로 적은 자리가 되살아나면 아래에서 실패한다.)
+test('머리말: 화면 전부가 조각 하나를 쓴다(글자도 자리도 손으로 적지 않는다)', () => {
   const screens = {
     'app/eum/senior/[token]/ui.jsx': ui,
     'app/eum/senior/[token]/SeniorFlow.jsx': flow,
@@ -81,11 +88,20 @@ test('머리말: 화면 전부가 등록부 한 줄을 가리킨다(손으로 �
   let drawn = 0;
   for (const [name, src] of Object.entries(screens)) {
     const code = stripComments(src);
-    assert.match(code, /EUM_KICKER/, `${name}: 머리말을 등록부에서 가져오지 않는다`);
-    assert.match(code, /style=\{S\.kicker\}>\{EUM_KICKER\}</, `${name}: 머리말 자리가 등록부를 쓰지 않는다`);
+    assert.match(code, /<Kicker \/>/, `${name}: 머리말을 공통 조각으로 그리지 않는다`);
     drawn += 1;
   }
   assert.equal(drawn, 4, `머리말을 그리는 화면이 줄었다: ${drawn}`);
+  // 자리의 집은 ui.jsx 한 곳이다 — 글자(EUM_KICKER)와 스타일(S.kicker)을 쓰는 곳도 거기뿐이다.
+  // (레이아웃으로 옮기지 않는다: `app/eum/layout.jsx` 는 화면을 그리지 않는다는 결정이 먼저다.)
+  assert.match(stripComments(ui), /export function Kicker\(\) \{\s*return <p style=\{S\.kicker\}>\{EUM_KICKER\}<\/p>;/,
+    '머리말 조각의 단일 출처가 없다');
+  for (const [name, src] of Object.entries(screens)) {
+    if (name.endsWith('ui.jsx')) continue;
+    const code = stripComments(src);
+    assert.ok(!/S\.kicker/.test(code), `${name}: 머리말 자리를 손으로 적었다`);
+    assert.ok(!/EUM_KICKER/.test(code), `${name}: 머리말 글자를 직접 들고 있다(조각이 그린다)`);
+  }
   // head 쪽 제목(metadata)은 **리터럴 그대로 둔다** — 브랜드 누출 대조는 소스에 적힌 글자를
   // 읽어 판정하므로(inlineStringConsts 는 같은 파일의 const 까지만 푼다) import 한 이름으로
   // 바꾸면 그 대조가 아무 글자도 보지 못하고 조용히 통과한다. 화면에 그려지는 머리말과 head
@@ -136,7 +152,8 @@ test('스크린리더: 선택지 묶음에 라벨이 있고 단계 전환이 낭
   // 주석에 적힌 role 로도 통과할 수 있었다).
   assert.match(stripComments(ui), /role=\{assertive \? 'alert' : 'status'\}/, '오류는 즉시 낭독돼야 한다');
   assert.match(stripComments(ui), /<Live assertive>/, '안내가 assertive 영역을 쓰지 않는다');
-  assert.match(flow, /<Alert text=\{alertText\} \/>/, '화면이 안내를 공통 표현으로 그리지 않는다');
+  assert.match(flow, /<Alert text=\{alertAtChoose\} \/>/, '고르는 화면의 안내를 공통 표현으로 그리지 않는다');
+  assert.match(flow, /<Alert text=\{alertAtConfirm\} \/>/, '확인 화면의 안내를 공통 표현으로 그리지 않는다');
   assert.equal(/role="alert"/.test(stripComments(flow)), false, '안내를 화면에서 손으로 그리면 자리마다 모양이 갈라진다');
 });
 
@@ -467,7 +484,11 @@ test('제출 실패 안내가 자기 단계에만 머문다(화면을 떠나 따
   // 비우는 길을 늘려 막는 방식이 되살아나면(글자열 하나 + 단계 이동마다 비우기) 한 곳을
   // 빠뜨리는 날 결함이 그대로 돌아온다 — 안내가 자기 자리를 아는 쪽으로 고정한다.
   assert.match(flow, /const \[error, setError\] = useState\(null\)/, '안내가 다시 글자열 하나가 됐다');
-  assert.match(flow, /const alertText = errorFor\(error, step, visit\)/, '그리는 자리가 단계·방문을 보지 않는다');
+  // 그리는 자리는 단계·방문을 보고, **그 자리의 안내인가**까지 묻는다(errorAt) — 자리가
+  // 단계 블록 밖에서 살기 때문이다(아래 「안내 자리는 단계 블록 밖에 있다」 참조).
+  assert.match(flow, /const alertAtChoose = errorAt\(error, 1, step, visit\)/, '고르는 화면 자리가 단계·방문을 보지 않는다');
+  assert.match(flow, /const alertAtConfirm = errorAt\(error, 3, step, visit\)/, '확인 화면 자리가 단계·방문을 보지 않는다');
+  assert.equal(/errorFor\(/.test(stripComments(flow)), false, '자리를 묻지 않고 그리면 한 안내가 두 자리에 뜬다');
   assert.equal(/\{error \?/.test(flow), false, '단계를 묻지 않고 안내를 그리는 자리가 되살아났다');
   // 기다리는 사이 되돌아갔다면 그 화면에는 뜨지 않는다 — 누른 순간의 단계·방문에 매단다.
   assert.match(flow, /const at = step;/, '안내를 매달 단계를 누른 순간에 붙잡지 않는다');
@@ -531,17 +552,18 @@ test('제출이 막힌 이유에 따라 할 말과 되돌릴 길이 다르다(�
 });
 
 test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 밀어내지 않게)', () => {
-  const step3 = flow.slice(flow.indexOf('{step === 3 ?'), flow.indexOf('{step === 4 ?'));
-  assert.ok(step3.length > 100, '3단계 블록을 찾지 못했다');
-  const button = step3.indexOf('onClick={submit}');
-  const alert = step3.indexOf('<Alert');
-  assert.ok(button > -1 && alert > -1, '확인 화면에 주버튼과 안내 자리가 모두 있어야 한다');
-  assert.ok(alert > button, '안내가 주버튼보다 앞에 있다 — 생기는 순간 그 단추를 밀어낸다');
+  const shown = stripComments(flow);
+  const button = shown.indexOf('onClick={submit}');
+  const confirmAlert = shown.indexOf('<Alert text={alertAtConfirm}');
+  assert.ok(button > -1 && confirmAlert > -1, '확인 화면에 주버튼과 안내 자리가 모두 있어야 한다');
+  assert.ok(confirmAlert > button, '안내가 주버튼보다 앞에 있다 — 생기는 순간 그 단추를 밀어낸다');
+  // 밀려나는 것은 「다시 고르기」 링크 하나뿐이다 — 안내 자리는 그 링크보다 앞이어야 한다.
+  assert.ok(confirmAlert < shown.indexOf('다시 고르기'), '안내가 되돌아가기 링크보다 뒤에 있다');
 
   // 고르는 화면(1단계)의 안내는 반대다 — 그 문장이 가리키는 것은 **선택지**이므로 위에 온다.
-  const step1 = flow.slice(flow.indexOf('{step === 1 ?'), flow.indexOf('{step === 2 ?'));
-  assert.ok(step1.indexOf('<Alert') > -1, '고르는 화면에 안내 자리가 없다');
-  assert.ok(step1.indexOf('<Alert') < step1.indexOf('희망 활동 고르기'), '안내가 선택지보다 뒤에 있다');
+  const chooseAlert = shown.indexOf('<Alert text={alertAtChoose}');
+  assert.ok(chooseAlert > -1, '고르는 화면에 안내 자리가 없다');
+  assert.ok(chooseAlert < shown.indexOf('희망 활동 고르기'), '안내가 선택지보다 뒤에 있다');
 
   // 자리가 둘로 갈렸으므로 **표현은 한 곳**이어야 한다(ui.jsx 의 Alert).
   assert.match(ui, /export function Alert\(\{ text = '' \}\)/, '안내 표현의 단일 출처가 없다');

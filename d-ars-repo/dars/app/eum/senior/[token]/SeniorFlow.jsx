@@ -47,7 +47,7 @@ import {
   historyStep,
   backAction,
   stepError,
-  errorFor,
+  errorAt,
   submitBlock,
   takeRetried,
   EUM_HISTORY_ROOT,
@@ -77,10 +77,14 @@ import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumCons
 // 제목·머리말도 같은 자리에서 가져온다 — 예전에는 이 파일이 둘 다 손으로 적었고, 만료 패널은
 // 제목과 본문이 **같은 문장**이었다(제목으로 포커스가 옮겨 간 직후 같은 말을 한 번 더 듣는다).
 import {
-  EUM_DONE_MESSAGE, EUM_KICKER, EUM_PANEL_ASK, EUM_PANEL_TITLE, submitMessage, tokenMessage,
+  EUM_DONE_MESSAGE, EUM_PANEL_ASK, EUM_PANEL_TITLE, submitMessage, tokenMessage,
 } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
-import { S, Notice, Alert, Live, EumStyles, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT } from './ui.jsx';
+// 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker) — 예전에는 네 화면이
+// `<p style={S.kicker}>{EUM_KICKER}</p>` 를 각자 적었다.
+import {
+  S, Notice, Alert, Live, EumStyles, Kicker, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT,
+} from './ui.jsx';
 import PriorLocal from './PriorLocal.jsx';
 
 // 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
@@ -468,13 +472,19 @@ export default function SeniorFlow({
   // 지금 이 화면의 **이 방문**에 속한 안내만 그린다. 다른 단계·다른 방문의 것이면 빈
   // 문자열이고 Alert 는 아무것도 그리지 않는다 — 안내가 자기 화면을 떠나 따라다니던 것과,
   // 되돌아갔다 돌아온 같은 화면에 조금 전의 실패가 되살아나던 것을 여기서 함께 끊는다.
-  const alertText = errorFor(error, step, visit);
+  //
+  // 자리는 둘이고(고르는 화면·확인 화면) 둘 다 **단계 블록 밖**에서 산다 — 블록 안에 두면
+  // 낭독 영역이 그 단계와 함께 태어나고, 1단계 쪽은 실제로 그랬다(lib/eumSenior.errorAt).
+  // 그래서 그리는 쪽이 「이 자리의 안내인가」를 함께 묻는다(물지 않으면 확인 화면의 실패가
+  // 고르는 화면 자리에도 그려져 같은 문장이 두 벌로 뜬다).
+  const alertAtChoose = errorAt(error, 1, step, visit);
+  const alertAtConfirm = errorAt(error, 3, step, visit);
 
   return (
     <main style={S.page} className={EUM_SCOPE}>
       <EumStyles />
       <div style={S.wrap}>
-        <p style={S.kicker}>{EUM_KICKER}</p>
+        <Kicker />
         <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
         <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
 
@@ -509,7 +519,15 @@ export default function SeniorFlow({
             자리여야 하기 때문이다(ui.jsx 의 Alert). 고르는 화면(1단계)에서는 선택지 위,
             확인 화면(3단계)에서는 주버튼 **뒤**다. 한 자리에 모아 두었을 때 생긴 결함이
             바로 그것이다 — 실패 안내가 끼어들며 「한 번 더 눌러 주세요」가 가리키는 단추를
-            자기가 아래로 밀어냈다. */}
+            자기가 아래로 밀어냈다.
+
+            고친 결함: 그 두 자리를 각자의 **단계 블록 안**에 두었다. 1단계 쪽에서는 그것이
+            곧 「낭독 영역이 내용과 함께 태어나는」 모양이었다 — 제출이 `'selection'` 으로
+            막히면 `go(1, …)` 과 `setError` 가 같은 커밋에서 일어나므로 영역도 그 글자와 함께
+            생긴다. 전환은 제목 포커스가 낭독하지만 **왜 처음으로 돌아왔는가**는 전해지지
+            않았다. 자리를 옮길 필요는 없었다(블록 바로 앞이 곧 선택지 위다) — 영역만 블록
+            밖으로 꺼내고, 그리는 쪽이 「이 자리의 안내인가」를 묻는다(errorAt). */}
+        <Alert text={alertAtChoose} />
 
         {/* 고른 것은 **눈에도** 보여야 한다. 예전에는 선택 여부가 `aria-pressed` 하나로만 있어
             스크린리더에만 전해졌고, 네 버튼의 모양은 똑같았다 — 2단계에서 「앞 화면으로」를 눌러
@@ -517,26 +535,21 @@ export default function SeniorFlow({
             (6회차에 "다시 그려져도 고른 것이 살아남는다" 를 고쳐 놓고, 살아남은 것을 보여 주지
             않고 있었다). 색만으로 말하지 않는다 — ✓ 표시가 함께 붙는다(ui.jsx 의 S.mark). */}
         {step === 1 ? (
-          <>
-            {/* 이 화면의 안내(「처음부터 다시 골라 주세요」)는 **선택지를 가리킨다** —
-                그 선택지 위에 두어야 읽은 뒤에 누르게 된다. */}
-            <Alert text={alertText} />
-            <div style={S.list} role="group" aria-label="희망 활동 고르기">
-              {ACTIVITIES.map((o) => (
-                <button
-                  key={o.k}
-                  type="button"
-                  style={activity === o.k ? S.choiceOn : S.choice}
-                  className="eum-focus"
-                  aria-pressed={activity === o.k}
-                  onClick={() => chooseActivity(o.k)}
-                >
-                  <span aria-hidden="true" style={S.mark}>{activity === o.k ? EUM_CHOICE_MARK : ''}</span>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </>
+          <div style={S.list} role="group" aria-label="희망 활동 고르기">
+            {ACTIVITIES.map((o) => (
+              <button
+                key={o.k}
+                type="button"
+                style={activity === o.k ? S.choiceOn : S.choice}
+                className="eum-focus"
+                aria-pressed={activity === o.k}
+                onClick={() => chooseActivity(o.k)}
+              >
+                <span aria-hidden="true" style={S.mark}>{activity === o.k ? EUM_CHOICE_MARK : ''}</span>
+                {o.label}
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {step === 2 ? (
@@ -599,13 +612,25 @@ export default function SeniorFlow({
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
             </div>
-            {/* 실패 안내는 주버튼 **뒤**다. 앞에 두면 안내가 생기는 순간 그 단추를 아래로
-                밀어내고, 하필 그 안내가 「한 번 더 눌러 주세요」라고 말한다 — 외워 둔 자리를
-                누른 손 아래에서 단추가 사라진다. 뒤에 두면 밀려나는 것은 「다시 고르기」
-                링크 하나뿐이고, 포커스는 그대로 그 단추에 남아 있다(aria-disabled). */}
-            <Alert text={alertText} />
-            <a href={stepQuery(2, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
           </>
+        ) : null}
+
+        {/* 실패 안내는 주버튼 **뒤**다. 앞에 두면 안내가 생기는 순간 그 단추를 아래로
+            밀어내고, 하필 그 안내가 「한 번 더 눌러 주세요」라고 말한다 — 외워 둔 자리를
+            누른 손 아래에서 단추가 사라진다. 뒤에 두면 밀려나는 것은 「다시 고르기」
+            링크 하나뿐이고, 포커스는 그대로 그 단추에 남아 있다(aria-disabled).
+
+            이 자리도 단계 블록 **밖**이다. 지금 이 자리에서 영역이 내용과 함께 태어나는
+            경로는 **없다**(3단계로 들어오는 길은 시간대를 고르는 것 하나뿐이고 그 커밋에는
+            안내가 없다 · 되돌아오면 방문 번호가 달라 안내가 그려지지 않는다). 그래도 꺼내
+            두는 이유는 그 사실이 **경로 목록에 기대고 있기** 때문이다 — 3단계에 안내를 매다는
+            길이 하나 생기는 날 1단계에서 겪은 결함이 조용히 돌아온다. 그래서 두 자리를 같은
+            계약으로 둔다(「안내 자리는 단계 블록 밖에 있다」). 그 대가로 3단계 블록이 둘로
+            갈리는데, 가름선은 안내 자리 그 자체라 자리 순서는 바뀌지 않는다. */}
+        <Alert text={alertAtConfirm} />
+
+        {step === 3 ? (
+          <a href={stepQuery(2, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
         ) : null}
 
         {/* 완료 화면은 **실제로 접수된 것**만 말한다. 세 경우가 서로 다르다.
