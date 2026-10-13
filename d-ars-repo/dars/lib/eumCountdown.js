@@ -1,5 +1,9 @@
 // lib/eumCountdown.js — 「이음 어르신 신청」 남은 시간 계산(순수 · React/DOM 비의존)
 //
+// (DOM 을 **import 하지 않는다**는 뜻이다. 맨 아래 눈금 이어받기는 화면이 넘겨 준 노드에
+//  속성 한 칸을 적고 읽는다 — lib/eumSenior 의 markRetried 와 같은 계약이고, 그래서 이
+//  파일은 서버에서도 그대로 import 된다.)
+//
 // 왜 별도 모듈인가 — 고친 결함
 //   화면은 서버가 준 **절대 만료시각(exp)** 을 받아 `exp - Date.now()` 로 남은 시간을 셌다.
 //   `Date.now()` 는 **어르신 기기의 시계**다. 서버는 이미 "이 링크는 유효하다"고 판정해
@@ -105,4 +109,89 @@ export function isSoon(leftMs, threshold = EUM_SOON_MS) {
 export function secondsLeft(leftMs) {
   if (typeof leftMs !== 'number' || !Number.isFinite(leftMs) || leftMs <= 0) return 0;
   return Math.ceil(leftMs / 1000);
+}
+
+// ── 되살아난 화면도 **같은 눈금**을 쓴다 ───────────────────────────────────
+//
+// 고친 결함: 화면은 `remainingMs` 를 **서버가 넘긴 값**으로 받아 마운트 시점을 출발점으로
+// 삼았다. 그런데 문서가 열려 있는 동안 화면이 다시 마운트되는 길이 하나 있다 — 오류 화면의
+// 「다시 시도」(`reset()` 은 같은 자식을 **다시 그린다** · lib/eumSenior 의 restorePoint 참조).
+// 그때 출발점이 다시 지금으로 맞춰지므로, 4분 30초가 지난 링크가 **5분 남은 링크로** 되살아난다.
+// 그러면
+//   · 「잠시 후 링크가 만료됩니다」가 **뜨지 않는다**(13회차가 그 경고를 넣은 이유가 "남은
+//     1분 안에 마저 끝낼 수 있게" 인데, 하필 시간이 가장 급한 그 순간에 침묵한다).
+//   · 화면은 스스로 만료를 선언하지 않으므로 어르신은 네 화면을 끝까지 걷고 **제출에서**
+//     410 을 만난다 — 고른 것을 다 고른 뒤에 「링크가 만료되었습니다」를 본다.
+// 서버가 다시 판정해 주지 않는다는 점이 핵심이다(`reset()` 은 서버를 거치지 않는다).
+//
+// 그래서 「서버가 준 남은 기간」과 「그것을 받은 눈금」을 **문서에** 적어 두고 이어받는다.
+//   · 자리를 문서로 고른 이유는 lib/eumSenior 의 EUM_RETRY_FLAG 와 같다 — 모듈 변수는 번들
+//     경계마다 갈라지고, 저장소(localStorage·sessionStorage)는 문서를 넘겨 살아남아 **다음에
+//     링크를 여는 어르신**이 남의 눈금을 물려받는다. 문서 속성은 이 문서 안에서만 산다.
+//   · `performance.now()` 는 문서의 시간원점을 기준으로 하므로, 같은 문서 안에서 적어 둔
+//     눈금과 나중에 읽은 눈금은 **그대로 뺄 수 있다**(기기 시계와 무관하다는 성질도 그대로다).
+//   · 이 모듈은 DOM 을 import 하지 않는다 — 화면이 `document.documentElement` 만 넘긴다.
+export const EUM_CLOCK_FLAG = 'data-eum-clock';
+
+// 「남은 기간/눈금」 한 칸. 규격 밖이면 ''(적지 않는다 — 반쪽 값을 적으면 읽는 쪽이 그것을
+// 믿을지 말지를 다시 정해야 한다).
+export function serializeClock(left, tick) {
+  const l = num(left);
+  const t = num(tick);
+  if (!Number.isFinite(l) || l <= 0 || !Number.isFinite(t)) return '';
+  return `${Math.floor(l)}/${t}`;
+}
+
+// 적어 둔 칸 → { left, tick }. 모르는 글자·반쪽·0 이하는 전부 null(모른다) — 지어내지 않는다.
+export function parseClock(text) {
+  if (typeof text !== 'string' || !text) return null;
+  const m = /^(\d+)\/(-?\d+(?:\.\d+)?)$/.exec(text);
+  if (!m) return null;
+  const left = Number(m[1]);
+  const tick = Number(m[2]);
+  if (!Number.isFinite(left) || left <= 0 || !Number.isFinite(tick)) return null;
+  return { left, tick };
+}
+
+// 적는다. 적지 못해도 **던지지 않는다** — 잃는 것은 되살아났을 때의 정확한 남은 시간이고,
+// 그때도 서버가 만료의 최종 판정자로 남는다(markRetried 와 같은 계약).
+export function markClock(root, left, tick) {
+  try {
+    const text = serializeClock(left, tick);
+    if (!text || !root || typeof root.setAttribute !== 'function') return false;
+    root.setAttribute(EUM_CLOCK_FLAG, text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 읽는다. **지우지 않는다** — 이 사실은 문서가 사는 동안 계속 참이고, 다시 마운트될 때마다
+// 필요하다(EUM_RETRY_FLAG 는 한 번만 쓰이는 사실이라 읽고 지운다 — 성질이 반대다).
+export function readClock(root) {
+  try {
+    if (!root || typeof root.getAttribute !== 'function') return null;
+    return parseClock(root.getAttribute(EUM_CLOCK_FLAG));
+  } catch {
+    return null;
+  }
+}
+
+// 문서에 적힌 눈금을 **이어받거나**, 없으면 서버가 준 기간으로 새 눈금을 만든다.
+// `resumed` 는 「이어받았는가」다 — 화면은 그때만 경과를 선반영한다(첫 마운트에서 그러면
+// 서버가 그린 첫 그림과 어긋날 수 있고, 이어받는 경우에는 하이드레이션이 애초에 없다).
+// 여기서 **적지는 않는다**: 쓰기는 효과의 몫이다(렌더 중에 문서를 고치지 않는다).
+export function resumeClock(stored, remainingMs, tick) {
+  const s = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : null;
+  const l = s ? num(s.left) : NaN;
+  const t = s ? num(s.tick) : NaN;
+  if (Number.isFinite(l) && l > 0 && Number.isFinite(t)) {
+    return { left: Math.floor(l), tick: t, resumed: true };
+  }
+  const now = num(tick);
+  return {
+    left: initialLeftMs(remainingMs),
+    tick: Number.isFinite(now) ? now : nowTick(),
+    resumed: false,
+  };
 }

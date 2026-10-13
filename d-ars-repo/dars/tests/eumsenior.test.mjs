@@ -15,6 +15,7 @@ import {
   storageKey,
   normalizeDraft,
   parseDraft,
+  restorePoint,
   stepQuery,
   DRAFT_PARAM,
   EUM_STEP_MAX,
@@ -361,6 +362,54 @@ test('주소만으로는 완료 화면에 닿을 수 없다(접수는 서버 응
   const draft = parseDraft(q);
   assert.ok(!('done' in draft));
   assert.equal(clampStep(parseStep(q.get('step')), { ...draft, done: false }), 3, '확인 화면까지만');
+});
+
+// ── 복원의 기준은 **지금 주소**다 ─────────────────────────────────────────
+//
+// 고친 결함: 복원이 서버가 넘긴 값(initialStep·initialDraft)을 기준으로 삼았다. 그 값은
+// **문서를 열 때의 주소**를 찍은 사진이고, 단계 이동은 pushState 라 서버를 거치지 않으므로
+// 그 뒤의 주소를 모른다. 문서가 열려 있는 동안 화면이 다시 마운트되는 길이 하나 있었다 —
+// 오류 화면의 「다시 시도」(Next 의 `reset()` 은 경계 상태만 비우고 **같은 자식을 다시
+// 그린다** · 재요청·새로고침이 없다). 그래서 3단계에서 오류를 만난 어르신이 이 흐름의
+// **유일한 되돌리기 수단**을 누르면 1단계·빈 선택으로 돌아가고, 마지막 사본이던 주소까지
+// 같은 숨에 지워졌다(화면이 그 사진으로 replaceState 했다). 수명은 5분이다.
+test('restorePoint: 지금 주소가 기준이고 서버가 넘긴 값은 폴백이다', () => {
+  const photo = { step: '1', activity: '', timeslot: '' };          // 문서를 열 때의 주소
+  const live = { step: '3', activity: 'walk', timeslot: 'morning' }; // 그 뒤로 고른 것
+  assert.deepEqual(restorePoint(photo, live), { step: 3, activity: 'walk', timeslot: 'morning' });
+  // 처음 열린 문서에서는 둘이 **같은 주소**다 — 그래서 첫 그림이 어긋나지 않는다.
+  assert.deepEqual(restorePoint(live, live), restorePoint(live, null));
+});
+
+test('restorePoint: 주소를 못 읽은 것(null)과 「1단계·빈 선택」은 다른 사실이다', () => {
+  const photo = { step: '3', activity: 'walk', timeslot: 'morning' };
+  // 못 읽었다 → 사진으로 떨어진다(고른 것을 잃지 않는다).
+  assert.deepEqual(restorePoint(photo, null), { step: 3, activity: 'walk', timeslot: 'morning' });
+  // 읽었고 비어 있다 → 주소가 맞다(주소는 누구나 고칠 수 있고, 그것이 진짜 지금 상태다).
+  assert.deepEqual(restorePoint(photo, { step: '1' }), { step: 1, activity: '', timeslot: '' });
+  // 객체가 아닌 값은 「못 읽었다」와 같게 다룬다 — 모르는 것을 믿지 않는다.
+  for (const bad of [undefined, '', 0, false, 'x', [], NaN]) {
+    assert.deepEqual(restorePoint(photo, bad), { step: 3, activity: 'walk', timeslot: 'morning' });
+  }
+});
+
+test('restorePoint: 규격 밖 값은 화이트리스트로 떨어지고 단계도 함께 되돌아간다', () => {
+  const at = restorePoint(null, { step: '3', activity: '없는값', timeslot: 'morning' });
+  assert.deepEqual(at, { step: 3, activity: '', timeslot: 'morning' });
+  assert.equal(clampStep(at.step, { ...at, done: false }), 1, '건너뛰기가 통하면 안 된다');
+  // 양쪽이 다 없으면 첫 화면·빈 선택이다(그 자리에서 지어낼 것이 없다).
+  assert.deepEqual(restorePoint(null, null), { step: 1, activity: '', timeslot: '' });
+});
+
+test('restorePoint: 어떤 입력에도 throw 하지 않는다(복원이 화면을 죽이면 안 된다)', () => {
+  const junk = [undefined, null, NaN, Infinity, 'x', 0, [], () => {}, Symbol.iterator,
+    { step: Symbol.iterator }, { step: {}, activity: {}, timeslot: [] }];
+  for (const a of junk) {
+    for (const b of junk) assert.doesNotThrow(() => restorePoint(a, b));
+  }
+  // 프로토타입에서 끌어온 값이 선택으로 통과하지 않는다.
+  assert.deepEqual(restorePoint(null, { activity: 'constructor', timeslot: '__proto__' }),
+    { step: 1, activity: '', timeslot: '' });
 });
 
 // ── 되돌아가기가 실제로 되돌아가는가 ──────────────────────────────────────

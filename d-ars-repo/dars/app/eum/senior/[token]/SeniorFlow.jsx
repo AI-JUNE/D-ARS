@@ -33,12 +33,11 @@ import {
   TIMESLOTS,
   STEP_TITLE,
   clampStep,
-  parseStep,
   summaryText,
   buildPreferences,
   parseAccepted,
   parseDraft,
-  normalizeDraft,
+  restorePoint,
   stepQuery,
   storageKey,
   stepState,
@@ -50,17 +49,18 @@ import {
   errorAt,
   submitBlock,
   takeRetried,
-  EUM_HISTORY_ROOT,
   EUM_VISIT_MIN,
 } from '@/lib/eumSenior';
 import {
   EUM_SOON_MESSAGE,
   elapsedSince,
-  initialLeftMs,
   isExpired,
   isSoon,
   leftAfter,
+  markClock,
   nowTick,
+  readClock,
+  resumeClock,
   secondsLeft,
 } from '@/lib/eumCountdown';
 import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumConsume';
@@ -87,15 +87,24 @@ import {
 } from './ui.jsx';
 import PriorLocal from './PriorLocal.jsx';
 
-// 주소에서 단계와 선택을 함께 읽는다(뒤로가기·앞으로가기). 읽지 못하면 첫 화면·빈 선택 —
-// 여기서 던지면 뒤로가기 한 번에 신청 화면이 통째로 죽는다.
+// **지금 주소**에서 단계와 선택을 함께 읽는다(첫 복원 · 뒤로가기 · 앞으로가기).
+// 읽지 못하면 **null** — 「1단계·빈 선택」으로 뭉개지 않는다. 그 둘은 다른 사실이고, 섞으면
+// 주소를 못 읽은 것이 「처음으로 돌아가라」는 뜻이 된다(restorePoint 가 폴백을 정한다).
+// 던지지 않는다 — 여기서 던지면 뒤로가기 한 번에 신청 화면이 통째로 죽는다.
 function readLocation() {
+  if (typeof window === 'undefined') return null;
   try {
     const q = new URLSearchParams(window.location.search);
-    return { step: parseStep(q.get('step')), ...parseDraft(q) };
+    return { step: q.get('step'), ...parseDraft(q) };
   } catch {
-    return { step: 1, activity: '', timeslot: '' };
+    return null;
   }
+}
+
+// 문서 뿌리(있으면). 넘겨받은 사실을 적어 두는 자리다 — 눈금(eumCountdown)과 「다시 시도」
+// 표시(eumSenior)가 같은 자리를 쓴다.
+function docRoot() {
+  return typeof document !== 'undefined' ? document.documentElement : null;
 }
 
 export default function SeniorFlow({
@@ -105,15 +114,22 @@ export default function SeniorFlow({
   initialDraft = null,
   remainingMs = 0,
 }) {
-  // 첫 값은 **주소에서 복원한 선택**이다. 규격 밖 값은 normalizeDraft 가 빈 값으로 떨어뜨리고,
-  // 그러면 clampStep 이 단계도 함께 앞으로 되돌린다(주소를 손으로 고쳐도 건너뛸 수 없다).
-  const [restored] = useState(() => normalizeDraft(initialDraft));
+  // 첫 값은 **지금 주소에서 복원한 단계와 선택**이다. 서버가 넘긴 값(initialStep·initialDraft)은
+  // 그 주소를 읽을 수 없을 때의 폴백이다 — 그것은 **문서를 열 때의 주소**를 찍은 사진이라,
+  // 「다시 시도」로 이 화면이 다시 마운트되면 그 사이 고른 것을 전부 잃는다(그리고 예전에는
+  // 아래 replaceState 가 주소까지 그 사진으로 덮었다 · lib/eumSenior 의 restorePoint 참조).
+  // 규격 밖 값은 빈 값으로 떨어지고, 그러면 clampStep 이 단계도 함께 앞으로 되돌린다
+  // (주소를 손으로 고쳐도 건너뛸 수 없다).
+  const [restored] = useState(() => restorePoint(
+    { step: initialStep, ...(initialDraft || {}) },
+    readLocation(),
+  ));
   const [activity, setActivity] = useState(restored.activity);
   const [timeslot, setTimeslot] = useState(restored.timeslot);
   const [done, setDone] = useState(false);
   // 첫 렌더부터 복원한 단계로 그린다. 1 로 두고 효과에서 고치면 되살아난 탭이 첫 화면을
   // 한 번 깜빡인 뒤 넘어가, 어르신에게는 "또 처음으로 갔다" 로 보인다.
-  const [step, setStep] = useState(() => clampStep(initialStep, { ...restored, done: false }));
+  const [step, setStep] = useState(() => clampStep(restored.step, { ...restored, done: false }));
   // 이 화면을 **몇 번째로 밟고 있는가**. 단계만으로는 안내가 머물 자리를 가릴 수 없다 —
   // 같은 번호의 단계로 몇 번이고 되돌아오기 때문이다(lib/eumSenior 의 「그 화면의 그 방문」).
   const [visit, setVisit] = useState(EUM_VISIT_MIN);
@@ -124,9 +140,17 @@ export default function SeniorFlow({
   // 때는 되돌아갔다 돌아온 **같은 화면**에 조금 전의 실패가 되살아났다.
   const [error, setError] = useState(null);
   // 서버가 판정한 남은 기간과, 그것을 받은 시점의 단조 눈금. 둘의 차이로만 남은 시간을 센다.
-  const [initialLeft] = useState(() => initialLeftMs(remainingMs));
-  const [baseTick] = useState(() => nowTick());
-  const [left, setLeft] = useState(initialLeft);
+  // 그 한 쌍은 **문서에 적혀 있으면 그것을 이어받는다** — 「다시 시도」로 다시 마운트될 때
+  // 출발점을 지금으로 맞추면 4분 30초가 지난 링크가 5분 남은 링크로 되살아나고, 하필 시간이
+  // 가장 급한 그 순간에 만료 임박 경고가 침묵한다(lib/eumCountdown 의 resumeClock 참조).
+  const [clock] = useState(() => resumeClock(readClock(docRoot()), remainingMs, nowTick()));
+  const [initialLeft] = useState(clock.left);
+  const [baseTick] = useState(clock.tick);
+  // 이어받은 경우에만 경과를 **첫 값에 반영**한다. 첫 마운트에서 그러면 서버가 그린 첫 그림과
+  // 어긋날 수 있고(하이드레이션), 이어받는 경우에는 하이드레이션이 애초에 없다.
+  const [left, setLeft] = useState(() => (
+    clock.resumed ? leftAfter(clock.left, elapsedSince(clock.tick)) : clock.left
+  ));
   // 서버가 만료라고 판정한 경우 — 화면은 전송 지연만큼 너그럽게 세므로 아직 유효해 보일 수 있다.
   // 어긋나면 **서버 쪽이 맞다**(최종 판정자).
   const [expiredByServer, setExpiredByServer] = useState(false);
@@ -173,7 +197,7 @@ export default function SeniorFlow({
   useEffect(() => {
     if (!mountedRef.current) {
       mountedRef.current = true;
-      if (!takeRetried(typeof document !== 'undefined' ? document.documentElement : null)) return;
+      if (!takeRetried(docRoot())) return;
     }
     try {
       headingRef.current?.focus();
@@ -182,22 +206,33 @@ export default function SeniorFlow({
     }
   }, [step]);
 
-  // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·탭 복원 대비).
-  // 기준은 **주소에서 복원한 선택**이다 — 예전에는 빈 선택으로 계산해, 주소에 고른 것이
-  // 그대로 실려 있어도 무조건 1단계로 떨어뜨렸다.
+  // 서버가 준 남은 기간을 **문서에 적어 둔다**(이미 적혀 있으면 덮지 않는다 — 덮으면 되살아날
+  // 때마다 5분이 처음부터 다시 시작하고, 그것이 위 clock 이 고친 결함이다).
+  // 렌더가 아니라 효과에서 적는다 — 그리는 동안 문서를 고치지 않는다.
   useEffect(() => {
-    const want = clampStep(initialStep, { ...restored, done: false });
+    if (clock.resumed || clock.left === null) return;
+    markClock(docRoot(), clock.left, clock.tick);
+  }, [clock]);
+
+  // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·탭 복원·「다시 시도」 대비).
+  // 기준은 **주소에서 복원한 단계와 선택**이다 — 예전에는 빈 선택으로 계산해 주소에 고른 것이
+  // 실려 있어도 1단계로 떨어뜨렸고(6회차), 그 뒤로도 서버가 넘긴 **사진**을 기준으로 삼아
+  // 되살아난 화면이 처음으로 돌아갔다(restorePoint).
+  useEffect(() => {
+    const want = clampStep(restored.step, { ...restored, done: false });
     enterStep(want);
     try {
-      // 이 항목은 **복원으로 생긴 뿌리**다 — 깊이 0. replaceState 는 항목을 쌓지 않으므로
-      // 여기서 history.back() 을 불러도 갈 곳이 없다. 그 사실을 상태에 적어 두어야
-      // 되돌아가기 링크가 가로채기 대신 **자기 href 를 따라갈 수 있다**(back 참조).
-      const root = stepState(want, EUM_HISTORY_ROOT);
+      const here = window.history.state;
+      // 복원은 항목을 **쌓지도 지우지도 않는다** → 깊이도 그대로 둔다. 예전에는 무조건
+      // 뿌리(0)로 적었는데, 되살아난 화면에서는 지금 항목이 **우리가 쌓은 것**일 수 있고
+      // 그때 뿌리로 적으면 되돌아가기가 히스토리 대신 전체 이동으로 떨어진다(backAction).
+      // 처음 열린 문서에서는 우리가 적은 상태가 없어 historyDepth 가 0 이다 — 종전과 같다.
+      const root = stepState(want, historyDepth(here));
       window.history.replaceState(root, '', stepQuery(want, restored));
     } catch {
       /* 히스토리 조작 불가 환경(구형 브라우저) — 화면 동작에는 영향 없다 */
     }
-  }, [initialStep, restored, enterStep]);
+  }, [restored, enterStep]);
 
   // 뒤로가기/앞으로가기 → 주소의 단계와 선택을 함께 되살린다.
   useEffect(() => {
@@ -211,14 +246,16 @@ export default function SeniorFlow({
         enterStep(4);
         return;
       }
-      const at = readLocation();
+      // 주소를 읽지 못하면 복원 지점으로 떨어진다 — 예전에는 그때 「1단계·빈 선택」으로
+      // 뭉갰다(읽지 못한 것이 「처음부터 다시 골라라」가 되어서는 안 된다 · restorePoint).
+      const at = restorePoint(restored, readLocation());
       setActivity(at.activity);
       setTimeslot(at.timeslot);
       enterStep(clampStep(at.step, { ...at, done: false }));
     }
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [enterStep]);
+  }, [restored, enterStep]);
 
   // 남은 시간(1초 간격). 제출이 끝났으면 더 세지 않는다 — 완료 화면이 만료로 덮이지 않게.
   useEffect(() => {
@@ -546,7 +583,7 @@ export default function SeniorFlow({
                 onClick={() => chooseActivity(o.k)}
               >
                 <span aria-hidden="true" style={S.mark}>{activity === o.k ? EUM_CHOICE_MARK : ''}</span>
-                {o.label}
+                <span style={S.choiceLabel}>{o.label}</span>
               </button>
             ))}
           </div>
@@ -565,7 +602,10 @@ export default function SeniorFlow({
                   onClick={() => chooseTimeslot(o.k)}
                 >
                   <span aria-hidden="true" style={S.mark}>{timeslot === o.k ? EUM_CHOICE_MARK : ''}</span>
-                  {o.label}
+                  {/* 라벨을 조각으로 감싼다 — 두 줄이 될 때 둘째 줄이 표시 칸 아래로 들어가지
+                      않게(ui.jsx 의 CHOICE·S.choiceLabel). 375px 에서 두 줄이 되는 선택지가
+                      실제로 있다(「늦은 오후 3시부터 6시까지」). */}
+                  <span style={S.choiceLabel}>{o.label}</span>
                 </button>
               ))}
             </div>

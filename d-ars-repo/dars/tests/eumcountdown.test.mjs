@@ -23,6 +23,12 @@ import {
   isExpired,
   isSoon,
   secondsLeft,
+  EUM_CLOCK_FLAG,
+  serializeClock,
+  parseClock,
+  markClock,
+  readClock,
+  resumeClock,
 } from '../lib/eumCountdown.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -137,6 +143,81 @@ test('임박 안내는 그 다음에 보게 되는 화면과 같은 낱말을 �
   assert.match(EUM_SOON_MESSAGE, /신청해 주세요/);
 });
 
+// ── 되살아난 화면도 같은 눈금을 쓴다 ─────────────────────────────────────────
+//
+// 고친 결함: 화면은 `remainingMs` 를 서버가 넘긴 값으로 받아 **마운트 시점**을 출발점으로
+// 삼았다. 그런데 문서가 열려 있는 동안 화면이 다시 마운트되는 길이 하나 있다 — 오류 화면의
+// 「다시 시도」(Next 의 reset 은 같은 자식을 다시 그린다 · 서버를 거치지 않는다). 그때
+// 출발점이 지금으로 다시 맞춰져, 4분 30초가 지난 링크가 **5분 남은 링크로** 되살아났다.
+// 그러면 하필 시간이 가장 급한 그 순간에 「잠시 후 링크가 만료됩니다」가 침묵하고, 어르신은
+// 네 화면을 끝까지 걷고 **제출에서** 410 을 만난다(고를 것을 다 고른 뒤에 만료를 듣는다).
+
+// 최소한의 노드 흉내 — 이 모듈은 DOM 을 import 하지 않으므로 속성 한 칸만 있으면 된다
+// (lib/eumSenior 의 markRetried 테스트와 같은 방식).
+function fakeRoot(initial = {}) {
+  const attrs = { ...initial };
+  return {
+    attrs,
+    setAttribute(k, v) { attrs[k] = String(v); },
+    getAttribute(k) { return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null; },
+  };
+}
+
+test('눈금 왕복: 적어 둔 남은 기간·눈금이 그대로 돌아온다', () => {
+  const root = fakeRoot();
+  assert.equal(readClock(root), null, '적기 전에는 모른다고 답해야 한다');
+  assert.equal(markClock(root, 270000, 12345.5), true);
+  assert.equal(root.attrs[EUM_CLOCK_FLAG], '270000/12345.5');
+  assert.deepEqual(readClock(root), { left: 270000, tick: 12345.5 });
+  // 이어받으면 **경과만큼 줄어든 값**이 나온다 — 출발점이 지금으로 다시 맞춰지지 않는다.
+  const got = resumeClock(readClock(root), 300000, 99999);
+  assert.deepEqual(got, { left: 270000, tick: 12345.5, resumed: true });
+  assert.equal(leftAfter(got.left, elapsedSince(got.tick, got.tick + 42000)), 228000);
+});
+
+test('적힌 눈금이 없으면 서버가 준 기간으로 새로 시작한다(첫 마운트)', () => {
+  const got = resumeClock(null, 300000, 500);
+  assert.deepEqual(got, { left: 300000, tick: 500, resumed: false });
+  // resumed 가 false 인 동안에는 경과를 첫 값에 반영하지 않는다 — 서버가 그린 첫 그림과
+  // 어긋나지 않게 하기 위한 구분이고, 이어받는 경우에는 하이드레이션이 애초에 없다.
+  assert.equal(resumeClock(null, 'x', 500).left, null, '모르면 0 이 아니라 null 이다');
+});
+
+test('반쪽·파손된 눈금은 **모른다**로 떨어진다(지어내지 않는다)', () => {
+  for (const bad of ['', '0/1', '-5/1', 'abc', '300000', '300000/', '/1', '300000/x',
+    '300000/1/2', ' 300000/1', '3e5/1']) {
+    assert.equal(parseClock(bad), null, `파손된 값을 믿었다: ${bad}`);
+  }
+  // 그때는 서버가 준 기간으로 새로 시작한다(판정 실패가 멀쩡한 링크를 막지 않는다).
+  assert.deepEqual(resumeClock(parseClock('0/1'), 60000, 7), { left: 60000, tick: 7, resumed: false });
+  assert.deepEqual(resumeClock({ left: 1000 }, 60000, 7), { left: 60000, tick: 7, resumed: false });
+  assert.deepEqual(resumeClock({ tick: 1000 }, 60000, 7), { left: 60000, tick: 7, resumed: false });
+});
+
+test('적지 못하거나 읽지 못해도 던지지 않는다(남은 시간 때문에 화면이 죽지 않는다)', () => {
+  const junk = [undefined, null, 0, '', 'x', [], () => {}, {}, Symbol.iterator];
+  for (const v of junk) {
+    assert.doesNotThrow(() => markClock(v, 1000, 1));
+    assert.doesNotThrow(() => readClock(v));
+    assert.doesNotThrow(() => resumeClock(v, 1000, 1));
+    assert.doesNotThrow(() => serializeClock(v, v));
+    assert.doesNotThrow(() => parseClock(v));
+  }
+  assert.equal(markClock(null, 1000, 1), false);
+  assert.equal(serializeClock(0, 1), '', '남은 기간이 0 이면 적지 않는다(만료와 구별되지 않는다)');
+  assert.equal(serializeClock(1000, NaN), '', '눈금이 없으면 반쪽으로 적지 않는다');
+  const broken = { setAttribute() { throw new Error('막힘'); }, getAttribute() { throw new Error('막힘'); } };
+  assert.equal(markClock(broken, 1000, 1), false);
+  assert.equal(readClock(broken), null);
+});
+
+test('읽는 것은 **지우지 않는다** — 다시 마운트될 때마다 필요한 사실이다', () => {
+  const root = fakeRoot();
+  markClock(root, 1000, 1);
+  assert.deepEqual(readClock(root), { left: 1000, tick: 1 });
+  assert.deepEqual(readClock(root), { left: 1000, tick: 1 }, '한 번 읽고 사라지면 세 번째 마운트가 처음으로 돌아간다');
+});
+
 // ── 화면 배선(소스 계약) ─────────────────────────────────────────────────────
 
 test('화면에 절대 만료시각을 넘기지 않는다 — 기기 시계와 비교할 거리를 주지 않는다', () => {
@@ -153,6 +234,23 @@ test('화면에 절대 만료시각을 넘기지 않는다 — 기기 시계와 
     .join('\n');
   assert.equal(/Date\.now\(\)/.test(code), false, '화면이 다시 기기 시계로 만료를 판정하고 있다');
   assert.match(flow, /from '@\/lib\/eumCountdown'/, '남은 시간 계산은 단일 출처에서 가져온다');
+});
+
+test('화면은 문서에 적힌 눈금을 이어받는다(「다시 시도」가 5분을 되살리지 않게)', () => {
+  const flow = read('app/eum/senior/[token]/SeniorFlow.jsx');
+  assert.match(flow, /resumeClock\(readClock\(docRoot\(\)\), remainingMs, nowTick\(\)\)/,
+    '적힌 눈금을 보지 않는다 — 다시 마운트될 때마다 남은 시간이 처음으로 되살아난다');
+  assert.match(flow, /const \[initialLeft\] = useState\(clock\.left\);/, '이어받은 기간을 쓰지 않는다');
+  assert.match(flow, /const \[baseTick\] = useState\(clock\.tick\);/, '이어받은 눈금을 쓰지 않는다');
+  // 이미 적혀 있으면 **덮지 않는다** — 덮으면 되살아날 때마다 5분이 처음부터 다시 시작한다.
+  assert.match(flow, /if \(clock\.resumed \|\| clock\.left === null\) return;/, '적힌 눈금을 덮어쓸 수 있다');
+  // 쓰기는 효과의 몫이다(그리는 동안 문서를 고치지 않는다).
+  const write = flow.indexOf('markClock(docRoot()');
+  const effect = flow.lastIndexOf('useEffect(() => {', write);
+  assert.ok(effect > -1 && write - effect < 400, '눈금을 렌더 중에 적고 있다');
+  // 저장소에 넣지 않는다 — 그것들은 문서를 넘겨 살아남아 **다음에 링크를 여는 어르신**이
+  // 남의 눈금을 물려받는다(markRetried 와 같은 계약).
+  assert.equal(/(local|session)Storage[^\n]*clock/i.test(flow), false, '눈금이 문서를 넘겨 살아남는 자리에 있다');
 });
 
 // 정정: 이 테스트는 한동안 `aria-live` 가 **경고 문단에 붙어 있는지**를 확인하며 통과했다.

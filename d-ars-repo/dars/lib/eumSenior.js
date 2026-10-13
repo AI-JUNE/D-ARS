@@ -104,8 +104,14 @@ export function isTimeslot(k) {
 }
 
 // '?step=' 값 → 1~4 정수. 이상값·범위 밖은 1(첫 화면)로 되돌린다.
+// `Number(Symbol)` 은 **throw 한다** — 단계 계산이 렌더 도중 던지면 신청 화면이 통째로 빈
+// 화면이 된다(lib/eumCountdown 의 num 과 같은 이유). 그래서 변환은 수로 바꿀 수 있는
+// 종류에만 건다. 지금 들어오는 값은 주소의 글자뿐이지만, 이 함수를 부르는 자리가
+// 늘어나는 날(restorePoint 가 그런 자리다) 넓어지는 것은 **입력 쪽**이다.
 export function parseStep(value) {
-  const n = Number(Array.isArray(value) ? value[0] : value);
+  const raw = Array.isArray(value) ? value[0] : value;
+  const kind = typeof raw;
+  const n = kind === 'number' || kind === 'string' || kind === 'boolean' ? Number(raw) : NaN;
   if (!Number.isFinite(n)) return EUM_STEP_MIN;
   const i = Math.floor(n);
   if (i < EUM_STEP_MIN || i > EUM_STEP_MAX) return EUM_STEP_MIN;
@@ -194,6 +200,35 @@ export function stepQuery(step, draft) {
   if (d.activity) parts.push(`${DRAFT_PARAM.activity}=${d.activity}`);
   if (d.timeslot) parts.push(`${DRAFT_PARAM.timeslot}=${d.timeslot}`);
   return `?${parts.join('&')}`;
+}
+
+// ── 복원의 기준은 **지금 주소**다 ─────────────────────────────────────────
+//
+// 고친 결함: 화면은 단계와 고른 것을 **서버가 넘긴 값**(initialStep·initialDraft)에서 복원했다.
+// 그 값은 서버가 **문서를 열 때의 주소**를 읽은 한 장의 사진이고, 그 뒤 주소가 바뀌어도
+// 따라오지 않는다(단계 이동은 Next 라우팅이 아니라 pushState 다 — 서버를 거치지 않는다).
+// 문서가 열려 있는 동안 화면이 **다시 마운트되는** 길이 있다면, 그때 복원은 사진 쪽을 믿는다.
+// 그 길이 실제로 하나 있었다 — **오류 화면의 「다시 시도」**다.
+//   `reset()` 은 경계의 상태만 비우고 **같은 자식 엘리먼트를 다시 그린다**(Next 의
+//   ErrorBoundaryHandler — `setState({error:null})` 뿐이고 재요청·새로고침이 없다). 그래서
+//   신청 흐름은 **문서를 열 때의 props 로 새로 마운트**되고, 그 사이 어르신이 고른 것은
+//   화면 메모리와 함께 사라진다. 남아 있는 것은 주소뿐인데(6회차가 그러려고 거기 둔 것이다)
+//   복원이 사진을 믿으므로 **주소를 사진으로 덮어썼다**(replaceState).
+// 결과: 3단계에서 오류를 만난 어르신이 이 화면의 **유일한 되돌리기 수단**을 누르면 1단계로
+// 돌아가고 고른 것이 전부 비어 있다 — 그리고 마지막 사본이던 주소까지 같은 숨에 지워진다.
+// 12·13회차가 「되돌릴 길을 하나 준다」로 지은 그 단추가, 6회차가 지킨 것을 되돌리고 있었다.
+// (수명 5분 · 네 화면을 다시 걷는 데 드는 시간을 생각하면 「다시 시도」가 곧 신청 포기다.)
+//
+// 그래서 복원의 기준을 **지금 주소**로 되돌린다. props 는 그 주소를 읽을 수 없을 때의
+// 폴백이다(서버 렌더 · window 접근 불가). 첫 그림이 어긋나지 않는 이유: 하이드레이션 시점의
+// 주소는 **서버가 읽은 그 주소**이므로 두 값이 같다. 값이 갈라지는 경우는 주소가 그 뒤에
+// 바뀐 때뿐이고, 그것은 하이드레이션이 아니라 다시 마운트되는 경우다.
+export function restorePoint(served, live) {
+  const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+  // `live === null` 은 「주소를 읽지 못했다」이고, 그것은 「1단계·빈 선택」과 다른 사실이다 —
+  // 둘을 섞으면 못 읽은 것이 「처음으로 돌아가라」는 뜻이 된다.
+  const at = obj(live) || obj(served);
+  return { step: parseStep(at?.step), ...normalizeDraft(at) };
 }
 
 // 활동과 시간대를 가르는 자리. 예전에는 띄어 쓴 '·' 였는데 그것은 **낭독되지 않고**(위

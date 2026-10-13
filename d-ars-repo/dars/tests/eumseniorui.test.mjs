@@ -165,6 +165,33 @@ test('375px: 폭 100% 요소가 border-box 라 가로 스크롤이 생기지 않
   assert.match(ui, /overflowWrap: 'break-word'/, '긴 문구가 화면을 밀어낸다');
 });
 
+// ── 고친 결함: 두 줄이 된 라벨의 **둘째 줄**이 표시 칸 아래로 들어갔다 ────────
+//
+// 선택지 버튼은 `display: 'block'` 이었고 안에서 표시 칸(S.mark · ✓ 자리)과 라벨이 인라인으로
+// 흘렀다. 인라인 흐름의 다음 줄은 글자가 아니라 **상자의 왼쪽 끝**에서 시작하므로, 라벨이
+// 두 줄이 되면 둘째 줄만 왼쪽으로 34px 튀어나온다. 375px(요건 기준 폭)에서 그것은 가정이
+// 아니다 — 「늦은 오후 3시부터 6시까지」는 26px 글자로 ~310px 이고 쓸 수 있는 폭은 ~263px
+// (375 − 좌우 32 − 테두리 6 − 안쪽 여백 40 − 표시 칸 34)다. 하필 그 칸을 둔 이유가
+// 11회차의 「모든 선택지가 같은 폭을 비워 두어 라벨이 어긋나지 않게」 였다 — 칸은 첫 줄만
+// 맞추고 있었고, 그 전제를 아무도 대조하지 않았다.
+test('선택지 라벨은 두 줄이 되어도 표시 칸 아래로 들어가지 않는다(375px)', () => {
+  // 주석을 걷어낸 뒤 본다 — 결함을 설명하는 주석이 옛 모양(`display: 'block'`)을 적고 있다.
+  const uiCode = stripComments(ui);
+  const choice = uiCode.slice(uiCode.indexOf('const CHOICE = {'), uiCode.indexOf('export const S = {'));
+  assert.ok(choice.length > 100, 'CHOICE 스타일을 찾지 못했다');
+  assert.match(choice, /display: 'flex'/, '인라인 흐름에서는 둘째 줄이 표시 칸 아래로 들어간다');
+  assert.equal(/display: 'block'/.test(choice), false, '인라인 흐름이 되살아났다');
+  // 표시 칸은 줄어들지 않고(선택지마다 폭이 달라지면 안 된다) 라벨은 자기 상자 안에서 접힌다.
+  assert.match(uiCode, /mark: \{ width: 34, flexShrink: 0,/, '표시 칸이 줄어들 수 있다');
+  assert.match(uiCode, /choiceLabel: \{ flex: 1, minWidth: 0 \}/, '라벨이 자기 상자를 갖지 않는다');
+  // 화면이 라벨을 조각으로 감싸는지 — 감싸지 않으면 flex 가 익명 항목을 만들어 minWidth 0 이
+  // 걸리지 않고, 긴 라벨이 375px 에서 상자를 넘긴다.
+  const wrapped = [...flow.matchAll(/<span style=\{S\.choiceLabel\}>\{o\.label\}<\/span>/g)].length;
+  const drawn = [...flow.matchAll(/\{o\.label\}/g)].length;
+  assert.equal(drawn, 2, `선택지 라벨을 그리는 자리가 둘이 아니다: ${drawn}`);
+  assert.equal(wrapped, drawn, `조각 없이 그려지는 라벨이 있다: ${wrapped}/${drawn}`);
+});
+
 test('한 화면 버튼 4개 이내: 되돌아가기는 링크(a)로 둔다', () => {
   // 선택지 4개인 1·2단계에 버튼을 더 두면 요건을 넘는다 → 뒤로가기는 <a>.
   // href 는 고른 것을 함께 실은 주소다(stepQuery) — 자바스크립트 없이 눌러도, 새 탭으로 열어도
@@ -183,6 +210,33 @@ test('고른 것을 주소에 유지한다 — 주소 조립은 stepQuery 한 �
   const handmade = [...flow.matchAll(/`\?step=/g)].length;
   assert.equal(handmade, 0, `주소를 손으로 조립한 자리가 있다: ${handmade}`);
   assert.ok(/history\.(push|replace)State\([^)]*stepQuery\(/.test(flow), '히스토리 기록도 stepQuery 를 써야 한다');
+});
+
+// ── 고친 결함: 되살아난 화면이 **처음으로** 되돌아갔다 ────────────────────────
+//
+// 복원의 기준이 서버가 넘긴 값(initialStep·initialDraft)이었다. 그것은 **문서를 열 때의
+// 주소**를 찍은 사진이고, 단계 이동은 pushState 라 서버를 거치지 않으므로 그 뒤의 주소를
+// 모른다. 문서가 열려 있는 동안 이 화면이 다시 마운트되는 길이 하나 있었다 —
+// **오류 화면의 「다시 시도」**(Next 의 `reset()` 은 경계 상태만 비우고 같은 자식을 다시
+// 그린다 · 재요청이 없다). 그래서 3단계에서 오류를 만난 어르신이 이 흐름의 **유일한
+// 되돌리기 수단**을 누르면 1단계·빈 선택으로 돌아갔고, 마지막 사본이던 주소까지 아래
+// replaceState 가 그 사진으로 덮었다. 6회차가 「다시 그려져도 고른 것이 살아남는다」로
+// 지킨 것을, 12·13회차가 「되돌릴 길을 하나 준다」로 지은 단추가 되돌리고 있었다.
+test('복원의 기준은 지금 주소다(서버가 넘긴 값은 못 읽을 때의 폴백이다)', () => {
+  const shown = stripComments(flow);
+  assert.match(shown, /restorePoint\(\s*\{ step: initialStep, \.\.\.\(initialDraft \|\| \{\}\) \},\s*readLocation\(\),\s*\)/,
+    '복원이 지금 주소를 보지 않는다 — 되살아난 화면이 문서를 열 때로 돌아간다');
+  // 주소를 **못 읽은 것**과 「1단계·빈 선택」을 구별해야 한다. 섞으면 못 읽은 것이
+  // 「처음부터 다시 골라라」는 뜻이 된다.
+  assert.match(shown, /function readLocation\(\)\s*\{[\s\S]*?return null;/,
+    'readLocation 이 못 읽은 것을 1단계로 뭉갠다');
+  assert.equal(/step: 1, activity: '', timeslot: ''/.test(shown), false,
+    '주소를 못 읽은 것을 첫 화면으로 뭉개는 폴백이 되살아났다');
+  // 단계 복원·뒤로가기 어느 쪽도 사진을 기준으로 삼지 않는다(양방향 대조).
+  assert.match(shown, /clampStep\(restored\.step,/, '단계 복원이 사진(initialStep)을 기준으로 삼는다');
+  assert.equal(/clampStep\(initialStep/.test(shown), false, '사진을 기준으로 삼는 자리가 남아 있다');
+  assert.match(shown, /const at = restorePoint\(restored, readLocation\(\)\);/,
+    '뒤로가기가 주소를 못 읽을 때 복원 지점으로 떨어지지 않는다');
 });
 
 test('완료 상태는 주소에 싣지 않는다(주소로 완료 화면을 만들 수 없다)', () => {
@@ -230,8 +284,12 @@ test('되돌아가기: 가로채기는 조건부다(되돌아갈 곳이 없으�
 });
 
 test('히스토리 항목에 깊이가 함께 실린다(우리가 쌓은 것인지 아는 유일한 단서)', () => {
-  // 복원으로 만든 항목은 뿌리다 — 여기서 뒤로 갈 곳은 없다(replaceState 는 쌓지 않는다).
-  assert.match(flow, /stepState\(want, EUM_HISTORY_ROOT\)/, '복원 항목이 뿌리로 표시되지 않는다');
+  // 복원은 항목을 **쌓지도 지우지도 않는다** → 깊이도 지금 항목의 것을 그대로 둔다.
+  // 정정: 한동안 여기서 무조건 뿌리(0)로 적었다. 처음 열린 문서에서는 맞는 값이지만(우리가
+  // 적은 상태가 없어 historyDepth 도 0 이다) 「다시 시도」로 **다시 마운트된** 화면에서는
+  // 지금 항목이 우리가 쌓은 것일 수 있고, 그때 뿌리로 적으면 되돌아가기가 히스토리 대신
+  // 전체 이동으로 떨어졌다(backAction 의 'follow').
+  assert.match(flow, /stepState\(want, historyDepth\(here\)\)/, '복원이 지금 항목의 깊이를 지운다');
   assert.match(flow, /replaceState\(root,/, '복원은 항목을 쌓지 않는다(replaceState)');
   // 고를 때 쌓는 항목은 한 칸 깊다(기준은 지금 항목의 상태 — go 가 한 번만 읽어 둔다).
   assert.match(flow, /const here = window\.history\.state;/, '지금 항목의 상태를 읽지 않는다');
@@ -355,20 +413,30 @@ test('색·글자 크기는 lib/eumTheme.js 에서 가져온다(하드코딩 금
 //
 // 왜 아무도 몰랐나: `fontSize` 에는 등록부 ↔ 화면 양방향 대조가 있었지만(바로 위 테스트)
 // **누를 자리에는 그런 가드가 없었다** — 6회차에 세운 가드가 크기 한 종류만 보고 있었던 셈이다.
-const TAP_LITERAL_OK = {
-  // 화면 전체의 최소 높이이지 **누를 자리가 아니다**(S.page). 숫자가 아니라 뷰포트 단위다.
-  "'100vh'": '화면 바탕이 짧은 내용에서도 끝까지 차게 한다 — 조작 요소가 아니다',
-};
+// 정정: 이 가드에는 예외가 하나 있었다 — `S.page` 의 `minHeight: '100vh'`("조작 요소가
+// 아니다"). 그 사유는 맞았지만 **예외로 적어 둔다는 것은 아무도 보지 않는다는 뜻**이기도
+// 했고, 하필 그 한 값이 결함이었다: 모바일에서 `vh` 는 주소창이 접힌 **큰 뷰포트**를 가리켜
+// 내용이 다 들어가는 화면에서도 문서를 늘 스크롤되게 만든다(그 스크롤이 주소창을 접으며
+// 화면 전체가 한 번 움직인다 — 겨눈 자리를 외워 누르는 사용자층에서는 그것만으로 누름이
+// 빗나간다). 같은 저장소의 포털 셸은 이미 `100vh; 100dvh` 두 줄을 적고 있었고 최후의 폴백
+// 화면조차 `100dvh` 였다 — 어르신 화면만 맨 `vh` 였다. 지금 그 값은 ui.jsx 의 EumStyles 가
+// 두 줄로 적고, 이 가드의 예외는 **0 개**다.
+const TAP_LITERAL_OK = {};
 
-test('누를 자리 높이는 lib/eumTheme.js 에서 가져온다(하드코딩 금지)', () => {
-  const heights = [...ui.matchAll(/minHeight:\s*([^,\n]+)/g)].map((m) => m[1].trim());
-  assert.ok(heights.length >= 4, `누를 자리 높이 선언이 줄었다: ${heights.length}`);
+test('누를 자리 높이는 lib/eumTheme.js 에서 가져온다(하드코딩 금지 · 예외 없음)', () => {
+  // 주석을 걷어낸 코드만 본다 — 이 결함을 설명하는 주석 자체가 `minHeight: '100vh'` 를 적고
+  // 있어서(위 참조) 날소스로 세면 그 글자가 선언으로 잡힌다.
+  const uiCode = stripComments(ui);
+  const heights = [...uiCode.matchAll(/minHeight:\s*([^,\n]+)/g)].map((m) => m[1].trim());
+  assert.ok(heights.length >= 3, `누를 자리 높이 선언이 줄었다: ${heights.length}`);
   const literal = heights.filter((v) => !/^T\.[A-Za-z]\w*$/.test(v) && !(v in TAP_LITERAL_OK));
   assert.deepEqual(literal, [], `ui.jsx 에 누를 자리 높이 하드코딩: ${literal.join(',')}`);
-  for (const [v, why] of Object.entries(TAP_LITERAL_OK)) {
-    assert.ok(heights.includes(v), `전역에서 사라진 예외: ${v}`);
-    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 예외: ${v}`);
-  }
+  assert.deepEqual(Object.keys(TAP_LITERAL_OK), [], '가드에 예외가 다시 생겼다 — 예외 자리는 아무도 보지 않는다');
+  // 화면 최소 높이는 인라인이 아니라 범위 CSS 에서, **vh → dvh 폴백 두 줄**로 적는다.
+  const css = (uiCode.match(/<style>\{`([\s\S]*?)`\}<\/style>/) || [])[1] || '';
+  assert.match(css, /min-height: 100vh;\s*min-height: 100dvh;/,
+    '화면 최소 높이가 큰 뷰포트(vh)만 보고 있다 — 내용이 다 들어가는 화면도 늘 스크롤된다');
+  assert.equal(/minHeight: '100vh'/.test(uiCode), false, '인라인 100vh 가 되살아났다(dvh 폴백을 적을 수 없는 자리다)');
   // 등록부 ↔ 화면 양방향 대조(fontSize 와 같은 계약): 모르는 이름은 undefined 가 되어 높이가
   // 조용히 사라지고, 아무도 쓰지 않는 이름이 남으면 등록부가 썩는다.
   const used = heights.filter((v) => v.startsWith('T.')).map((v) => v.slice(2));
@@ -688,7 +756,10 @@ test('고른 것이 눈에도 보인다(낭독에만 있던 사실을 화면이 
   }
   // 색만으로 말하지 않는다(WCAG 1.4.1) — 표시 글자가 함께 붙고, 자리는 늘 비워 둔다.
   assert.match(ui, /export const EUM_CHOICE_MARK = '/, '표시 문자의 단일 출처가 없다');
-  assert.match(ui, /mark:\s*\{[^}]*display: 'inline-block'/, '표시 칸이 자리를 비워 두지 않는다');
+  // 정정: 이 줄은 한동안 `display: 'inline-block'` 을 고정했다. 그 모양이 바로 결함이었다 —
+  // 인라인 칸 뒤의 라벨이 두 줄이 되면 둘째 줄이 그 칸 **아래**로 들어간다(위 「선택지 라벨은
+  // 두 줄이 되어도」 참조). 지금 칸은 줄어들지 않는 flex 항목이고, 비워 두는 **폭**이 계약이다.
+  assert.match(ui, /mark:\s*\{[^}]*width: 34[^}]*flexShrink: 0/, '표시 칸이 자리를 비워 두지 않는다');
   const marks = [...flow.matchAll(/<span aria-hidden="true" style=\{S\.mark\}>/g)].length;
   assert.equal(marks, 2, `표시 칸이 두 고르기 화면에 모두 있어야 한다: ${marks}`);
   // 같은 사실을 두 번 낭독하지 않는다 — aria-pressed 가 이미 말한다.
@@ -809,8 +880,11 @@ test('「다시 시도」 뒤에도 되살아난 화면이 제목으로 포커�
   const first = flow.indexOf('if (!mountedRef.current) {');
   assert.ok(first > -1, '첫 렌더 분기를 찾지 못했다');
   const branch = flow.slice(first, flow.indexOf('}', flow.indexOf('return;', first)));
-  assert.match(branch, /takeRetried\(/, '되살아난 화면이 그 사실을 읽지 않는다');
-  assert.match(branch, /document\.documentElement/, '문서 뿌리 말고 다른 자리를 보고 있다');
+  assert.match(branch, /takeRetried\(docRoot\(\)\)/, '문서 뿌리 말고 다른 자리를 보고 있다');
+  // 자리를 짓는 곳은 한 곳이다 — 넘겨받는 사실이 둘로 늘었고(「다시 시도」 표시 · 남은 시간
+  // 눈금) 각자 적으면 한쪽만 고쳐지는 날 갈라진다.
+  assert.match(flow, /function docRoot\(\)\s*\{\s*return typeof document !== 'undefined' \? document\.documentElement : null;/,
+    '문서 뿌리를 집는 자리가 하나가 아니다');
   // 저장소로 넘기면 문서를 넘겨 살아남아, 다음에 링크를 여는 어르신이 누른 적 없는 누름의
   // 뒤처리를 받는다. 모듈 변수는 번들 경계마다 갈라진다(12회차의 소진 스토어).
   for (const wrong of ['sessionStorage', 'localStorage']) {
