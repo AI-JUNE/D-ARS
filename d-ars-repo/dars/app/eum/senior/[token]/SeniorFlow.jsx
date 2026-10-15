@@ -84,6 +84,7 @@ import { fetchOnce } from '@/lib/fetchJson';
 // `<p style={S.kicker}>{EUM_KICKER}</p>` 를 각자 적었다.
 import {
   S, Notice, Alert, Live, EumStyles, Kicker, EUM_SCOPE, EUM_CHOICE_MARK, EUM_NOTICE_FOOT,
+  EUM_SUMMARY_ID,
 } from './ui.jsx';
 import PriorLocal from './PriorLocal.jsx';
 
@@ -578,7 +579,6 @@ export default function SeniorFlow({
                 key={o.k}
                 type="button"
                 style={activity === o.k ? S.choiceOn : S.choice}
-                className="eum-focus"
                 aria-pressed={activity === o.k}
                 onClick={() => chooseActivity(o.k)}
               >
@@ -597,7 +597,6 @@ export default function SeniorFlow({
                   key={o.k}
                   type="button"
                   style={timeslot === o.k ? S.choiceOn : S.choice}
-                  className="eum-focus"
                   aria-pressed={timeslot === o.k}
                   onClick={() => chooseTimeslot(o.k)}
                 >
@@ -609,13 +608,16 @@ export default function SeniorFlow({
                 </button>
               ))}
             </div>
-            <a href={stepQuery(1, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>앞 화면으로</a>
+            <a href={stepQuery(1, { activity, timeslot })} style={S.back} onClick={back}>앞 화면으로</a>
           </>
         ) : null}
 
         {step === 3 ? (
           <>
-            <p style={S.summary}>{summaryText({ activity, timeslot })}</p>
+            {/* 이 문단은 주버튼의 **설명**이다(aria-describedby · ui.jsx 의 EUM_SUMMARY_ID) —
+                Tab 으로만 움직이는 어르신은 제목에서 단추로 건너가며 이 문단을 지나치므로,
+                연결해 두지 않으면 「무엇을 신청하는가」를 듣지 못한 채 단추에 닿는다. */}
+            <p id={EUM_SUMMARY_ID} style={S.summary}>{summaryText({ activity, timeslot })}</p>
             {/* 「이 기기에서 전에 낸 신청」 — 중복이 실제로 만들어지는 순간은 아래 단추를 누르는
                 그 순간이므로 여기서 말한다(고르는 화면에 넣으면 375px 에서 선택지가 밀린다).
                 막지는 않는다 — 담당자가 바꾸라고 새 링크를 보낸 경우가 있고, 그때 재신청은 정당하다.
@@ -643,11 +645,11 @@ export default function SeniorFlow({
                   `aria-live` 는 글자가 바뀐 것을 포커스 위치와 무관하게 알리기 위한 것이다. */}
               <button
                 type="button"
-                className="eum-focus"
                 style={busy ? S.primaryBusy : S.primary}
                 onClick={submit}
                 aria-disabled={busy}
                 aria-live="polite"
+                aria-describedby={EUM_SUMMARY_ID}
               >
                 {busy ? '신청하는 중…' : '이대로 신청하기'}
               </button>
@@ -670,7 +672,7 @@ export default function SeniorFlow({
         <Alert text={alertAtConfirm} />
 
         {step === 3 ? (
-          <a href={stepQuery(2, { activity, timeslot })} className="eum-focus" style={S.back} onClick={back}>다시 고르기</a>
+          <a href={stepQuery(2, { activity, timeslot })} style={S.back} onClick={back}>다시 고르기</a>
         ) : null}
 
         {/* 완료 화면은 **실제로 접수된 것**만 말한다. 세 경우가 서로 다르다.

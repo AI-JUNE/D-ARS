@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -682,4 +682,53 @@ test('cssExternalRefs: 같은 오리진·상대 경로는 외부가 아니다 ·
   for (const bad of [null, undefined, 42, '', {}]) {
     assert.deepEqual(cssExternalRefs(bad), [], `입력: ${String(bad)}`);
   }
+});
+
+// ── 전개가 앞서 적은 선언을 **조용히** 덮는 자리 ────────────────────────────
+//
+// 실제로 그렇게 들어와 있던 것: 어르신 화면의 `wrap: { maxWidth: 480, margin: '0 auto', ...BOX }`.
+// BOX 가 `maxWidth: '100%'` 를 들고 있어 본문 폭 상한이 **한 번도 적용되지 않았다**.
+// 전개는 보통 「기본값을 깔아 둔다」로 읽히는데(`{ ...BOX, 내 값 }`) 자리만 뒤로 가면 뜻이
+// 정반대가 되고 모양은 거의 같다 — 사람 눈으로는 잡히지 않는 종류다.
+const SPREAD_SRC = [
+  "const BOX = { boxSizing: 'border-box', maxWidth: '100%' };",
+  'export const S = {',
+  "  page: { padding: '24px 16px', ...BOX },",
+  "  wrap: { maxWidth: 480, margin: '0 auto', ...BOX },",
+  "  box: { ...BOX, maxWidth: 480 },",
+  '};',
+].join('\n');
+
+test('spreadShadowedKeys: 전개 앞에 적힌 키만 덮이는 것으로 본다', () => {
+  // 4행의 maxWidth 만 덮인다 — 3행은 겹치는 키가 없고, 5행은 전개가 앞이라 의도된 덮어쓰기다.
+  assert.deepEqual(spreadShadowedKeys(SPREAD_SRC, 'BOX'), [{ key: 'maxWidth', line: 4 }]);
+});
+
+test('spreadShadowedKeys: 전개가 앞에 오면 깨끗하다(의도된 기본값 깔기)', () => {
+  const fixed = SPREAD_SRC.replace("{ maxWidth: 480, margin: '0 auto', ...BOX }", "{ ...BOX, maxWidth: 480, margin: '0 auto' }");
+  assert.deepEqual(spreadShadowedKeys(fixed, 'BOX'), []);
+});
+
+test('spreadShadowedKeys: 주석·문자열 속 중괄호에 속지 않는다', () => {
+  const src = [
+    "const BOX = { boxSizing: 'border-box', maxWidth: '100%' };",
+    '// maxWidth: 1, ...BOX  ← 주석은 세지 않는다',
+    "const A = { label: '} { maxWidth: 2', ...BOX };",
+    "const B = { maxWidth: 3, ...BOX };",
+  ].join('\n');
+  assert.deepEqual(spreadShadowedKeys(src, 'BOX'), [{ key: 'maxWidth', line: 4 }]);
+});
+
+test('spreadShadowedKeys: 전개 원본을 못 읽으면 null(조용한 통과 금지)', () => {
+  assert.equal(spreadShadowedKeys(SPREAD_SRC, 'NOPE'), null, '없는 이름');
+  assert.equal(spreadShadowedKeys('const BOX = {};\nconst A = { x: 1, ...BOX };', 'BOX'), null, '키 없는 원본');
+  for (const bad of [null, undefined, 42, '', {}]) {
+    assert.equal(spreadShadowedKeys(bad, 'BOX'), null, `입력: ${String(bad)}`);
+  }
+  assert.equal(spreadShadowedKeys(SPREAD_SRC, '1x'), null, '식별자가 아닌 이름');
+});
+
+test('spreadShadowedKeys: 이름이 앞부분만 같은 전개는 다른 것으로 본다', () => {
+  const src = "const BOX = { maxWidth: '100%' };\nconst A = { maxWidth: 1, ...BOXED };";
+  assert.deepEqual(spreadShadowedKeys(src, 'BOX'), []);
 });

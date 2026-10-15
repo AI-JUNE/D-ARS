@@ -15,7 +15,7 @@ import { muteSeparatorsIn } from '../lib/eumSenior.js';
 import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
   metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
-  exportedObjectEntries,
+  exportedObjectEntries, spreadShadowedKeys,
 } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -121,14 +121,41 @@ test('로고·도입사례·요금표를 표시하지 않는다(표시 금지 �
   assert.ok(!/<img\b/.test(code), '로고를 포함한 이미지 표시 금지');
 });
 
-test('키보드: 모든 조작 요소가 button/a 이고 포커스 표시(eum-focus)를 단다', () => {
-  const focusable = [...flow.matchAll(/<(button|a)\b[^>]*>/g)].map((m) => m[0]);
-  assert.ok(focusable.length >= 4, `조작 요소가 너무 적다: ${focusable.length}`);
-  for (const tag of focusable) {
-    assert.match(tag, /className="eum-focus"/, `포커스 표시 누락: ${tag.slice(0, 60)}`);
+// ── 고친 결함: 포커스 링이 **클래스를 잊지 않는 것**에 매달려 있었다 ──────────
+//
+// 링은 `.eum-focus:focus-visible` 로 그려졌고, 화면이 조작 요소마다 그 클래스를 붙였다.
+// 빠뜨릴 수 있는 설계인데, 하필 이 화면에서는 빠뜨렸을 때의 대가가 **포커스 표시가 아예
+// 없는 것**이었다 — 포털 전역 CSS 의 `:focus-visible` 은 `outline: none` 으로 브라우저 기본
+// 링을 지우고 자기 링을 `box-shadow: var(--ring)` 로 그리는데, 그 번짐이 제품 브랜드색이라
+// 어르신 화면은 그것을 끈다(아래 CSS_NEUTRALIZED). 클래스가 없으면 둘 다 없다.
+// 그리고 그 대조를 한다던 이 테스트는 **네 화면 중 한 화면(SeniorFlow)만** 보고 있었다 —
+// 오류 화면의 「다시 시도」(그 화면의 **유일한 되돌리기 수단**)는 아무도 보지 않았다.
+// 15·16회차의 「가드가 자기 이름보다 좁았다」와 같은 모양이고, 이름은 그 사이에도
+// 「모든 조작 요소」였다.
+// 지금은 링을 **범위**(.eum-screen)에 그린다 — 빠뜨릴 자리가 없으므로 대조할 것은
+// 「클래스가 되살아나지 않았는가」와 「링이 범위에 있는가」다(머리말을 조각 하나로 묶은
+// 16회차의 고침과 같은 꼴).
+test('키보드: 조작 요소가 button/a 이고 포커스 링은 범위 전체에 걸린다', () => {
+  let focusable = 0;
+  for (const [name, src] of Object.entries(eumSources)) {
+    const code = stripComments(src);
+    for (const tag of [...code.matchAll(/<(button|a)\b[^>]*>/g)].map((m) => m[0])) {
+      focusable += 1;
+      // 요소마다 붙이는 포커스 클래스가 되살아나면 빠뜨릴 자리가 다시 생긴다.
+      assert.ok(!/className="eum-focus"/.test(tag), `${name}: 포커스 링을 요소마다 붙인다: ${tag.slice(0, 60)}`);
+    }
+    assert.ok(!/eum-focus/.test(code), `${name}: 요소별 포커스 클래스가 되살아났다`);
   }
-  assert.match(ui, /:focus-visible/, '포커스 링 CSS 누락');
-  assert.match(ui, /outline-offset/, '포커스 링은 요소 바깥에 그려야 대비가 성립한다');
+  assert.ok(focusable >= 6, `조작 요소가 너무 적다: ${focusable}`);
+  // 링의 단일 출처 — 범위 안에서 포커스를 받는 것은 무엇이든 링을 받는다.
+  const uiCode = stripComments(ui);
+  // 규칙 본문 안에 `${C.focus}` 가 있어 중괄호로 끊을 수 없다 → 선택자 뒤를 그대로 읽는다.
+  const at = uiCode.indexOf('.${EUM_SCOPE} :focus-visible {');
+  assert.ok(at > 0, '포커스 링이 어르신 화면 범위에 걸려 있지 않다');
+  const ring = uiCode.slice(at, at + 240);
+  assert.match(ring, /outline: 4px solid \$\{C\.focus\}/, '링 색이 lib/eumTheme 단일 출처에서 오지 않는다');
+  assert.match(ring, /outline-offset/, '포커스 링은 요소 바깥에 그려야 대비가 성립한다');
+  assert.match(ring, /box-shadow: none/, '포털 링(브랜드색 번짐)을 끄는 선언이 같은 규칙에 없다');
   assert.ok(!/onClick=\{[^}]*\}\s*\/?>\s*<\/(div|span|p)>/.test(flow), 'div/span 에 클릭 핸들러 금지');
 });
 
@@ -163,6 +190,27 @@ test('375px: 폭 100% 요소가 border-box 라 가로 스크롤이 생기지 않
   assert.ok(widthFull >= 2, '폭 100% 요소 정의가 사라졌다');
   assert.match(ui, /maxWidth: '100%'/);
   assert.match(ui, /overflowWrap: 'break-word'/, '긴 문구가 화면을 밀어낸다');
+});
+
+// ── 고친 결함: 본문 폭 상한이 **전개에 덮여** 한 번도 적용되지 않았다 ──────────
+//
+// `S.wrap` 은 `{ maxWidth: 480, margin: '0 auto', ...BOX }` 였다. 객체 리터럴은 나중에 적힌
+// 값이 이기고 `BOX` 는 `maxWidth: '100%'` 를 들고 있으므로, 상한 480px 은 **적혀만 있었다**
+// (빌드 산출물이 `max-width:100%` 로 나오는 것이 증거다). 적었는데 아무 일도 일어나지 않는,
+// 가장 조용한 모양이다 — 레이아웃의 `manifest: null` 이 파일 규약에 덮인 것과 같다.
+// 왜 아무도 몰랐나: 요건이 **375px** 이라 확인이 전부 그 폭에서 이뤄졌고, 거기서는 480px 과
+// 100% 가 구별되지 않는다. 바로 위 가드가 본 것은 `maxWidth: '100%'` 가 **있는지**였고,
+// 그 값이 하필 덮는 쪽이었다(6·15·17회차의 「가드가 옛 모양을 고정하고 있었다」와 같은 꼴).
+// 드러나는 자리는 넓은 화면이다 — 화면을 가로로 돌렸을 때·태블릿·PC 로 링크를 열었을 때
+// 24~32px 글자가 뷰포트 폭 그대로 늘어난다.
+test('전개가 앞서 적은 선언을 덮지 않는다(본문 폭 상한이 실제로 남아 있다)', () => {
+  // 일반 가드: `...BOX` 앞에서 BOX 의 키를 적은 자리가 하나도 없어야 한다.
+  const shadowed = spreadShadowedKeys(ui, 'BOX');
+  assert.ok(Array.isArray(shadowed), 'BOX 를 찾지 못했다 — 대조가 무의미해지기 전에 고쳐라');
+  assert.deepEqual(shadowed, [], `전개가 조용히 덮는 선언: ${shadowed.map((s) => `${s.key}(L${s.line})`).join(', ')}`);
+  // 그리고 상한 그 자체가 남아 있어야 한다(전개를 앞으로 옮긴 결과).
+  assert.match(stripComments(ui), /wrap: \{ \.\.\.BOX, maxWidth: 480, margin: '0 auto' \}/,
+    '본문 폭 상한이 사라졌거나 다시 전개 앞으로 옮겨졌다');
 });
 
 // ── 고친 결함: 두 줄이 된 라벨의 **둘째 줄**이 표시 칸 아래로 들어갔다 ────────
@@ -570,6 +618,35 @@ test('전송 중: 눌림을 aria-disabled 로 말해 포커스를 잃지 않는�
   // 글자가 바뀐 것을 포커스 위치와 무관하게 알린다.
   assert.match(submit, /aria-live="polite"/, '전송 중 바뀐 글자가 낭독되지 않는다');
   assert.match(submit, /신청하는 중…/);
+});
+
+// ── 고친 결함: 「무엇을 신청하는가」가 **단추에 연결돼 있지 않았다** ────────────
+//
+// 확인 화면의 요약 문단은 제목과 주버튼 **사이에** 있는, 조작 요소가 아닌 문단이다. 단계
+// 전환 때 포커스는 제목으로 가고(11회차) 다음 Tab 은 「이대로 신청하기」로 간다 — 그
+// 사이의 요약은 **지나친다.** 즉 Tab 으로만 움직이는 어르신은 무엇이 보내질지 듣지 않은
+// 채 단추에 닿고, 제출이 실패하면 포커스가 그 단추에 남으므로(8회차) 다시 누를 때도 같다.
+// 13회차는 **바로 아래 문단**(보조 사본 안내)에서 같은 사실을 근거로 고쳤다 — 「이 문단은
+// 조작 요소가 아니라 Tab 이 지나친다」. 그때 고친 것은 나중에 들어오는 한 줄이라 낭독
+// 영역으로 닿았지만, 요약은 3단계와 함께 태어나는 정적 문단이라 영역으로는 닿지 않는다.
+// 필요한 것은 자리가 아니라 **연결**이었고, 그래서 바로 위 문단을 고치면서 그보다 중요한
+// 그 문단을 지나쳤다 — 「고침이 절반이었던 자리」가 또 하나다.
+test('확인 화면의 요약이 주버튼의 설명으로 연결돼 있다', () => {
+  const uiCode = stripComments(ui);
+  const flowCode = stripComments(flow);
+  // id 는 ui.jsx 한 곳에만 적는다 — 두 곳에 손으로 적으면 한쪽만 고쳐지는 날 설명이
+  // 조용히 사라진다(가리키는 id 가 없으면 리더는 아무 말도 하지 않는다).
+  assert.match(uiCode, /export const EUM_SUMMARY_ID = '[a-z-]+';/, '요약 id 의 단일 출처가 없다');
+  const id = /export const EUM_SUMMARY_ID = '([a-z-]+)';/.exec(uiCode)[1];
+  assert.equal(flowCode.includes(`'${id}'`), false, '화면이 id 를 손으로 적었다');
+  // 양방향: 요약 문단이 id 를 달고, 주버튼이 그것을 가리킨다.
+  assert.match(flowCode, /<p id=\{EUM_SUMMARY_ID\} style=\{S\.summary\}>\{summaryText\(/,
+    '확인 화면의 요약에 id 가 없다 — 단추가 가리킬 자리가 사라진다');
+  const submit = flowCode.slice(flowCode.indexOf('{step === 3 ?'), flowCode.indexOf('{step === 4 ?'));
+  assert.match(submit, /aria-describedby=\{EUM_SUMMARY_ID\}/, '주버튼이 요약을 설명으로 달고 있지 않다');
+  // 같은 id 가 두 벌이면 리더가 어느 쪽을 읽을지 알 수 없다(완료 화면의 요약은 달지 않는다).
+  const tagged = [...flowCode.matchAll(/id=\{EUM_SUMMARY_ID\}/g)].length;
+  assert.equal(tagged, 1, `요약 id 가 ${tagged}곳에 붙어 있다`);
 });
 
 // ── 안내는 자기 단계에만 머물고, 가리키는 단추를 밀어내지 않는다 ─────────────
@@ -1224,8 +1301,11 @@ const CSS_REACHING_DECLS = {
   '*::-webkit-scrollbar-thumb': ['background', 'background-clip', 'border', 'border-radius'],
   '*::-webkit-scrollbar-thumb:hover': ['background', 'background-clip'],
   '::selection': ['background'],
-  // outline:none 은 포커스 링을 지운다. 어르신 화면의 조작 요소는 **전부** .eum-focus 를 달고
-  // (위 「키보드」 테스트가 대조한다) 그 규칙이 링을 다시 그린다.
+  // outline:none 은 **브라우저 기본 링을 지우고** box-shadow 로 포털 링을 그린다. 어르신
+  // 화면은 그 번짐(제품 브랜드색)을 끄므로, 링을 다시 그리지 않으면 아무 표시도 남지 않는다 —
+  // 한동안 그 일을 요소마다 붙이는 클래스(.eum-focus)가 했고, 클래스를 빠뜨리면 표시가
+  // **0** 이 되는 구조였다. 지금은 `.eum-screen :focus-visible` 가 범위 전체에 다시 그린다
+  // (위 「키보드」 테스트가 대조한다 — 이제 어르신 화면 **전부**를 본다).
   ':focus-visible': ['border-radius', 'box-shadow', 'outline'],
   'button:disabled': ['box-shadow', 'cursor', 'opacity'],
 };
@@ -1324,7 +1404,7 @@ test('요건을 깨뜨리는 전역 선택자는 ui.jsx 가 어르신 화면 범
   for (const line of block.split('\n')) {
     if (!line.includes('{') || !line.includes(':') || line.trim().startsWith('//')) continue;
     if (!/^\s*\./.test(line)) continue;
-    assert.match(line, /\.(?:\$\{EUM_SCOPE\}|eum-screen|eum-focus)/, `범위 없는 전역 규칙: ${line.trim()}`);
+    assert.match(line, /\.(?:\$\{EUM_SCOPE\}|eum-screen)/, `범위 없는 전역 규칙: ${line.trim()}`);
   }
 
   // 범위가 **아예 없는** 규칙은 사유와 함께 등록된 것만 허용한다(양방향 대조).

@@ -98,7 +98,6 @@ export default function EumError({ error, reset }) {
         <div style={S.list}>
           <button
             type="button"
-            className="eum-focus"
             style={S.primary}
             onClick={() => {
               // 이 단추는 눌린 순간 **자기 자신이 사라진다** — reset() 이 이 화면을 걷어내고

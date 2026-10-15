@@ -593,3 +593,112 @@ export function inlineStringConsts(src, text) {
   if (!map.size) return text;
   return text.replace(/\b[A-Za-z_$][\w$]*\b/g, (w) => (map.has(w) ? map.get(w) : w));
 }
+
+// ── 전개가 **앞서 적은 선언을 조용히 덮는 자리** ──────────────────────────────
+//
+// 왜 필요한가 — 고친 결함: 어르신 화면의 공통 스타일 조각은
+//   `const BOX = { boxSizing: 'border-box', maxWidth: '100%' };`
+// 이고, 화면의 스타일 객체들은 그것을 **끝에 전개**해 쓴다. 그런데 한 자리만 전개 **앞에서**
+// 같은 키를 적고 있었다 — `wrap: { maxWidth: 480, margin: '0 auto', ...BOX }`.
+// 객체 리터럴은 나중에 적힌 값이 이기므로 본문 폭 상한 480px 은 `maxWidth: '100%'` 로 덮여
+// **한 번도 적용된 적이 없었다**(빌드 산출물의 `max-width:100%` 가 그 증거다).
+// 적었는데 아무 일도 일어나지 않는, 가장 조용한 모양이다 — 레이아웃의 `manifest: null` 이
+// 파일 규약에 덮인 것과 같고, 상속·전역 CSS 와도 같은 성질이다(조용히 덮는 것).
+//
+// 사람 눈으로는 잡히지 않는다: 전개는 보통 **기본값을 깔아 두는** 쪽으로 읽히는데
+// (`{ ...BOX, 내 값 }`) 자리만 뒤로 옮기면 뜻이 정반대가 되고 모양은 거의 같다.
+//
+// 돌려주는 것: `[{ key, line }]` — 전개 앞에 적혀 **덮이는** 키. **비어 있어야 정상**이다.
+// 전개 원본(`const <name> = { … }`)을 못 읽으면 `null` — 호출측 테스트가 "대조가
+// 무의미해졌다" 로 실패해야 한다(빈 배열을 돌려주면 조용히 통과한다).
+//
+// 한계(정직하게): 중괄호를 세는 수준의 파서다(이 파일의 다른 스캐너와 같다). 주석·문자열·
+// 템플릿 리터럴은 건너뛰지만 중첩 백틱은 보지 못하고, 계산된 키(`[k]: v`)는 세지 않는다.
+
+// 여는 중괄호(open)의 짝 위치. 주석·문자열을 건너뛴다. 짝이 없으면 src.length.
+function matchBraceJs(src, open) {
+  let depth = 0;
+  let i = open;
+  while (i < src.length) {
+    if (src.startsWith('//', i)) { const n = src.indexOf('\n', i); i = n === -1 ? src.length : n; continue; }
+    if (src.startsWith('/*', i)) { const n = src.indexOf('*/', i); i = n === -1 ? src.length : n + 2; continue; }
+    const c = src[i];
+    if (c === '"' || c === "'" || c === '`') { i = endOfStringLiteral(src, i); continue; }
+    if (c === '{') depth += 1;
+    else if (c === '}') { depth -= 1; if (depth === 0) return i; }
+    i += 1;
+  }
+  return src.length;
+}
+
+// 객체 리터럴 본문(중괄호 안)의 **최상위 키 이름** 목록. 전개는 키를 만들지 않으므로 뺀다.
+function topLevelKeys(body) {
+  const out = [];
+  let depth = 0;
+  let seg = '';
+  let i = 0;
+  const take = () => {
+    const s = seg.trim();
+    seg = '';
+    if (!s || s.startsWith('...')) return;
+    const m = /^([A-Za-z_$][\w$]*|'[^']*'|"[^"]*")\s*:/.exec(s);
+    if (m) out.push(m[1].replace(/^['"]|['"]$/g, ''));
+  };
+  while (i < body.length) {
+    if (body.startsWith('//', i)) { const n = body.indexOf('\n', i); i = n === -1 ? body.length : n; continue; }
+    if (body.startsWith('/*', i)) { const n = body.indexOf('*/', i); i = n === -1 ? body.length : n + 2; continue; }
+    const c = body[i];
+    if (c === '"' || c === "'" || c === '`') {
+      const end = endOfStringLiteral(body, i);
+      seg += body.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (c === '{' || c === '[' || c === '(') { depth += 1; seg += c; i += 1; continue; }
+    if (c === '}' || c === ']' || c === ')') { depth -= 1; seg += c; i += 1; continue; }
+    if (c === ',' && depth === 0) { take(); i += 1; continue; }
+    seg += c;
+    i += 1;
+  }
+  take();
+  return out;
+}
+
+export function spreadShadowedKeys(src, name) {
+  if (typeof src !== 'string' || !src) return null;
+  if (typeof name !== 'string' || !/^[A-Za-z_$][\w$]*$/.test(name)) return null;
+  const head = new RegExp(`\\bconst\\s+${name}\\s*=\\s*\\{`).exec(src);
+  if (!head) return null;
+  const open = head.index + head[0].length - 1;
+  const close = matchBraceJs(src, open);
+  if (close >= src.length) return null;
+  const own = new Set(topLevelKeys(src.slice(open + 1, close)));
+  if (!own.size) return null;
+
+  const token = `...${name}`;
+  const out = [];
+  const stack = [];
+  let i = 0;
+  while (i < src.length) {
+    if (src.startsWith('//', i)) { const n = src.indexOf('\n', i); i = n === -1 ? src.length : n; continue; }
+    if (src.startsWith('/*', i)) { const n = src.indexOf('*/', i); i = n === -1 ? src.length : n + 2; continue; }
+    const c = src[i];
+    if (c === '"' || c === "'" || c === '`') { i = endOfStringLiteral(src, i); continue; }
+    if (c === '{') { stack.push(i); i += 1; continue; }
+    if (c === '}') { stack.pop(); i += 1; continue; }
+    // `...name` 뒤에 식별자 문자가 이어지면 다른 이름이다(`...BOXED`).
+    if (src.startsWith(token, i) && !/[\w$]/.test(src[i + token.length] || '')) {
+      const at = stack.length ? stack[stack.length - 1] : -1;
+      if (at >= 0) {
+        const line = src.slice(0, i).split('\n').length;
+        for (const key of topLevelKeys(src.slice(at + 1, i))) {
+          if (own.has(key)) out.push({ key, line });
+        }
+      }
+      i += token.length;
+      continue;
+    }
+    i += 1;
+  }
+  return out;
+}
