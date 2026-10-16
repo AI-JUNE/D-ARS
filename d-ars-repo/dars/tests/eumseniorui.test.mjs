@@ -1079,16 +1079,36 @@ const OWN = {
   // 아래 둘은 **값을 덮는** 것이 아니라 **비우는** 것이다 — 어르신용 아이콘·매니페스트를
   // 자동화가 지어내지 않는다는 판단은 그대로 두고, 포털 것을 가리키지 않는 쪽을 골랐다.
   icons: '탭·공유·홈 화면의 그림 — 제품 로고라 「로고 표시 금지」 요건에 걸린다',
+  // 정정: 한동안 아래 INHERITED 에 「검색엔진용이고 화면·미리보기에 나오지 않는다(색인 자체는
+  // robots 로 막는다)」라는 사유로 들어 있었다. 사실은 맞고 결론이 틀렸다 — 색인을 막았다는 것은
+  // 이 키가 **아무 일도 하지 않는다**는 뜻이고, 아무 일도 하지 않는 자리에 「D-ARS」·「콜봇」·
+  // 「보이는 ARS」·「GOWON」을 실어 둘 이유가 없다(빌드 산출물의 head 에 그대로 나가고 있었다).
+  // 17회차의 「덮는 것과 치우는 것은 다른 일이고 치우는 쪽에는 지어낼 값이 없다」 그대로다.
+  keywords: '검색엔진용 낱말 — 색인을 막아 아무 일도 하지 않는 자리에 제품·회사 이름을 두지 않는다',
 };
 
 // 상속받아 두는 키와 **그 사유**. 사유 없는 상속은 다음 사람이 늘린다.
 const INHERITED = {
   metadataBase: '상대 주소 해석의 기준일 뿐 문구가 아니다 — 지우면 상대 URL 해석이 깨진다',
   formatDetection: '전화번호 자동 링크 끄기 — 어르신 화면에도 그대로 맞는 설정이다',
-  keywords: '검색엔진용이고 화면·미리보기에 나오지 않는다(색인 자체는 robots 로 막는다)',
   authors: '운영 주체 표기 — 사람 눈에 닿지 않고, 지우는 것이 더 정직하지도 않다',
   creator: '운영 주체 표기 — authors 와 같은 이유',
   publisher: '운영 주체 표기 — authors 와 같은 이유',
+};
+
+// ── Next 가 **적지 않은 칸을 채우는** 자리 ────────────────────────────────────
+//
+// 고친 결함: 위 두 목록은 최상위 **키**를 분류한다. 그런데 키를 덮어도 그 **안쪽**이 비어 있으면
+// Next 가 자기 기본값을 채운다 — `resolveAppleWebApp` 은 `'capable' in appleWebApp ? … : true`
+// 라서, 어르신 레이아웃이 `appleWebApp` 을 통째로 덮으며 `capable` 을 적지 않은 동안
+// `<meta name="apple-mobile-web-app-capable" content="yes">` 가 계속 나가고 있었다
+// (빌드 산출물로 확인). 상속이 아니라 기본값이므로 키 대조로는 **보이지 않는 자리**다.
+// 무엇이 달라지나는 app/eum/layout.jsx 의 세 번째 결함 주석에 적었다(독립 실행 창에는
+// 뒤로 가기도 새로고침도 없는데, 이 링크의 홈 화면 아이콘이 여는 화면은 단추 없는 만료 안내다).
+// 재발 방지: 기본값이 채워지는 하위 칸을 **사유와 함께 등록**하고, 레이아웃이 그 전부를
+// 명시했는지 본다. 새 칸을 알게 되면 여기 적어야 하고, 적으면 결정이 강제된다.
+const APPLE_WEB_APP_DEFAULTED = {
+  capable: 'Next 가 적지 않으면 true — iOS 가 이 화면을 독립 실행 앱으로 열어도 된다고 읽는다',
 };
 
 // 제품 브랜드로 읽히는 낱말. 미리보기 카드·홈 화면 이름에 이것이 있으면 안 된다.
@@ -1125,7 +1145,25 @@ test('브랜드를 담은 루트 키를 상속으로 넘길 수 있는 범위는
   // 사람 눈·미리보기에 닿지 않는다는 이유로 상속을 허용한 것은 이 넷뿐이다. 브랜드를 담은 키가
   // 하나 늘어 상속 쪽으로 분류되면 여기서 실패한다(상속은 **조용히** 내려오기 때문).
   const inheritedBranded = branded.filter((k) => k in INHERITED).sort();
-  assert.deepEqual(inheritedBranded, ['authors', 'creator', 'keywords', 'publisher']);
+  assert.deepEqual(inheritedBranded, ['authors', 'creator', 'publisher']);
+  // `keywords` 는 이제 상속이 아니라 **치우는 쪽**이다 — 값을 지어내지 않고 `null` 로 끊는다.
+  // (Next: `resolveAsArrayOrUndefined(null)` → undefined → meta 를 아예 내보내지 않는다.)
+  assert.match(metadataFields(eumLayout).keywords || '', /^null$/,
+    'keywords 를 끊지 않았다 — 포털 낱말이 어르신 head 로 그대로 나간다');
+});
+
+test('키 안쪽에 Next 가 채우는 기본값까지 어르신 화면이 직접 적는다', () => {
+  const own = metadataFields(eumLayout);
+  const apple = own.appleWebApp || '';
+  assert.ok(apple, 'appleWebApp 을 읽지 못했다 — 대조가 무의미해지기 전에 고쳐라');
+  for (const [field, why] of Object.entries(APPLE_WEB_APP_DEFAULTED)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 등록: ${field}`);
+    assert.match(apple, new RegExp(`\\b${field}\\s*:`),
+      `appleWebApp.${field} 를 적지 않았다 — Next 가 기본값을 채운다(${why})`);
+  }
+  // 독립 실행 선언은 끄고, 홈 화면에 남는 **이름**은 어르신 문구 그대로 둔다.
+  assert.match(apple, /capable:\s*false/, '어르신 화면을 설치형 독립 실행 앱으로 광고하지 않는다');
+  assert.match(apple, /title:\s*EUM_TITLE/, '홈 화면 이름은 어르신 문구여야 한다');
 });
 
 // ── 파일 규약으로 head 에 끼어드는 것 ─────────────────────────────────────
@@ -1183,6 +1221,52 @@ test('파일 규약으로 끼어드는 head 항목(매니페스트·아이콘)�
     const fields = metadataFields(readFileSync(file, 'utf8'));
     assert.equal(fields.manifest, 'null', `${file.slice(root.length + 1)}: 포털 매니페스트가 매달린다`);
   }
+});
+
+// ── 고친 결함: page 의 재선언이 레이아웃의 단일 출처를 **조용히 약화시켰다** ──────────────
+//
+// 8회차는 「최상위 키를 하나라도 적으면 그 키의 부모 값은 통째로 대체된다」를 근거로 삼아
+// 루트↔레이아웃 방향을 고정했다. 그 성질은 **레이아웃↔page 방향에서도 그대로**인데 그쪽은
+// 아무도 보지 않았고, 그 사이 네 page 중 셋이 `description`·`robots` 를 각자 적고 있었다.
+// 그중 `robots` 가 실제로 약해졌다 — 레이아웃은 `googleBot` 까지 든 선언을 두었는데
+// page 의 `{ index:false, follow:false }` 가 그것을 통째로 밀어냈다. 빌드 산출물이 증거다:
+//   · `/eum`(robots 를 적지 않은 유일한 page) → `<meta name="robots">` + `<meta name="googlebot">`
+//   · `/eum/senior`·`/eum/[...rest]`·`/eum/senior/[token]` → **googlebot 없음**
+// 하필 그 셋이 **주소 자체가 인증 수단**인 쪽이고, 레이아웃의 주석이 적어 둔 이유가
+// 「토큰이 든 주소가 색인되면 안 되므로 여기서도 명시한다」였다 — 명시한 그 자리가 덮여 있었다.
+// 값이 같아 보이는 동안에는 아무 신호가 없다(9회차의 「마침표가 하나 더 붙은 두 번째 판본」과
+// 같은 모양이고, 이번에는 글자가 아니라 **빠진 하위 키**가 차이였다).
+//
+// 그래서 page 가 적을 수 있는 키를 사유와 함께 못박고 양방향으로 대조한다.
+const PAGE_OWN_KEYS = {
+  manifest: '레이아웃에서 끊을 수 없다 — 파일 규약이 그 세그먼트의 export 를 뒤에서 덮는다',
+  title: '브랜드 누출 대조가 각 page 의 소스에 적힌 글자를 읽어야 한다(상수로 빼면 조용히 통과)',
+};
+
+test('어르신 page 는 레이아웃이 이미 말한 키를 다시 적지 않는다(재선언은 통째로 대체다)', () => {
+  const layoutKeys = Object.keys(metadataFields(eumLayout));
+  assert.ok(layoutKeys.length >= 7, `레이아웃 metadata 를 읽지 못했다: ${layoutKeys.length}`);
+  for (const [k, why] of Object.entries(PAGE_OWN_KEYS)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 page 선언: ${k}`);
+  }
+  // 레이아웃이 `googleBot` 까지 들고 있다는 사실이 이 대조의 전제다 — 사라지면 다시 판단하라.
+  assert.match(metadataFields(eumLayout).robots || '', /googleBot/,
+    '레이아웃의 robots 에서 googleBot 이 사라졌다 — page 재선언 금지의 근거를 다시 보라');
+
+  const pages = eumPageFiles();
+  assert.ok(pages.length >= 3, `어르신 page 를 찾지 못했다: ${pages.length}`);
+  const shapes = new Set();
+  for (const file of pages) {
+    const name = file.slice(root.length + 1);
+    const keys = Object.keys(metadataFields(readFileSync(file, 'utf8'))).sort();
+    const extra = keys.filter((k) => !(k in PAGE_OWN_KEYS));
+    assert.deepEqual(extra, [], `${name}: 레이아웃의 값을 통째로 밀어내는 재선언 — ${extra.join(',')}`);
+    const missing = Object.keys(PAGE_OWN_KEYS).filter((k) => !keys.includes(k));
+    assert.deepEqual(missing, [], `${name}: page 가 직접 적어야 하는 키가 빠졌다 — ${missing.join(',')}`);
+    shapes.add(keys.join(','));
+  }
+  // 네 page 가 **같은 모양**이어야 한다 — 하나만 다른 자리가 이 결함이 들어온 입구였다.
+  assert.equal(shapes.size, 1, `어르신 page 의 head 선언이 갈라져 있다: ${[...shapes].join(' | ')}`);
 });
 
 test('어르신 화면의 주소창 색은 제품 브랜드색이 아니라 이 화면의 바탕색이다', () => {

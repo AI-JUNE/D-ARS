@@ -32,13 +32,14 @@
 import { EUM_PANEL_ASK, panelTitle } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from '../senior/[token]/ui.jsx';
 
+// head 는 `app/eum/layout.jsx` 가 단일 출처다 — 여기 적는 것은 레이아웃이 말할 수 없는 것뿐이고,
+// 레이아웃이 이미 선언한 키를 다시 적으면 그 값을 **통째로** 밀어낸다(`senior/[token]/page.jsx`
+// 주석 참조: 그렇게 적힌 `robots` 가 `googleBot` 지시를 조용히 지우고 있었다).
 export const metadata = {
   // 루트 템플릿('%s · 제품명')을 쓰지 않는다 — 어르신 화면에는 제품 브랜드를 노출하지 않는다.
   // (문구를 상수로 빼지 않는 이유: head 대조는 **소스에 적힌 글자**를 읽어 브랜드 누출을
   //  판정한다. import 한 이름으로 바꾸면 그 대조가 아무 글자도 보지 못해 조용히 통과한다.)
   title: { absolute: '이음 어르신 신청' },
-  description: '이음 어르신 신청 화면입니다.',
-  robots: { index: false, follow: false },
   // 운영 포털 매니페스트(`app/manifest.js` — 이름·시작 주소·아이콘이 전부 포털)를 매달지 않는다.
   // 왜 레이아웃이 아니라 여기인지는 `app/eum/layout.jsx` 아래쪽 주석 참조(파일 규약이 덮는다).
   manifest: null,

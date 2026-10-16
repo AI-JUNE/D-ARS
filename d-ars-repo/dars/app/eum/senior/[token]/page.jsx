@@ -37,11 +37,18 @@ import PriorLocal from './PriorLocal.jsx';
 // 토큰 만료 판정은 요청 시각에 따라 달라진다 → 정적 캐시 금지.
 export const dynamic = 'force-dynamic';
 
+// head 는 `app/eum/layout.jsx` 가 단일 출처다. 여기 적는 것은 **레이아웃이 말할 수 없는 것**뿐이다.
+//
+// 고친 결함: 이 자리에 `description`·`robots` 가 레이아웃과 **따로** 적혀 있었다. metadata 는
+// 최상위 키 단위로 대체되므로(8회차가 루트↔레이아웃 방향에서 고정한 바로 그 성질), 여기 적힌
+// `robots: { index:false, follow:false }` 가 레이아웃의 `googleBot` 까지 든 선언을 **통째로**
+// 밀어냈다 — 빌드 산출물에서 `/eum` 에는 `<meta name="googlebot">` 이 있고 토큰이 든 주소
+// (`/eum/senior`·`/eum/senior/[token]`·`/eum/[...rest]`)에는 **없었다**. 하필 그 셋이 주소 자체가
+// 인증 수단인 쪽이다. 같은 사실을 네 page 가 각자 적는 동안 셋만 약해졌고, 아무 신호도 없었다.
 export const metadata = {
-  // 루트 템플릿('%s · D-ARS')을 쓰지 않는다 — 어르신 화면에는 제품 브랜드를 노출하지 않는다.
+  // 제목만 **리터럴로** 남긴다 — 브랜드 누출 대조가 각 page 의 소스에 적힌 글자를 읽어
+  // 판정하므로 이 한 줄은 상수로 빼지 않는다(tests/eumseniorui.test.mjs).
   title: { absolute: '이음 어르신 신청' },
-  description: '이음 어르신 신청 화면입니다.',
-  robots: { index: false, follow: false },
   // 운영 포털 매니페스트(`app/manifest.js` — 이름·시작 주소·아이콘이 전부 포털)를 매달지 않는다.
   // 왜 레이아웃이 아니라 여기인지는 `app/eum/layout.jsx` 아래쪽 주석 참조(파일 규약이 덮는다).
   manifest: null,

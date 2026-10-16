@@ -21,6 +21,9 @@
 import { EUM_PANEL_ASK, panelTitle } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from './senior/[token]/ui.jsx';
 
+// head 는 `app/eum/layout.jsx` 가 단일 출처다 — 여기 적는 것은 레이아웃이 말할 수 없는 것뿐이고,
+// 레이아웃이 이미 선언한 키를 다시 적으면 그 값을 **통째로** 밀어낸다(`senior/[token]/page.jsx`
+// 주석 참조). 네 page 가 같은 두 키만 적는다는 사실은 테스트가 양방향으로 대조한다.
 export const metadata = {
   // 루트 템플릿('%s · 제품명')을 쓰지 않는다 — 어르신 화면에는 제품 브랜드를 노출하지 않는다.
   title: { absolute: '이음 어르신 신청' },
