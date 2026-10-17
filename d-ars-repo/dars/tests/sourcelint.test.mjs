@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -731,4 +731,39 @@ test('spreadShadowedKeys: 전개 원본을 못 읽으면 null(조용한 통과 �
 test('spreadShadowedKeys: 이름이 앞부분만 같은 전개는 다른 것으로 본다', () => {
   const src = "const BOX = { maxWidth: '100%' };\nconst A = { maxWidth: 1, ...BOXED };";
   assert.deepEqual(spreadShadowedKeys(src, 'BOX'), []);
+});
+
+// ── 이 파일이 **무엇을 끌고 들어오는가** ──────────────────────────────────
+// 고친 결함: 브라우저에서 도는 어르신 화면이 문장 두 줄을 얻으려고 **서버 쪽 판정 모듈**
+// (소진 스토어·축출·헬스 판정)을 import 하고 있었다. 그 자리를 등록부로 대조하려면 먼저
+// 「이 파일이 끌고 들어오는 것」을 셀 수 있어야 한다.
+// 본문의 경로는 **실재하는 파일**로 적는다 — tests/importcase.test.mjs 가 저장소 전체의
+// import 경로를 디스크와 대조하므로, 지어낸 경로를 적으면 그 테스트가 실패한다(가짜 경로를
+// 쓰려면 이 파일을 그 대조에서 빼야 하고, 그러면 진짜 오타도 함께 못 보게 된다).
+test('importedModules: 모든 모양의 import 를 중복 없이 모은다', () => {
+  const src = [
+    "import { a, b } from '@/lib/eumMessage';",
+    "import Two from '@/lib/eumSenior';",
+    "import '@/lib/eumTheme';",
+    "import * as four from './eumcountdown.test.mjs';",
+    "export { five } from '@/lib/eumToken';",
+    "const six = await import('@/lib/fetchJson');",
+    "import { a2 } from '@/lib/eumMessage';",
+    "import {\n  seven,\n} from '@/lib/eumConsume';",
+  ].join('\n');
+  // `from` 을 가진 모양이 먼저, 그 다음 부작용 import, 마지막이 동적 import 다(스캐너 순서).
+  assert.deepEqual(importedModules(src), [
+    '@/lib/eumMessage', '@/lib/eumSenior', './eumcountdown.test.mjs',
+    '@/lib/eumToken', '@/lib/eumConsume', '@/lib/eumTheme', '@/lib/fetchJson',
+  ]);
+});
+
+test('importedModules: import 가 없거나 못 읽으면 빈 배열(throw 금지)', () => {
+  for (const bad of [null, undefined, '', 42, {}, []]) {
+    assert.deepEqual(importedModules(bad), [], `입력: ${String(bad)}`);
+  }
+  assert.deepEqual(importedModules('const x = 1;\n// import { y } 라고 적힌 주석은 아니다\n'), []);
+  // 글자열 안의 'from' 에 속지 않는다(문장 경계를 넘어 짝지어지지도 않는다).
+  assert.deepEqual(importedModules("const s = \"imported from '@/lib/kpi'\";"), []);
+  assert.deepEqual(importedModules("export const A = 1;\nconst B = from;"), []);
 });

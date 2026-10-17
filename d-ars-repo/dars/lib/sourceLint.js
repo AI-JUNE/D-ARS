@@ -580,6 +580,43 @@ export function cssExternalRefs(css) {
   return out;
 }
 
+// ── 이 파일이 **무엇을 끌고 들어오는가** ──────────────────────────────────
+//
+// 왜 필요한가 — 고친 결함: 브라우저에서 도는 어르신 화면(`SeniorFlow`)이 문장 두 줄을 얻으려고
+// `lib/eumConsume` 를 import 하고 있었다. 그 파일은 소진 스토어(프로세스 전역에 매달린 Map)·
+// 상한 축출·헬스 판정을 든 **서버 쪽 판정 모듈**이고, 거기에 공유 저장소 어댑터를 끼우는 일이
+// 이미 「남은 승인 사항」에 예약돼 있다 — 그날 저장소 클라이언트가 어르신 화면 번들을 따라
+// 들어간다. 서명 비밀을 쥔 `lib/eumToken` 을 화면에서 떼어 낸 이유가 그대로 적용되는 자리인데,
+// 그때 세운 가드는 **그 파일 이름 하나**만 보고 있었다(가드가 자기 이유보다 좁았다).
+// 그래서 「클라이언트에서 닿아도 되는 자리」를 등록부로 정하고 이 함수로 양방향 대조한다 —
+// 새 import 가 조용히 늘어나는 것이 이 결함의 재발 경로다.
+//
+// 돌려주는 것: import 한 모듈 지정자 목록(중복 제거 · 나타난 순서).
+//   `import x from 'm'` · `import {a} from 'm'` · `import 'm'` · `export … from 'm'` ·
+//   동적 `import('m')` 을 모두 본다 — 어느 쪽이든 번들에 따라 들어오는 길이다.
+// 한계(정직하게): 주석 안의 import 도 센다 — 호출측이 주석을 걷어낸 소스를 넘기면 된다
+// (이 파일의 다른 스캐너와 같은 계약).
+export function importedModules(src) {
+  if (typeof src !== 'string' || !src) return [];
+  const out = [];
+  const seen = new Set();
+  const res = [
+    // 사이에 `;` 를 두지 않는다 — 문장 경계를 넘어 엉뚱한 `from` 과 짝지어지지 않게.
+    /(?:^|[\n;])\s*(?:import|export)\b[^'";]*?\bfrom\s*(['"])([^'"]+)\1/g,
+    /(?:^|[\n;])\s*import\s*(['"])([^'"]+)\1/g,
+    /\bimport\s*\(\s*(['"])([^'"]+)\1\s*\)/g,
+  ];
+  for (const re of res) {
+    for (const m of src.matchAll(re)) {
+      const spec = m[2];
+      if (seen.has(spec)) continue;
+      seen.add(spec);
+      out.push(spec);
+    }
+  }
+  return out;
+}
+
 // 같은 파일 최상위의 `const NAME = '…'` 문자열 상수를 text 안에서 **값으로 펼친다**.
 // 이유: `description: DESC` 처럼 상수를 가리키는 값은 텍스트만 봐서는 무엇이 들었는지 알 수 없다 —
 // 브랜드 문구가 상수 뒤에 숨으면 대조가 조용히 통과한다.

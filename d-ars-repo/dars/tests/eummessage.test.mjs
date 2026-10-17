@@ -26,8 +26,14 @@ import {
   EUM_PANEL_ASK,
   EUM_PANEL_TITLE,
   panelTitle,
+  EUM_CONSUME_CHANGE_HINT,
+  EUM_CONSUME_UNKNOWN_HINT,
+  EUM_SOON_LEAD,
+  EUM_SOON_NEXT,
+  soonMessage,
 } from '../lib/eumMessage.js';
-import { muteSeparatorsIn } from '../lib/eumSenior.js';
+import { muteSeparatorsIn, EUM_STEP_MIN, EUM_STEP_MAX } from '../lib/eumSenior.js';
+import { importedModules } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -248,6 +254,85 @@ test('제출 실패 안내: 사유 이름 ↔ 호출 자리가 양방향으로 �
   }
 });
 
+// ── 클라이언트에서 닿아도 되는 자리 ──────────────────────────────────────────
+//
+// 고친 결함: 브라우저에서 도는 화면(`SeniorFlow`)이 **문장 두 줄**을 얻으려고
+// `lib/eumConsume` 를 import 하고 있었다. 그 파일은 소진 스토어(프로세스 전역에 매달린 Map)·
+// 상한 축출·헬스 판정을 든 **서버 쪽 판정 모듈**이다. 9회차가 문구 표를 `lib/eumToken`
+// (서명 비밀·HMAC)에서 떼어 낸 이유가 글자 그대로 적용되는 자리인데, 그때 세운 가드는
+// **그 파일 이름 하나**만 보고 있었다 — 15·16·18회차가 세 번 만난 「가드가 자기 이유보다
+// 좁았다」의 다음 모양이다.
+// 당장 새는 것은 없었다(번들 산출물에는 전역 앵커 호출 한 줄과 문자열 몇 개만 남는다).
+// 위험한 쪽은 **다음**이다: 그 파일에 공유 저장소 어댑터를 끼우는 일이 「남은 승인 사항」에
+// 예약돼 있고, 그날 저장소 클라이언트가 어르신 화면 번들을 따라 들어간다.
+//
+// 그래서 파일 이름 하나가 아니라 **닿아도 되는 자리 전부**를 사유와 함께 등록한다.
+const CLIENT_FILES = {
+  'app/eum/senior/[token]/SeniorFlow.jsx': read('app/eum/senior/[token]/SeniorFlow.jsx'),
+  'app/eum/senior/[token]/PriorLocal.jsx': read('app/eum/senior/[token]/PriorLocal.jsx'),
+  'app/eum/error.jsx': read('app/eum/error.jsx'),
+};
+
+// 클라이언트 파일이 import 해도 되는 `@/lib/*` 모듈 ↔ 사유.
+// `env` 가 붙은 항목만 환경변수를 읽을 수 있다(그 사유도 함께 적는다).
+const CLIENT_SAFE_LIB = {
+  '@/lib/eumSenior': { why: '흐름 규칙의 순수 로직(단계·주소·히스토리·보조 사본 판정) — 저장소도 통신도 없다' },
+  '@/lib/eumCountdown': { why: '남은 시간 계산(순수 · 단조 눈금) — 문서 속성 한 칸만 읽고 쓴다' },
+  '@/lib/eumMessage': { why: '화면 문구의 단일 출처 — 문자열뿐이고 import 한 줄도 없다' },
+  '@/lib/fetchJson': { why: '제출 한 번을 보내는 자리 — 상한·오프라인 판정은 브라우저 쪽 사실이다' },
+  '@/lib/monitor': {
+    why: '오류 경계가 쓰는 것은 봉투 포맷터 둘(buildEvent·monitorLine)이고, 화면은 콘솔에만 적는다',
+    // 환경변수를 읽는 줄은 **전송 쪽**(isMonitorEnabled·deliver)이고 화면은 그 길을 부르지
+    // 않는다. 공개 접두어가 아닌 값은 클라이언트 번들에 끼워 넣어지지도 않는다.
+    env: '전송 쪽에서만 읽는다 — 화면이 부르는 포맷터 둘은 환경을 모른다',
+  },
+};
+
+// 서버 쪽에만 있어야 하는 것들. 이름이 아니라 **성질**로 판정한다 —
+// 프로세스 전역 상태(전역 앵커)·노드 전용 API·서명 계산·데이터베이스.
+const SERVER_ONLY_MARKS = [
+  { mark: 'globalThis', why: '프로세스 전역에 매단 상태는 서버 것이다' },
+  { mark: 'Symbol.for(', why: '전역 심볼 앵커 — 같은 이유' },
+  { mark: 'node:', why: '노드 전용 모듈' },
+  { mark: 'require(', why: '노드 전용 적재' },
+  { mark: 'crypto.subtle', why: '서명 계산 — 비밀값이 따라온다' },
+  { mark: "from '@/lib/db'", why: '데이터베이스 클라이언트' },
+];
+
+test('클라이언트 화면이 끌고 들어오는 lib 가 전부 등록돼 있다(양방향)', () => {
+  assert.ok(Object.keys(CLIENT_FILES).length === 3, '클라이언트 파일 목록이 바뀌었다 — 등록부를 다시 보라');
+  const used = new Set();
+  for (const [name, src] of Object.entries(CLIENT_FILES)) {
+    assert.match(src, /^\s*["']use client["']/m, `${name}: 클라이언트 파일이 아니다 — 목록을 다시 보라`);
+    for (const spec of importedModules(stripComments(src))) {
+      if (!spec.startsWith('@/lib/')) continue; // 상대 경로(같은 화면군)·react 는 대조 대상이 아니다
+      used.add(spec);
+      assert.ok(spec in CLIENT_SAFE_LIB,
+        `${name}: 등록되지 않은 모듈을 브라우저로 끌고 들어온다 — ${spec}`);
+    }
+  }
+  // 쓰이지 않는 등록은 표를 썩힌다(다음 사람이 "닿아도 된다" 는 판정을 근거 없이 물려받는다).
+  assert.deepEqual([...used].sort(), Object.keys(CLIENT_SAFE_LIB).sort(), '등록부와 실제 import 가 어긋난다');
+});
+
+test('등록된 모듈은 서버 쪽 성질(전역 상태·노드 API·서명·DB)을 들고 있지 않다', () => {
+  for (const [spec, entry] of Object.entries(CLIENT_SAFE_LIB)) {
+    assert.ok(entry && typeof entry.why === 'string' && entry.why.length > 10, `${spec}: 사유가 없다`);
+    const code = stripComments(read(`lib/${spec.replace('@/lib/', '')}.js`));
+    for (const { mark, why } of SERVER_ONLY_MARKS) {
+      assert.ok(!code.includes(mark), `${spec}: ${mark} 가 들어왔다(${why}) — 브라우저로 따라 들어간다`);
+    }
+    if (!entry.env) {
+      assert.ok(!code.includes('process.env'), `${spec}: 환경변수를 읽는다 — 사유를 등록하거나 떼어 내라`);
+    }
+  }
+  // 떼어 낸 **이유가 유효한지** 함께 고정한다(eumToken 쪽 대조와 같은 계약) — 소진 판정
+  // 모듈이 지금도 프로세스 전역 상태를 들고 있을 때에만 이 분리가 필요하다.
+  const consume = stripComments(CONSUME_SRC);
+  assert.ok(SERVER_ONLY_MARKS.some(({ mark }) => consume.includes(mark)),
+    'lib/eumConsume 이 서버 쪽 성질을 잃었다 — 분리 이유를 다시 보라');
+});
+
 test('소진 안내는 같은 문장을 다시 적지 않고 표를 가리킨다', () => {
   assert.match(CONSUME_SRC, /from '\.\/eumMessage\.js'/, 'lib/eumConsume 이 문구 표를 쓰지 않는다');
   assert.match(CONSUME_SRC, /expired:\s*EUM_TOKEN_MESSAGE\.expired/);
@@ -255,6 +340,80 @@ test('소진 안내는 같은 문장을 다시 적지 않고 표를 가리킨다
   // `used` 만 이 파일이 손으로 적고 있었고, 그 문장이 접수가 끝난 사람에게 할 일을 만들었다
   // (「담당자에게 문의해 주세요」 → 새 링크 → 명단에 두 건). 자세한 대조는 tests/eumrepeat.
   assert.match(CONSUME_SRC, /used:\s*EUM_DONE_MESSAGE\.already/);
+});
+
+test('이미 접수된 링크의 힌트 두 줄이 판정 모듈이 아니라 문구 표에 있다', () => {
+  for (const [key, msg] of Object.entries({
+    change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT,
+  })) {
+    assert.ok(msg.length > 10, `${key}: 문장이 비었다`);
+    assert.match(msg, /담당자/, `${key}: 어르신이 연락할 상대는 담당자다`);
+    assert.ok(!/관리자/.test(msg), `${key}: 어르신에게 「관리자」는 누구인지 알 수 없는 사람이다`);
+    // 이 두 줄은 알림 한 줄이 아니라 패널의 힌트 자리에 온다(EUM_NOTICE_FOOT 과 같은 자리).
+    assert.ok(msg.endsWith('.'), `${key}: 힌트 자리의 문장 끝이 그 자리의 다른 표와 달라졌다`);
+  }
+  // 판정 모듈에 사본도, **재수출도** 남지 않았다 — 가리키는 길이 둘이면 단일 출처가 말뿐이다.
+  const consume = stripComments(CONSUME_SRC);
+  for (const msg of [EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT]) {
+    assert.ok(!consume.includes(msg), `lib/eumConsume 에 문장이 남아 있다 — ${msg}`);
+  }
+  assert.equal(/export\s+(?:const|\{)[^\n]*EUM_CONSUME_(?:CHANGE|UNKNOWN)_HINT/.test(consume), false,
+    'lib/eumConsume 이 힌트를 다시 내보낸다 — 가리키는 길이 둘이 된다');
+  // 같은 사실을 보여 주는 두 화면이 같은 표를 가리킨다(한쪽만 고쳐지는 길을 없앤다).
+  for (const name of ['app/eum/senior/[token]/page.jsx', 'app/eum/senior/[token]/SeniorFlow.jsx']) {
+    const code = stripComments(SCREENS[name]);
+    assert.match(code, /EUM_CONSUME_CHANGE_HINT[\s\S]*from '@\/lib\/eumMessage'|from '@\/lib\/eumMessage'[\s\S]*EUM_CONSUME_CHANGE_HINT/,
+      `${name}: 힌트를 문구 표에서 가져오지 않는다`);
+    assert.equal(/EUM_CONSUME_(?:CHANGE|UNKNOWN)_HINT[^\n]*from '@\/lib\/eumConsume'/.test(code), false,
+      `${name}: 판정 모듈에서 문구를 끌어온다`);
+  }
+});
+
+// ── 고친 결함: 만료 임박 경고가 **모든 단계에서 같은 말**을 했다 ─────────────
+//
+// 그 문장은 「잠시 후 링크가 만료됩니다. **지금 고르신 것을 신청해 주세요**」 한 벌이었고,
+// 뒤 토막이 맞는 자리는 확인 화면(3단계) 하나뿐이다. 1단계에는 고른 것도 신청 단추도 없고,
+// 2단계에는 활동만 있다 — 되돌릴 길을 가리키는 문장이 **그 화면에 없는 것**을 가리켰다
+// (11회차의 「아래 단추」·8회차의 「5분이 지나면 닫힙니다」와 같은 모양이고, 원인도 같다:
+//  한 문장이 아무 조건 없이 모든 자리에 붙는다). 하필 이 경고는 들리는 것이 존재 이유 전부다.
+test('만료 임박 경고: 단계마다 그 화면에서 할 수 있는 일을 말한다(등록부 ↔ 단계 양방향)', () => {
+  // 경고가 그려지는 단계는 1~3 이다(4단계는 제출이 끝난 화면이라 경고가 뜨지 않는다).
+  const steps = [];
+  for (let s = EUM_STEP_MIN; s < EUM_STEP_MAX; s += 1) steps.push(String(s));
+  assert.deepEqual(Object.keys(EUM_SOON_NEXT).sort(), steps.sort(),
+    '등록부가 경고가 그려지는 단계와 어긋난다(없는 단계는 앞 토막만 남고, 남는 이름은 표를 썩힌다)');
+
+  assert.match(EUM_SOON_LEAD, /링크/, '무엇의 수명이 다하는지를 말하지 않는다');
+  assert.match(EUM_SOON_LEAD, /만료/, '바로 다음에 보게 되는 화면의 제목과 다른 낱말로 말한다');
+  assert.equal(/닫힙니다/.test(EUM_SOON_LEAD), false, '닫히지 않는 화면에 닫힌다고 적은 문장이 되살아났다');
+  // 다음 화면의 제목과 **낱말이 겹치는지** 양쪽에서 본다(시제만 다르다).
+  for (const word of ['링크', '만료']) {
+    assert.ok(EUM_PANEL_TITLE.expired.includes(word), `다음 화면 제목이 「${word}」를 잃었다`);
+  }
+
+  for (const s of [1, 2, 3]) {
+    const msg = soonMessage(s);
+    assert.ok(msg.startsWith(`${EUM_SOON_LEAD}. `), `${s}단계: 앞 토막이 한 벌이 아니다 — ${msg}`);
+    assert.match(msg, /신청해 주세요/, `${s}단계: 남은 1분 안에 할 일을 말하지 않는다`);
+    // 매초 바뀌는 숫자를 섞으면 낭독이 1초마다 끊기고 처음부터 다시 읽힌다(초 숫자는
+    // 화면이 aria-hidden 으로 따로 붙인다).
+    assert.equal(/\d/.test(msg), false, `${s}단계: 문장에 숫자가 있다 — ${msg}`);
+    assert.ok(!msg.includes('초'), `${s}단계: 초 단위를 문장에 넣었다`);
+  }
+  // 고친 결함 그 자체: 고른 것이 없는 화면에서 「지금 고르신 것」을 가리키지 않는다.
+  assert.ok(!soonMessage(1).includes('고르신 것'), '1단계에는 고른 것이 없다');
+  assert.ok(!soonMessage(2).includes('고르신 것'), '2단계에는 시간대가 아직 없다');
+  assert.match(soonMessage(3), /고르신 것/, '확인 화면에서는 고른 것이 화면에 있다 — 그 말이 맞는 유일한 자리다');
+  assert.notEqual(soonMessage(1), soonMessage(2), '두 고르는 화면의 남은 일이 다르다');
+
+  // 모르는 단계는 **앞 토막만** 돌려준다 — 침묵은 이 경고에서 가장 비싼 결과다(15회차).
+  for (const bad of ['알 수 없음', '', null, undefined, 0, 4, 42, 'constructor', '__proto__']) {
+    assert.equal(soonMessage(bad), `${EUM_SOON_LEAD}.`, `입력: ${String(bad)}`);
+  }
+  // 문장이 눈금 모듈에 남아 있지 않다(가드가 문구를 따라오지 않던 자리 · 11회차와 같은 모양).
+  const countdown = stripComments(read('lib/eumCountdown.js'));
+  assert.ok(!countdown.includes('신청해 주세요'), 'lib/eumCountdown 에 문장이 남아 있다');
+  assert.equal(/EUM_SOON_MESSAGE/.test(countdown), false, '옛 단일 문장이 되살아났다');
 });
 
 // ── 깨졌을 때·기다릴 때 보이는 화면의 문구 ─────────────────────────────────
@@ -322,6 +481,10 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     // "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게.
     EUM_PANEL_TITLE,
     EUM_PANEL_TEXT: { ask: EUM_PANEL_ASK, kicker: EUM_KICKER },
+    // 이번에 옮겨 온 넷도 같은 판정으로 받는다 — 판정 모듈(eumConsume)·눈금 모듈
+    // (eumCountdown)에 있던 동안 이 대조를 비껴가고 있었다(가드가 문구를 따라오지 않은 자리).
+    EUM_CONSUME_HINT: { change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT },
+    EUM_SOON: { lead: EUM_SOON_LEAD, ...EUM_SOON_NEXT },
   };
   const bad = [];
   let seen = 0;

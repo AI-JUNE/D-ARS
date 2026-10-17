@@ -34,6 +34,9 @@ const PAGE = read('../app/eum/senior/[token]/page.jsx');
 const FLOW = read('../app/eum/senior/[token]/SeniorFlow.jsx');
 const UI = read('../app/eum/senior/[token]/ui.jsx');
 const CONSUME = read('../lib/eumConsume.js');
+// 힌트 두 줄의 집. 예전에는 소진 판정 모듈(위 CONSUME)이 들고 있었고, 그래서 브라우저에서
+// 도는 완료 화면이 **문장 두 줄을 얻으려고** 서버 쪽 판정 모듈을 import 했다.
+const MESSAGE = read('../lib/eumMessage.js');
 
 // ── 기록: 무엇이 접수됐는지 ────────────────────────────────────────────────
 test('소진 기록이 접수된 선택을 함께 들고 있다', () => {
@@ -193,7 +196,10 @@ test('진입 안내: 다음에 무엇을 하면 되는지 알려 준다(막다�
 
 test('진입 안내와 완료 화면의 문구는 단일 출처다(한쪽만 고쳐지는 일을 없앤다)', () => {
   for (const c of ['EUM_CONSUME_CHANGE_HINT', 'EUM_CONSUME_UNKNOWN_HINT']) {
-    assert.match(CONSUME, new RegExp(`export const ${c} = '`), `${c} 가 lib/eumConsume 에 없다`);
+    // 집은 **문구 표**다(예전에는 소진 판정 모듈이었다 — 그 자리는 프로세스 전역 스토어·
+    // 축출·헬스 판정을 들고 있고, 공유 저장소 어댑터가 예약돼 있다).
+    assert.match(MESSAGE, new RegExp(`export const ${c} = '`), `${c} 가 lib/eumMessage 에 없다`);
+    assert.equal(new RegExp(`export const ${c}`).test(CONSUME), false, `${c} 가 판정 모듈에 남아 있다`);
     assert.match(PAGE, new RegExp(c), `진입 화면이 ${c} 를 쓰지 않는다`);
     assert.match(FLOW, new RegExp(c), `완료 화면이 ${c} 를 쓰지 않는다`);
   }
@@ -234,11 +240,19 @@ test('진입 안내와 완료 화면의 **본문**도 한 벌이다(서로 반�
   }
 });
 
-test('클라이언트 화면은 eumConsume 에서 **문구만** 가져온다(소진 판정은 서버의 일이다)', () => {
-  const line = (FLOW.match(/import \{[^}]*\} from '@\/lib\/eumConsume';/) || [''])[0];
-  assert.ok(line, '완료 화면이 문구 단일 출처를 쓰지 않는다');
-  assert.equal(/consumeStore|createConsumeStore|claim|recordOf/.test(line), false,
+// 정정: 이 테스트의 예전 이름은 「클라이언트 화면은 eumConsume 에서 **문구만** 가져온다」였고,
+// 그 import 줄에 판정 함수가 섞이지 않았는지만 보았다. 그 대조는 「문구를 그 파일에서 가져오는
+// 것 자체」를 정상으로 못박고 있었다 — 소진 스토어(프로세스 전역 Map)·축출·헬스 판정을 든
+// 모듈을 브라우저가 import 하는 것이고, 그 파일에는 공유 저장소 어댑터가 예약돼 있다
+// (그날 저장소 클라이언트가 어르신 화면 번들을 따라 들어간다). 결함을 고정하는 테스트였다.
+test('클라이언트 화면은 소진 판정 모듈을 아예 import 하지 않는다(판정은 서버의 일이다)', () => {
+  assert.equal(/from '@\/lib\/eumConsume'/.test(FLOW), false,
+    '브라우저가 소진 판정 모듈을 끌고 들어온다 — 문구는 lib/eumMessage 에 있다');
+  assert.equal(/consumeStore|createConsumeStore|claim\(|recordOf/.test(FLOW), false,
     '브라우저가 1회용을 판정한다고 믿게 하면 안 된다 — 판정은 라우트 한 곳뿐이다');
+  // 서버 쪽 진입 화면은 그대로 판정을 쓴다(그 자리가 판정이 사는 곳이다).
+  assert.match(PAGE, /from '@\/lib\/eumConsume'/, '진입 화면이 소진 판정을 쓰지 않는다');
+  assert.match(PAGE, /consumeStore\(\)\.recordOf/, '진입 화면이 기록을 읽지 않는다');
 });
 
 // ── 완료 화면: 실제로 접수된 것만 말한다 ───────────────────────────────────

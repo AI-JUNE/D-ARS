@@ -21,15 +21,18 @@ import { verifyEumToken } from '@/lib/eumToken';
 // 표를 가리켜야 하고, 그 화면은 `lib/eumToken` 을 import 할 수 없다(lib/eumMessage.js 참조).
 // 제목도 같은 자리에서 가져온다 — 예전에는 네 파일이 각자 적었고, 만료 패널은 제목이 본문의
 // 첫 문장과 글자까지 같았다(제목으로 포커스가 간 직후 같은 말을 한 번 더 듣는다).
-import { EUM_PANEL_ASK, EUM_PANEL_TITLE, panelTitle } from '@/lib/eumMessage';
-import { parseDraft, parseStep, storageKey, summaryText } from '@/lib/eumSenior';
+// 「이미 접수됐다」 뒤에 붙는 힌트 두 줄도 같은 표에서 온다 — 예전에는 소진 판정 모듈
+// (`lib/eumConsume`)에 있었고, 그래서 브라우저에서 도는 완료 화면이 그 문장 두 줄을 얻으려고
+// 서버 쪽 판정 모듈을 import 하고 있었다(lib/eumMessage 의 그 자리 주석 참조).
 import {
-  consumeKey,
-  consumeStore,
-  consumeMessage,
   EUM_CONSUME_CHANGE_HINT,
   EUM_CONSUME_UNKNOWN_HINT,
-} from '@/lib/eumConsume';
+  EUM_PANEL_ASK,
+  EUM_PANEL_TITLE,
+  panelTitle,
+} from '@/lib/eumMessage';
+import { parseDraft, parseStep, storageKey, summaryText } from '@/lib/eumSenior';
+import { consumeKey, consumeStore, consumeMessage } from '@/lib/eumConsume';
 import { Notice, EUM_NOTICE_FOOT } from './ui.jsx';
 import SeniorFlow from './SeniorFlow.jsx';
 import PriorLocal from './PriorLocal.jsx';

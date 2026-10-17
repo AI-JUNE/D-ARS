@@ -42,6 +42,8 @@ import {
   EUM_RETRY_FLAG,
   markRetried,
   takeRetried,
+  EUM_SETTLE_MS,
+  tapSettled,
 } from '../lib/eumSenior.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
@@ -264,6 +266,42 @@ test('markRetried/takeRetried: 어떤 입력에도 던지지 않는다(단추가
   // 지울 수단이 없으면 읽지도 않는다 — 한 번만 쓰이는 사실을 되풀이해 쓰지 않는다.
   const readOnly = { getAttribute: () => '1' };
   assert.equal(takeRetried(readOnly), true);
+});
+
+// ── 화면이 바뀐 직후의 두 번째 누름 ────────────────────────────────────────
+//
+// 고친 결함: 이 과제는 「손이 떨려 두 번 누르는 것은 이 사용자층에서 흔하다」를 두 번 근거로
+// 삼아 고쳤다(제출의 submittingRef · 되돌아가기의 backFromRef). 그런데 **앞으로 나아가는
+// 쪽**에는 그 가드가 없었고, 거기서 두 번째 누름이 가장 비싸다 — 눌린 순간 화면이 다음
+// 단계로 바뀌고, 1단계 선택지 네 개와 2단계 선택지 네 개는 **같은 자리·같은 모양**이다.
+// 활동을 고른 손가락이 한 번 더 떨어지면 **읽지도 않은 시간대**가 고른 것이 되고, 2→3 에서는
+// 그 자리 근처에 「이대로 신청하기」가 온다 — 확인 화면을 한 번도 읽지 않은 신청이 접수되고
+// 링크는 1회용이라 되돌릴 길이 없다. 두 번의 탭이 **두 번의 click** 으로 도착하므로
+// "같은 요소의 두 번째 누름" 을 막는 기존 두 가드로는 잡히지 않는다.
+test('tapSettled: 화면이 방금 바뀌었으면 삼키고, 충분히 지났으면 받는다', () => {
+  assert.ok(EUM_SETTLE_MS >= 300 && EUM_SETTLE_MS <= 1000, `기준값이 사람 손 밖으로 나갔다: ${EUM_SETTLE_MS}`);
+  const t = 10_000;
+  assert.equal(tapSettled(t, t), false, '같은 틱의 두 번째 누름이 통과했다');
+  assert.equal(tapSettled(t, t + EUM_SETTLE_MS - 1), false, '떨림이 만드는 두 번째 탭이 통과했다');
+  assert.equal(tapSettled(t, t + EUM_SETTLE_MS), true, '경계값은 받는다(누름을 삼키는 쪽으로 기울지 않는다)');
+  assert.equal(tapSettled(t, t + 5_000), true, '한참 뒤의 누름까지 삼키면 화면이 먹통으로 보인다');
+});
+
+test('tapSettled: 모를 때는 **통과시킨다**(판정 실패가 누름을 삼키면 안 된다)', () => {
+  // 아직 아무 이동도 없었다(문서를 막 열었다 · 되돌아온 직후) → 첫 누름은 언제나 통한다.
+  assert.equal(tapSettled(null, 1000), true);
+  for (const bad of [undefined, NaN, Infinity, '1000', {}, [], true]) {
+    assert.equal(tapSettled(bad, 1000), true, `movedTick: ${String(bad)}`);
+    assert.equal(tapSettled(1000, bad), true, `tick: ${String(bad)}`);
+  }
+  // 눈금이 뒤로 갔다(눈금 교체) → 얼마나 지났는지 알 수 없으므로 받는다.
+  assert.equal(tapSettled(10_000, 9_000), true);
+  // 기준값이 이상하면 가드를 끈다 — 모르는 값으로 어르신의 누름을 막지 않는다.
+  for (const bad of [0, -1, NaN, 'x', null]) {
+    assert.equal(tapSettled(10_000, 10_000, bad), true, `settleMs: ${String(bad)}`);
+  }
+  const junk = [undefined, null, NaN, 'x', {}, [], () => {}, Symbol.iterator];
+  for (const v of junk) assert.doesNotThrow(() => tapSettled(v, v, v));
 });
 
 test('넘기는 자리는 문서 속성이다(모듈 변수·저장소가 아니다)', () => {

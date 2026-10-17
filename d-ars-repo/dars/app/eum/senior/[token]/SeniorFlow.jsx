@@ -49,10 +49,10 @@ import {
   errorAt,
   submitBlock,
   takeRetried,
+  tapSettled,
   EUM_VISIT_MIN,
 } from '@/lib/eumSenior';
 import {
-  EUM_SOON_MESSAGE,
   elapsedSince,
   isExpired,
   isSoon,
@@ -63,7 +63,6 @@ import {
   resumeClock,
   secondsLeft,
 } from '@/lib/eumCountdown';
-import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumConsume';
 // 문구는 `lib/eumMessage` 에서 가져온다. 예전에는 이 파일이 만료·401 안내를 **손으로 적고**
 // 있었다(401 쪽은 마침표가 하나 더 붙은 두 번째 판본이었다) — `lib/eumToken` 을 import 할 수
 // 없다는 것이(서명 비밀·HMAC 이 브라우저 번들로 따라온다) 사본을 두는 이유가 되지는 않는다.
@@ -76,8 +75,14 @@ import { EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT } from '@/lib/eumCons
 // (lib/eumMessage.js 의 EUM_DONE_MESSAGE 참조).
 // 제목·머리말도 같은 자리에서 가져온다 — 예전에는 이 파일이 둘 다 손으로 적었고, 만료 패널은
 // 제목과 본문이 **같은 문장**이었다(제목으로 포커스가 옮겨 간 직후 같은 말을 한 번 더 듣는다).
+// 「이미 접수됐다」 뒤에 붙는 힌트 두 줄과 만료 임박 경고도 같은 자리에서 가져온다 — 예전에는
+// 각각 `lib/eumConsume`(소진 스토어·축출·헬스 판정을 든 **서버 쪽 모듈**)과
+// `lib/eumCountdown`(눈금)에 있었다. 문장 두 줄을 얻으려고 서버 쪽 판정 모듈을 브라우저로
+// 끌고 들어오던 자리이고(그 파일에는 공유 저장소 어댑터가 예약돼 있다), 임박 경고는 문장이
+// **한 벌**이라 1·2단계에서 화면에 없는 것을 가리켰다(lib/eumMessage 의 EUM_SOON_NEXT 참조).
 import {
-  EUM_DONE_MESSAGE, EUM_PANEL_ASK, EUM_PANEL_TITLE, submitMessage, tokenMessage,
+  EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT,
+  EUM_DONE_MESSAGE, EUM_PANEL_ASK, EUM_PANEL_TITLE, soonMessage, submitMessage, tokenMessage,
 } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
 // 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker) — 예전에는 네 화면이
@@ -174,6 +179,11 @@ export default function SeniorFlow({
   // 지금 방문 번호. 상태(visit)와 달리 **그 자리에서** 바뀌므로, 제출이 안내를 매달 때
   // 「누른 그 순간의 방문」을 집는 데 쓴다(submittingRef 와 같은 이유).
   const visitRef = useRef(EUM_VISIT_MIN);
+  // 단계를 **마지막으로 옮긴 눈금**. 손이 떨려 한 번 더 떨어진 탭은 이미 바뀐 화면에 닿으므로
+  // 「같은 요소의 두 번째 누름」이 아니라 **다른 뜻의 첫 누름**으로 도착한다 — 1단계에서
+  // 활동을 고른 손가락이 그 자리에서 시간대를 고르고, 2단계에서는 「이대로 신청하기」에
+  // 떨어질 수 있다(lib/eumSenior 의 tapSettled). null 이면 아직 아무 이동도 없었다.
+  const movedAtRef = useRef(null);
 
   // 단계를 바꾸는 **유일한 자리**. 방문 번호를 함께 한 칸 올린다 — 같은 번호의 단계로
   // 되돌아오는 것은 같은 화면이지만 **다른 방문**이고, 조금 전의 실패 안내는 그 방문의 것이
@@ -294,6 +304,11 @@ export default function SeniorFlow({
     const want = clampStep(next, d);
     enterStep(want);
     backFromRef.current = null;
+    // 화면이 바뀐 순간을 적어 둔다 — 바로 뒤에 도착하는 누름은 **앞 화면을 겨눈 것**이다
+    // (tapSettled). 여기 적는 이유: 이동이 조작의 결과로 일어나는 자리가 `go` 하나다
+    // (마운트 복원·popstate 는 겨눈 손이 없으므로 적지 않는다 — 적으면 문서가 열린 직후나
+    //  되돌아온 직후의 **멀쩡한 첫 누름**을 삼킨다).
+    movedAtRef.current = nowTick();
     try {
       const here = window.history.state;
       // **떠나는 항목의 주소도** 그 자리에서 고른 것으로 고쳐 쓴다. 예전에는 고른 것이 쌓는
@@ -313,12 +328,18 @@ export default function SeniorFlow({
     }
   }, [enterStep]);
 
+  // 선택지 누름. 화면이 **방금 바뀌었으면 삼킨다** — 그 누름은 앞 화면의 선택지를 겨눈
+  // 손가락이 한 번 더 떨어진 것이고, 지금 그 자리에 있는 것은 다른 뜻의 단추다. 삼킨 뒤에는
+  // 아무 말도 하지 않는다(어르신이 의도하지 않은 누름이고, 400ms 뒤면 그대로 통한다 ·
+  // lib/eumSenior 의 tapSettled).
   function chooseActivity(k) {
+    if (!tapSettled(movedAtRef.current, nowTick())) return;
     setActivity(k);
     go(2, { activity: k, timeslot, done: false });
   }
 
   function chooseTimeslot(k) {
+    if (!tapSettled(movedAtRef.current, nowTick())) return;
     setTimeslot(k);
     go(3, { activity, timeslot: k, done: false });
   }
@@ -388,6 +409,12 @@ export default function SeniorFlow({
     // 상태(busy)보다 먼저 반영되는 ref 로 같은 틱의 두 번째 누름까지 막는다.
     // (설령 새어 나가도 서버가 409 로 받아 두 건이 되지는 않는다 — 1회용 판정은 라우트의 몫이다.)
     if (busy || submittingRef.current) return;
+    // **방금 2단계에서 온 누름도 삼킨다.** 이 단추는 시간대 선택지가 있던 자리 근처에 오므로,
+    // 떨리는 손의 두 번째 탭이 여기 떨어질 수 있다 — 그러면 확인 화면을 한 번도 읽지 않은
+    // 신청이 접수되고 링크는 1회용이라 되돌릴 길이 없다(lib/eumSenior 의 tapSettled).
+    // 위 두 가드와 성질이 다르다: 그 둘은 **같은 요소**의 두 번째 누름을 막고, 이것은
+    // **앞 화면을 겨눈** 누름을 막는다.
+    if (!tapSettled(movedAtRef.current, nowTick())) return;
     setError(null);
     // 안내를 매달 자리는 **누른 그 순간의 단계와 방문**이다. 기다리는 사이 어르신이
     // 되돌아갔다면(또는 되돌아갔다 같은 화면으로 돌아왔다면) 그 화면에는 이 안내가 뜨지
@@ -543,11 +570,16 @@ export default function SeniorFlow({
             이라 리더가 읽는다. 들리지 않으면 이 경고는 아무 일도 하지 않는 문단이다.
 
             (영역을 만드는 길은 이제 `Live` 하나다 — 그때는 이 한 자리만 고쳤고 같은 모양이
-             둘 더 남아 있었다(실패 안내·보조 사본 안내 · ui.jsx 의 Live 참조).) */}
+             둘 더 남아 있었다(실패 안내·보조 사본 안내 · ui.jsx 의 Live 참조).)
+
+            그리고 문장은 **이 화면에서 할 수 있는 일**을 말해야 한다. 예전에는 한 벌이라
+            1~3단계 어디서나 「지금 고르신 것을 신청해 주세요」였는데, 1단계에는 고른 것도
+            신청 단추도 없다 — 들리는 것이 존재 이유 전부인 경고가 **화면에 없는 것을
+            가리키고** 있었다(lib/eumMessage 의 EUM_SOON_NEXT). */}
         <Live>
           {soon ? (
             <p style={S.warn}>
-              {EUM_SOON_MESSAGE}
+              {soonMessage(step)}
               <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
             </p>
           ) : null}

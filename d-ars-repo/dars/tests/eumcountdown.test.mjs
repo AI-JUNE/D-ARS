@@ -15,7 +15,6 @@ import { dirname, resolve } from 'node:path';
 
 import {
   EUM_SOON_MS,
-  EUM_SOON_MESSAGE,
   nowTick,
   initialLeftMs,
   elapsedSince,
@@ -30,6 +29,10 @@ import {
   readClock,
   resumeClock,
 } from '../lib/eumCountdown.js';
+// 경고 **문구**는 이 모듈에 없다 — 화면 문구의 단일 출처는 lib/eumMessage 하나다.
+// (한 벌로 들고 있던 동안 그 문장은 1·2단계에서 화면에 없는 것을 가리켰다 ·
+//  단계별 대조는 tests/eummessage.test.mjs.)
+import { EUM_SOON_LEAD, soonMessage } from '../lib/eumMessage.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
@@ -126,9 +129,12 @@ test('남은 초는 올림이라 "0초" 로 머무르지 않는다', () => {
 });
 
 test('임박 안내 문구에 초 숫자를 넣지 않는다(스크린리더가 매초 끊긴다)', () => {
-  assert.ok(EUM_SOON_MESSAGE.length > 0);
-  assert.equal(/\d/.test(EUM_SOON_MESSAGE), false, '문장에 숫자가 있으면 낭독이 1초마다 다시 시작된다');
-  assert.equal(EUM_SOON_MESSAGE.includes('초'), false);
+  for (const step of [1, 2, 3]) {
+    const msg = soonMessage(step);
+    assert.ok(msg.length > 0);
+    assert.equal(/\d/.test(msg), false, '문장에 숫자가 있으면 낭독이 1초마다 다시 시작된다');
+    assert.equal(msg.includes('초'), false);
+  }
 });
 
 // 고친 결함: 이 경고는 「잠시 후 **이 화면이 닫힙니다**」였다. 8회차가 안내 패널의 마무리
@@ -136,11 +142,12 @@ test('임박 안내 문구에 초 숫자를 넣지 않는다(스크린리더가 
 // 않는다) 같은 주장이 그 옆의 경고에 그대로 남아 있었다 — 고침이 절반이었다. 실제로
 // 일어나는 일은 닫힘이 아니라 **교체**이고, 바뀐 화면의 제목은 「링크가 만료되었습니다」다.
 test('임박 안내는 그 다음에 보게 되는 화면과 같은 낱말을 쓴다(링크가 만료된다)', () => {
-  assert.match(EUM_SOON_MESSAGE, /링크/, '무엇의 수명이 다하는지를 말하지 않는다');
-  assert.match(EUM_SOON_MESSAGE, /만료/, '다음 화면의 제목과 다른 낱말로 말한다');
-  assert.equal(/닫힙니다/.test(EUM_SOON_MESSAGE), false, '닫히지 않는 화면에 닫힌다고 적은 문장이 되살아났다');
+  assert.match(EUM_SOON_LEAD, /링크/, '무엇의 수명이 다하는지를 말하지 않는다');
+  assert.match(EUM_SOON_LEAD, /만료/, '다음 화면의 제목과 다른 낱말로 말한다');
+  assert.equal(/닫힙니다/.test(EUM_SOON_LEAD), false, '닫히지 않는 화면에 닫힌다고 적은 문장이 되살아났다');
   // 지금 할 일을 함께 말한다 — 남은 1분 안에 끝낼 수 있다는 것이 이 경고의 목적이다.
-  assert.match(EUM_SOON_MESSAGE, /신청해 주세요/);
+  // 그 「할 일」은 단계마다 다르다(1단계에는 고른 것도 신청 단추도 없다 · tests/eummessage).
+  for (const step of [1, 2, 3]) assert.match(soonMessage(step), /신청해 주세요/);
 });
 
 // ── 되살아난 화면도 같은 눈금을 쓴다 ─────────────────────────────────────────
@@ -262,7 +269,9 @@ test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 
   const warn = flow.match(/\{soon \? \([\s\S]*?\) : null\}/);
   assert.ok(warn, '만료 임박 안내 블록을 찾지 못했다');
   const block = warn[0];
-  assert.match(block, /EUM_SOON_MESSAGE/, '안내 문구는 단일 출처에서 가져온다');
+  // 문구는 단일 출처에서 가져오고, **지금 단계**를 넘긴다 — 한 벌로 가져오면 1·2단계에서
+  // 화면에 없는 것을 가리키는 문장이 되살아난다.
+  assert.match(block, /soonMessage\(step\)/, '안내 문구를 단계와 함께 가져오지 않는다');
   assert.match(block, /aria-hidden="true"[^>]*>[^<]*\{secondsLeft\(left\)\}/,
     '매초 바뀌는 초 숫자가 낭독 영역 안에 있으면 문장이 1초마다 끊긴다');
 

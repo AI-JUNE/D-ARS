@@ -710,6 +710,41 @@ test('단계를 바꾸는 자리는 enterStep 하나뿐이고, 거기서 방문 
   assert.ok(uses >= 5, `enterStep 을 거치는 자리가 줄었다: ${uses}`);
 });
 
+// ── 고친 결함: 화면이 바뀐 직후의 두 번째 누름이 **다음 화면의 다른 뜻**이 됐다 ────────
+//
+// 이 과제는 「손이 떨려 두 번 누르는 것은 이 사용자층에서 흔하다」를 두 번 근거로 삼아
+// 고쳤다(제출의 `submittingRef` · 되돌아가기의 `backFromRef`). 그런데 **앞으로 나아가는
+// 쪽**에는 그 가드가 없었고, 하필 거기서 두 번째 누름이 가장 비싸다 — 1단계 선택지 네 개와
+// 2단계 선택지 네 개는 같은 style·같은 최소 높이라 **같은 자리·같은 모양**이고, 2→3 에서는
+// 그 자리 근처에 「이대로 신청하기」가 온다. 즉 읽지 않은 시간대가 고른 것이 되거나, 확인
+// 화면을 한 번도 읽지 않은 신청이 접수된다(링크는 1회용이라 되돌릴 길이 없다).
+test('떨리는 손의 두 번째 탭이 다음 화면에 닿지 않는다(선택지·주버튼 양쪽)', () => {
+  const shown = stripComments(flow);
+  // 이동한 눈금을 적는 자리는 `go` 하나다 — 마운트 복원·popstate 에 적으면 문서를 막 열거나
+  // 되돌아온 직후의 **멀쩡한 첫 누름**을 삼킨다.
+  const marks = [...shown.matchAll(/movedAtRef\.current = /g)].map((m) => m.index);
+  assert.equal(marks.length, 1, `이동 눈금을 적는 자리가 흩어졌다: ${marks.length}곳`);
+  const goAt = shown.indexOf('const go = useCallback(');
+  assert.ok(goAt > -1 && marks[0] > goAt, '이동 눈금을 go 밖에서 적는다');
+  assert.match(shown, /movedAtRef\.current = nowTick\(\);/, '기기 시계가 아니라 단조 눈금을 써야 한다');
+  // 삼키는 자리 셋: 활동·시간대·제출. 하나라도 빠지면 그 경로로 두 번째 탭이 들어온다.
+  for (const fn of ['chooseActivity', 'chooseTimeslot']) {
+    const at = shown.indexOf(`function ${fn}(`);
+    assert.ok(at > -1, `${fn} 이 없다`);
+    const body = shown.slice(at, shown.indexOf('}', shown.indexOf('{', at)));
+    assert.match(body, /if \(!tapSettled\(movedAtRef\.current, nowTick\(\)\)\) return;/,
+      `${fn}: 앞 화면을 겨눈 누름을 그대로 받는다`);
+  }
+  const submitAt = shown.indexOf('async function submit()');
+  assert.ok(submitAt > -1, 'submit 이 없다');
+  const head = shown.slice(submitAt, submitAt + 900);
+  assert.match(head, /if \(!tapSettled\(movedAtRef\.current, nowTick\(\)\)\) return;/,
+    '확인 화면을 읽지 않은 신청이 접수될 수 있다');
+  // 판정은 순수 로직 한 곳에서 한다(화면이 숫자를 손으로 재면 아무 테스트도 보지 못한다).
+  assert.equal(/movedAtRef\.current[^\n]*[<>]=?|nowTick\(\) -/.test(shown), false,
+    '화면이 경과를 직접 재고 있다 — 판정은 lib/eumSenior.tapSettled 한 곳이다');
+});
+
 // ── 고친 결함: 되지 않는 신청에 「다시 골라 주세요」라고 말하고 있었다 ────────
 //
 // 제출 직전 판정이 `buildPreferences(…) === null` 하나였고 화면은 그것을 전부 「처음부터 다시
