@@ -583,6 +583,39 @@ test('만료 화면이 이 기기의 사본을 읽어 헛수고를 줄인다(진
   assert.match(page, /\{expired \? <PriorLocal storeKey=\{storageKey\(result\.sid\)\} where="expired" \/> : null\}/);
 });
 
+// ── 「이미 신청하셨습니다」 화면도 그 기기가 아는 것을 말한다 ────────────────
+//
+// 고친 결함: 13회차가 보조 사본을 쓰는 자리를 셋으로 늘렸는데(확인 화면 · 작성 중 만료 ·
+// 진입 만료) 「이미 접수됐다」를 말하는 **두 화면**은 빠져 있었다 — 링크를 다시 열었을 때
+// (진입 안내)와 제출이 409 로 돌아왔을 때(완료 화면)다. 그 둘은 서버가 접수 내용을 모를 때
+// 「접수된 내용은 담당자에게 확인해 주세요」로 끝나는데, **그 기기는 알고 있을 수 있다.**
+// 그 전화가 담당자에게는 새 링크를 보내는 일이 되고, 새 링크는 소진 키가 달라 재신청이 통한다
+// (명단에 두 건) — 이 과제가 줄곧 막아 온 바로 그 중복이고, 13·9회차가 같은 이유로 고친
+// 자리가 둘 더 있었다는 뜻이다(「고침이 절반이었던 자리」).
+// 서버가 **아는** 경우에는 두지 않는다: 그때 두 화면은 이미 서버 기록을 요약으로 그리고 있고,
+// 기기 사본을 한 줄 더 놓으면 같은 말이 두 번이거나 둘이 어긋날 때 어느 쪽이 접수된 것인지
+// 어르신이 가릴 수 없다(원본은 서버다).
+test('「이미 신청하셨습니다」 두 화면이 그 기기가 아는 것을 말한다(서버가 모를 때만)', () => {
+  // 진입 안내 — 서명이 검증된 토큰이므로 sid 는 우리가 발급한 값이다(지어내지 않는다).
+  assert.match(stripComments(page),
+    /\{summary \? null : <PriorLocal storeKey=\{storageKey\(result\.payload\.sid\)\} where="used" \/>\}/,
+    '진입 「이미 신청하셨습니다」가 그 기기가 아는 것을 말하지 않는다');
+  const shown = stripComments(flow);
+  // 완료 화면(409) — `already` 이고 서버 요약이 없을 때만.
+  assert.match(shown,
+    /\{already && !doneSummary \? \(\s*<PriorLocal storeKey=\{storageKey\(sid\)\} where="used" \/>\s*\) : null\}/,
+    '완료 화면의 「내용을 모르는 쪽」이 그 기기가 아는 것을 말하지 않는다');
+  // **방금** 접수된 화면에는 두지 않는다 — 그 사본은 조금 전 이 화면이 쓴 것이고,
+  // 그것을 「전에 신청하신 내용」이라고 하면 그 자리에서 거짓이 된다.
+  assert.equal([...shown.matchAll(/where="used"/g)].length, 1,
+    '완료 화면의 안내가 「방금 접수됨」 경로까지 번졌다');
+  // 두 화면이 **같은 갈림**을 쓴다: 모를 때만 기기 사본을 말한다(갈림의 기준은 서버 요약이다).
+  for (const [name, src] of [['page.jsx', page], ['SeniorFlow.jsx', flow]]) {
+    assert.match(stripComments(src), /EUM_CONSUME_UNKNOWN_HINT/,
+      `${name}: 접수 내용을 모를 때의 안내가 없다 — 이 고침의 전제가 사라졌다`);
+  }
+});
+
 test('보조 사본 안내의 자리 이름이 등록부와 양방향으로 맞는다', () => {
   const keys = exportedObjectEntries(readFileSync(resolve(root, 'lib/eumSenior.js'), 'utf8'), 'EUM_PRIOR_TAIL')
     .map((e) => e.key);
@@ -720,13 +753,27 @@ test('단계를 바꾸는 자리는 enterStep 하나뿐이고, 거기서 방문 
 // 화면을 한 번도 읽지 않은 신청이 접수된다(링크는 1회용이라 되돌릴 길이 없다).
 test('떨리는 손의 두 번째 탭이 다음 화면에 닿지 않는다(선택지·주버튼 양쪽)', () => {
   const shown = stripComments(flow);
-  // 이동한 눈금을 적는 자리는 `go` 하나다 — 마운트 복원·popstate 에 적으면 문서를 막 열거나
-  // 되돌아온 직후의 **멀쩡한 첫 누름**을 삼킨다.
+  // 눈금을 적는 자리는 **둘**이고, 가름선은 「그 화면 전환이 **누름의 결과**인가」다.
+  //   ① 단계 이동(`go`)
+  //   ② 「다시 시도」로 되살아난 마운트 — 그 단추는 자기 자신이 사라지므로 두 번째 탭이
+  //      되살아난 화면에 떨어지고, ?step=3 이면 그 자리에 **같은 모양의 주버튼**이 온다.
+  // popstate 와 **누름이 아닌 첫 마운트**에는 적지 않는다(겨눈 손이 없다 — 적으면 문서를
+  // 막 열거나 되돌아온 직후의 멀쩡한 첫 누름을 삼킨다).
   const marks = [...shown.matchAll(/movedAtRef\.current = /g)].map((m) => m.index);
-  assert.equal(marks.length, 1, `이동 눈금을 적는 자리가 흩어졌다: ${marks.length}곳`);
+  assert.equal(marks.length, 2, `이동 눈금을 적는 자리가 흩어졌다: ${marks.length}곳`);
   const goAt = shown.indexOf('const go = useCallback(');
-  assert.ok(goAt > -1 && marks[0] > goAt, '이동 눈금을 go 밖에서 적는다');
-  assert.match(shown, /movedAtRef\.current = nowTick\(\);/, '기기 시계가 아니라 단조 눈금을 써야 한다');
+  assert.ok(goAt > -1, 'go 를 찾지 못했다');
+  assert.equal(marks.filter((at) => at > goAt).length, 1, '단계 이동에서 눈금을 적지 않는다');
+  // 되살아난 마운트 쪽: 깃발을 **읽은 그 자리**에서 적는다(사실을 두 번 적지 않는다).
+  assert.match(shown, /if \(!takeRetried\(docRoot\(\)\)\) return;\s*movedAtRef\.current = nowTick\(\);/,
+    '「다시 시도」로 되살아난 화면이 떨리는 손의 두 번째 탭을 그대로 받는다');
+  assert.equal([...shown.matchAll(/movedAtRef\.current = nowTick\(\);/g)].length, 2,
+    '기기 시계가 아니라 단조 눈금을 써야 한다(두 자리 모두)');
+  // popstate 처리에는 적지 않는다 — 되돌아온 직후의 첫 누름은 멀쩡한 누름이다.
+  const popAt = shown.indexOf('function onPop()');
+  assert.ok(popAt > -1, 'onPop 을 찾지 못했다');
+  const popBody = shown.slice(popAt, shown.indexOf("window.addEventListener('popstate'", popAt));
+  assert.equal(/movedAtRef\.current = /.test(popBody), false, '되돌아온 직후의 첫 누름을 삼킨다');
   // 삼키는 자리 셋: 활동·시간대·제출. 하나라도 빠지면 그 경로로 두 번째 탭이 들어온다.
   for (const fn of ['chooseActivity', 'chooseTimeslot']) {
     const at = shown.indexOf(`function ${fn}(`);
@@ -993,6 +1040,12 @@ test('「다시 시도」 뒤에도 되살아난 화면이 제목으로 포커�
   assert.ok(first > -1, '첫 렌더 분기를 찾지 못했다');
   const branch = flow.slice(first, flow.indexOf('}', flow.indexOf('return;', first)));
   assert.match(branch, /takeRetried\(docRoot\(\)\)/, '문서 뿌리 말고 다른 자리를 보고 있다');
+  // 그 깃발이 말하는 사실은 「이 마운트는 **누름의 결과**다」이고, 그것이 필요한 자리는
+  // 둘이다 — 포커스와 **떨리는 손의 두 번째 탭**(tapSettled). 깃발은 읽으면 지워지므로
+  // 두 번 읽을 수 없다: 한 번 읽어 둘을 하는 것이 유일한 모양이다.
+  assert.equal([...flow.matchAll(/takeRetried\(/g)].length, 1, '한 번만 쓰이는 사실을 두 곳에서 읽는다');
+  assert.match(branch, /movedAtRef\.current = nowTick\(\);/,
+    '되살아난 화면이 그 누름의 두 번째 탭을 그대로 받는다(같은 자리에 주버튼이 온다)');
   // 자리를 짓는 곳은 한 곳이다 — 넘겨받는 사실이 둘로 늘었고(「다시 시도」 표시 · 남은 시간
   // 눈금) 각자 적으면 한쪽만 고쳐지는 날 갈라진다.
   assert.match(flow, /function docRoot\(\)\s*\{\s*return typeof document !== 'undefined' \? document\.documentElement : null;/,
@@ -1316,6 +1369,48 @@ test('어르신 화면의 주소창 색은 제품 브랜드색이 아니라 이 
   for (const src of [rootLayout, eumLayout]) {
     assert.ok(!/maximumScale|userScalable/.test(src), '확대 제한은 저시력 요건과 정면으로 어긋난다');
   }
+});
+
+// ── 고친 결함: 토큰이 든 주소가 `Referer` 헤더로 새어 나갔다 ─────────────────
+//
+// 이 링크는 경로에 토큰을 싣고(`/eum/senior/<token>`) 회원가입이 없으므로 **주소 자체가 유일한
+// 인증 수단**이다. 제출 라우트는 그 사실을 알고 토큰을 쿼리스트링이 아니라 본문으로 받는데,
+// 그 자리의 주석이 적어 둔 이유가 「접근로그·**리퍼러** 유출 방지」였다 — 그런데 **그 요청
+// 자신의 `Referer` 가 토큰을 들고 왔다.** 선언이 없으면 브라우저 기본 방침
+// (`strict-origin-when-cross-origin`)이 가리는 것은 **다른 출처**로 나가는 요청뿐이고,
+// **같은 출처** 요청에는 주소 전체를 그대로 보낸다. 이 화면이 거는 요청은 전부 같은 출처다
+// (제출 · `/_next/static/**` 의 CSS·스크립트). 1회용·5분이라 범위는 좁지만 그 5분 안에 로그를
+// 읽는 쪽은 링크를 그대로 쓸 수 있고, 그러면 어르신이 고르지 않은 것이 접수된 뒤 어르신에게는
+// 「이미 신청하셨습니다」가 뜬다(되돌릴 길이 없는 화면이다).
+test('어르신 화면의 응답이 리퍼러를 끊는다(토큰이 든 주소가 헤더로 새지 않게)', async () => {
+  const { default: config } = await import('../next.config.mjs');
+  assert.equal(typeof config.headers, 'function', 'next.config 에 헤더 선언이 없다');
+  const entries = await config.headers();
+  assert.ok(Array.isArray(entries) && entries.length >= 2, `헤더 선언을 읽지 못했다: ${entries?.length}`);
+  const policyOf = (e) => (e.headers || []).filter((h) => String(h.key).toLowerCase() === 'referrer-policy');
+  const isEum = (e) => String(e.source || '') === '/eum' || String(e.source || '').startsWith('/eum/');
+  // 어르신 화면의 **두 진입 경로를 둘 다** 덮는다 — `/eum` 은 문자에서 잘린 링크로 실제로
+  // 열리는 주소다(app/eum/page.jsx). 패턴 하나가 둘 다 받는 것에 기대지 않는다.
+  for (const source of ['/eum', '/eum/:path*']) {
+    const hit = entries.filter((e) => e.source === source).flatMap(policyOf);
+    assert.deepEqual(hit.map((h) => h.value), ['no-referrer'], `${source}: 리퍼러를 끊지 않는다`);
+  }
+  // 어르신 경로에 닿는 선언이 **서로 다른 값**을 말하면 안 된다 — 같은 헤더가 두 벌로 나가면
+  // 어느 쪽이 이기는지가 브라우저 몫이 된다.
+  for (const e of entries.filter(isEum)) {
+    for (const h of policyOf(e)) {
+      assert.equal(h.value, 'no-referrer', `${e.source}: 어르신 경로의 리퍼러 방침이 갈라진다`);
+    }
+  }
+  // 포털 응답은 한 줄도 바뀌지 않는다 — 차단막은 `/eum` 아래뿐이라는 계약이 그대로다
+  // (전역 CSS 를 `.eum-screen` 안쪽에서만 끈 것과 같은 계약 · ui.jsx 의 EumStyles).
+  const portal = entries.filter((e) => !isEum(e) && policyOf(e).length);
+  assert.deepEqual(portal.map((e) => e.source), [], '포털 쪽 리퍼러 방침까지 바꾸고 있다');
+  // 왜 `metadata.referrer`(= `<meta name="referrer">`)가 아닌가: **늦게 도착한다.** 빌드
+  // 산출물의 head 에서 `<link rel="stylesheet">` 와 스크립트 태그는 metadata 가 그리는
+  // `<meta>` 들보다 **앞**에 있고, 그 앞에서 이미 떠난 요청에는 뒤에 붙은 선언이 닿지 않는다.
+  assert.ok(!('referrer' in metadataFields(eumLayout)),
+    'head 선언으로 옮기면 먼저 떠난 자원 요청(CSS·스크립트)을 놓친다');
 });
 
 // ── 어르신 화면에 내려오는 포털 전역 CSS ──────────────────────────────────

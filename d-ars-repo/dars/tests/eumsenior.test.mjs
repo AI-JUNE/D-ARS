@@ -682,15 +682,26 @@ test('priorLocalNotice: 아는 것만 말하고, 모르면 한 글자도 그리�
 // 신청을 마친 어르신이 링크가 죽은 뒤 다시 열면 소진 기록은 토큰과 함께 사라져 서버는 답할 수
 // 없고, 그 화면은 만료 안내만 하고 끝나므로 어르신은 새 링크를 청해 처음부터 다시 고른다.
 // 그 자리에서 「다시 신청하지 않으셔도」는 말이 되지 않는다 — 누를 것이 없다.
+//
+// (그리고 그 고침도 **절반**이었다 — 셋째 자리가 있었다. 「이미 신청하셨습니다」 화면은 접수가
+//  끝난 화면이라 하지 않아도 되는 일이 또 다르다: 다시 신청하는 것도 새 링크를 청하는 것도
+//  아니라 **담당자에게 전화해 무엇이 접수됐는지 묻는 것**이고, 그 화면의 안내가 바로 그것을
+//  시키고 있었다(「접수된 내용은 담당자에게 확인해 주세요」 · 서버가 내용을 모를 때).)
 test('priorLocalNotice: 자리마다 끝 문장이 다르고, 적지 않으면 아무 말도 하지 않는다', () => {
   const confirm = priorLocalNotice(PRIOR, 'confirm');
   const expired = priorLocalNotice(PRIOR, 'expired');
-  assert.notEqual(confirm, expired, '만료 화면에는 누를 단추가 없다 — 같은 말을 할 수 없다');
+  const used = priorLocalNotice(PRIOR, 'used');
+  // 세 자리가 **서로 다른** 말을 해야 한다 — 같은 문장이 두 자리에 붙으면 그중 하나는 그
+  // 화면에 없는 일을 가리킨다(한 문장이 조건 없이 모든 자리에 붙던 것이 이 결함의 원인이다).
+  assert.equal(new Set([confirm, expired, used]).size, 3, '자리마다 할 수 있는 말이 다르다');
   assert.match(expired, /새 링크를 청하지 않으셔도 됩니다/, '만료 화면에서 하지 않아도 되는 일은 새 링크 요청이다');
-  // 앞부분(아는 사실)은 두 자리가 같아야 한다 — 사실이 자리마다 달라지면 안 된다.
+  assert.match(used, /따로 확인하지 않으셔도 됩니다/, '접수가 끝난 화면에서 하지 않아도 되는 일은 담당자 확인이다');
+  // 접수가 끝난 화면에서 「다시 신청」·「새 링크」를 말하면 그 화면에 없는 일을 가리킨다.
+  assert.ok(!/다시 신청|새 링크/.test(used), `접수가 끝난 화면에 없는 일을 가리킨다: ${used}`);
+  // 앞부분(아는 사실)은 세 자리가 같아야 한다 — 사실이 자리마다 달라지면 안 된다.
   // 절을 가르는 자리는 줄표(' — ')가 아니라 마침표다: 줄표는 낭독되지 않아 세 토막이
   // "내용이 있습니다 산책 나들이 오전 9시 12시 그대로 괜찮으시면" 으로 들러붙었다.
-  for (const msg of [confirm, expired]) {
+  for (const msg of [confirm, expired, used]) {
     assert.ok(msg.startsWith(`이 기기에서 전에 신청하신 내용이 있습니다${EUM_PRIOR_JOIN}${summaryText(PRIOR)}.`));
     assert.ok(!msg.includes(' — '), `낭독되지 않는 줄표로 절을 가르고 있다: ${msg}`);
   }
@@ -703,7 +714,7 @@ test('priorLocalNotice: 자리마다 끝 문장이 다르고, 적지 않으면 �
 
 test('priorLocalNotice: 등록부의 모든 자리가 쓸 수 있는 문장을 들고 있다', () => {
   const keys = Object.keys(EUM_PRIOR_TAIL);
-  assert.deepEqual(keys.sort(), ['confirm', 'expired'], '자리가 늘면 화면 대조도 함께 갱신해야 한다');
+  assert.deepEqual(keys.sort(), ['confirm', 'expired', 'used'], '자리가 늘면 화면 대조도 함께 갱신해야 한다');
   for (const [k, tail] of Object.entries(EUM_PRIOR_TAIL)) {
     assert.equal(typeof tail, 'string');
     assert.ok(tail.endsWith('.'), `${k}: 문장이 끊겨 있다`);

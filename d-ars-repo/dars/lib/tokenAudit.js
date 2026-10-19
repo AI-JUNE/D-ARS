@@ -37,6 +37,11 @@ export function secretStrength(value) {
 // 발급 토큰 목록(단일 출처). 문서 `docs/TOKEN_SECURITY.md` 와 양방향 대조된다.
 //   transport 'cookie' — httpOnly 쿠키(스크립트 접근 불가 · 로그에 남지 않음)
 //   transport 'url'    — 경로 세그먼트(문자 메시지로 전달 · 로그·리퍼러 노출 위험 → 짧은 TTL 로 상쇄)
+//                        (아래 TOKEN_IN_URL 경고가 꼽는 셋 중 **리퍼러**는 이음 링크에 한해
+//                         닫혀 있다 — `/eum` 아래 응답에 `Referrer-Policy: no-referrer` 가 붙는다
+//                         (next.config.mjs). 경고 문장은 그대로 둔다: 나머지 둘(접근로그·메신저
+//                         미리보기)은 여전히 참이고, 이 경고는 전달 경로가 url 인 **모든** 토큰이
+//                         받는 것이라 한 토큰의 완화를 문장에 녹이면 다음 토큰에서 거짓이 된다.)
 //   oneTimeRequired    — 요건상 1회용이어야 하는가(구현 수준은 oneTime)
 //   oneTime            — 1회용 구현 수준. 예전에는 참/거짓 하나였는데, 그 모양으로는 지금 상태를
 //                        말할 수 없다. 이음 링크는 `lib/eumConsume` 로 **구현됐지만** 소진 기록이

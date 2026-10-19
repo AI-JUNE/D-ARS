@@ -113,7 +113,16 @@ export default async function EumSeniorPage({ params, searchParams }) {
         detail={summary}
         hint={summary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}
         foot={EUM_NOTICE_FOOT.done}
-      />
+      >
+        {/* 서버가 **접수 내용을 모를 때만** 그 기기가 아는 것을 말한다. 위 힌트는 그때
+            「접수된 내용은 담당자에게 확인해 주세요」로 끝나는데, 그 기기에는 사본이 남아
+            있을 수 있다 — 접수가 끝난 어르신에게 걸게 만든 그 전화가 담당자에게는 새 링크를
+            보내는 일이 되고, 새 링크는 소진 키가 달라 재신청이 통한다(명단에 두 건).
+            서버가 아는 경우에는 두지 않는다: 그때 위 `detail` 이 이미 **서버 기록**을 요약으로
+            그리고 있으므로, 기기 사본을 한 줄 더 놓으면 같은 말이 두 번이거나 둘이 어긋날 때
+            어느 쪽이 접수된 것인지 가릴 수 없게 된다(원본은 서버다). */}
+        {summary ? null : <PriorLocal storeKey={storageKey(result.payload.sid)} where="used" />}
+      </Notice>
     );
   }
 
