@@ -21,6 +21,8 @@ import {
   EUM_SUBMIT_MESSAGE,
   submitMessage,
   EUM_DONE_MESSAGE,
+  EUM_DONE_STATE,
+  EUM_DONE_NEXT,
   EUM_BOUNDARY_MESSAGE,
   EUM_KICKER,
   EUM_PANEL_ASK,
@@ -342,6 +344,40 @@ test('소진 안내는 같은 문장을 다시 적지 않고 표를 가리킨다
   assert.match(CONSUME_SRC, /used:\s*EUM_DONE_MESSAGE\.already/);
 });
 
+// ── 고친 결함: 「이미 접수됐다」 패널도 제목이 본문을 되풀이했다 ──────────────
+//
+// 위 「패널 제목」 두 테스트가 만료·잘린 링크에서 없앤 중복이 한 자리 더 남아 있었다 —
+// 제목 `EUM_PANEL_TITLE.used`(「이미 신청하셨습니다」) / 본문 「**이미 신청이 접수되었습니다**.
+// 담당자가 곧 전화로 안내해 드립니다」. 그 자리를 남긴 이유는 「본문은 완료 화면과 **같은
+// 문장**이어야 한다」는 13회차의 계약이 먼저였기 때문인데, 그 계약을 깨지 않는 길은 이 파일에
+// 이미 두 번 쓰여 있었다(EUM_PANEL_TITLE/EUM_PANEL_ASK · EUM_SOON_LEAD/EUM_SOON_NEXT):
+// **한 토막을 둘로 나누고**, 제목이 없는 자리에서는 이어 쓰고 패널에서는 나눠 쓴다.
+test('접수 문구: 제목·본문 두 토막으로 나뉘고, 이어 쓴 문장이 그 둘의 합이다', () => {
+  // 이어 쓴 문장은 **여기서 조립한다** — 글자가 한 자라도 다르면 진입 패널(제목+본문)과
+  // 409 응답·완료 화면이 서로 다른 말을 하게 된다.
+  for (const kind of Object.keys(EUM_DONE_STATE)) {
+    assert.equal(EUM_DONE_MESSAGE[kind], `${EUM_DONE_STATE[kind]}. ${EUM_DONE_NEXT}`,
+      `${kind}: 이어 쓴 문장이 두 토막에서 나오지 않는다`);
+  }
+  assert.deepEqual(Object.keys(EUM_DONE_MESSAGE).sort(), Object.keys(EUM_DONE_STATE).sort(),
+    '두 표의 경우가 어긋난다(한쪽에만 있는 경우는 조용히 undefined 가 된다)');
+  // 제목 자리와 본문 자리는 **서로 다른 사실**을 말한다(그 중복이 이 고침의 이유다).
+  for (const [kind, state] of Object.entries(EUM_DONE_STATE)) {
+    assert.ok(!EUM_DONE_NEXT.includes(state), `${kind}: 본문이 제목을 그대로 담고 있다`);
+    assert.ok(!state.includes(EUM_DONE_NEXT), `${kind}: 제목이 본문을 그대로 담고 있다`);
+    assert.ok(!state.endsWith('.'), `${kind}: 제목 자리의 문장 끝 규약이 깨졌다`);
+    assert.match(state, /접수되었습니다/, `${kind}: 무엇이 이미 되어 있는지를 말하지 않는다`);
+  }
+  // 본문 자리의 규약은 EUM_PANEL_ASK 와 같다(마침표 없음) — 섞이면 패널마다 끝이 달라진다.
+  assert.ok(!EUM_DONE_NEXT.endsWith('.') && EUM_DONE_NEXT.length > 8, '본문 한 줄의 규약이 깨졌다');
+  assert.match(EUM_DONE_NEXT, /담당자/, '다음에 무슨 일이 일어나는지를 말하지 않는다');
+  // 접수가 끝난 사람에게 **할 일을 만들지 않는다**(그 전화가 새 링크를 부르고 명단에 두 건).
+  assert.equal(/문의해 주세요|확인해 주세요/.test(EUM_DONE_NEXT), false, '할 일이 없는 사람에게 할 일을 준다');
+  // 「잘못됐는가」를 말하는 표에는 이 제목이 없다 — 접수는 잘못된 상태가 아니다.
+  assert.equal('used' in EUM_PANEL_TITLE, false, '접수 사실이 「무엇이 잘못됐는가」 표로 되돌아갔다');
+  assert.deepEqual(Object.keys(EUM_PANEL_TITLE).sort(), ['expired', 'link']);
+});
+
 test('이미 접수된 링크의 힌트 두 줄이 판정 모듈이 아니라 문구 표에 있다', () => {
   for (const [key, msg] of Object.entries({
     change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT,
@@ -475,6 +511,9 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     EUM_TOKEN_MESSAGE,
     EUM_SUBMIT_MESSAGE,
     EUM_DONE_MESSAGE,
+    // 나눈 두 토막도 **화면에 그려지는 글자**다(진입 패널의 제목·본문) — 이어 쓴 문장만
+    // 보면 토막 쪽에 들어온 기호를 이 대조가 놓친다.
+    EUM_DONE_SPLIT: { ...EUM_DONE_STATE, next: EUM_DONE_NEXT },
     EUM_BOUNDARY_MESSAGE,
     // 제목·머리말·할 일 한 줄도 **화면에 그려지는 글자**다. 이 표로 옮겨 오면서 화면 쪽
     // 대조(tests/eumseniorui)에서 빠졌으므로 여기서 같은 판정으로 받는다 — 11회차가 겪은

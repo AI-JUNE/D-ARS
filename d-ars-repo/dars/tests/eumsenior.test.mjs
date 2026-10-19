@@ -42,6 +42,7 @@ import {
   EUM_RETRY_FLAG,
   markRetried,
   takeRetried,
+  popFromTap,
   EUM_SETTLE_MS,
   tapSettled,
 } from '../lib/eumSenior.js';
@@ -302,6 +303,36 @@ test('tapSettled: 모를 때는 **통과시킨다**(판정 실패가 누름을 �
   }
   const junk = [undefined, null, NaN, 'x', {}, [], () => {}, Symbol.iterator];
   for (const v of junk) assert.doesNotThrow(() => tapSettled(v, v, v));
+});
+
+// ── 그 눈금을 적어야 하는 전환이 하나 더 있었다 ────────────────────────────
+//
+// 고친 결함: 눈금을 적는 가름선은 「그 화면 전환이 **누름의 결과**인가」인데, popstate 는
+// "겨눈 손이 없다" 는 사유로 빠져 있었다. 그 사유는 브라우저가 일으킨 뒤로가기(제스처·
+// 하드웨어 단추)에는 맞지만 **우리 링크를 눌러서** 일어난 되돌아가기에는 맞지 않는다 —
+// 「앞 화면으로」·「다시 고르기」는 `history.back()` 을 거쳐 popstate 로 돌아온다. 그래서
+// 그 누름의 두 번째 탭이 **앞 단계**에 떨어졌다: 1단계의 활동 선택지가 골라져 화면이 다시
+// 2단계로 가거나(되돌아가려고 누른 손이 앞으로 간다), 2단계의 시간대가 골라진 채 확인
+// 화면이 다시 열린다. 20회차가 막은 사고와 같고 방향만 반대다.
+// 가름선은 그대로 둔다 — 적는 것은 **우리가 요청한** 되돌아가기뿐이고, 그 사실은 화면이
+// 이미 들고 있었다(backFromRef — 14회차가 같은 자리의 두 번째 누름을 삼키려고 적는 깊이).
+test('popFromTap: 우리가 요청한 되돌아가기만 「누름의 결과」로 본다', () => {
+  // 요청해 둔 깊이가 적혀 있다 → 이 전환은 「앞 화면으로」·「다시 고르기」 누름의 결과다.
+  assert.equal(popFromTap(1), true);
+  assert.equal(popFromTap(3), true);
+  // 뿌리(0)도 우리가 적은 값이다 — backAction 은 뿌리에서 가로채지 않으므로 보통 오지 않지만,
+  // 적혀 있다는 사실 자체가 「우리가 요청했다」이므로 통과시킨다(모양으로만 판정한다).
+  assert.equal(popFromTap(0), true);
+});
+
+test('popFromTap: 브라우저가 일으킨 뒤로가기·앞으로가기는 **모르는 쪽**이다', () => {
+  // 적혀 있지 않다 = 우리가 요청하지 않았다 → 적지 않는다(멀쩡한 첫 누름을 삼키지 않게).
+  assert.equal(popFromTap(null), false);
+  for (const bad of [undefined, NaN, Infinity, '1', 1.5, -0.5, {}, [], true, 'x']) {
+    assert.equal(popFromTap(bad), false, `입력: ${String(bad)}`);
+  }
+  const junk = [undefined, null, NaN, 'x', {}, [], () => {}, Symbol.iterator];
+  for (const v of junk) assert.doesNotThrow(() => popFromTap(v));
 });
 
 test('넘기는 자리는 문서 속성이다(모듈 변수·저장소가 아니다)', () => {
@@ -687,13 +718,22 @@ test('priorLocalNotice: 아는 것만 말하고, 모르면 한 글자도 그리�
 //  끝난 화면이라 하지 않아도 되는 일이 또 다르다: 다시 신청하는 것도 새 링크를 청하는 것도
 //  아니라 **담당자에게 전화해 무엇이 접수됐는지 묻는 것**이고, 그 화면의 안내가 바로 그것을
 //  시키고 있었다(「접수된 내용은 담당자에게 확인해 주세요」 · 서버가 내용을 모를 때).)
-test('priorLocalNotice: 자리마다 끝 문장이 다르고, 적지 않으면 아무 말도 하지 않는다', () => {
+//
+// (자리 이름이 **다섯**이 된 이유는 lib/eumSenior 의 그 등록부 주석에 있다 — 쓰이는 자리가
+//  다섯인데 이름이 셋이라 만료 둘과 「이미 접수됐다」 둘이 이름을 함께 썼고, 그 동안 양방향
+//  대조도 다섯 자리를 셋으로만 보았다. 지금 **말이 갈리는 상황**은 여전히 셋이고, 같은 말을
+//  해야 하는 쌍은 문장 한 벌을 공유한다 — 아래 두 가지를 함께 고정한다.)
+test('priorLocalNotice: 상황마다 끝 문장이 다르고, 적지 않으면 아무 말도 하지 않는다', () => {
   const confirm = priorLocalNotice(PRIOR, 'confirm');
-  const expired = priorLocalNotice(PRIOR, 'expired');
-  const used = priorLocalNotice(PRIOR, 'used');
-  // 세 자리가 **서로 다른** 말을 해야 한다 — 같은 문장이 두 자리에 붙으면 그중 하나는 그
+  const expired = priorLocalNotice(PRIOR, 'expiredEntry');
+  const used = priorLocalNotice(PRIOR, 'usedEntry');
+  // 세 **상황**이 서로 다른 말을 해야 한다 — 같은 문장이 두 상황에 붙으면 그중 하나는 그
   // 화면에 없는 일을 가리킨다(한 문장이 조건 없이 모든 자리에 붙던 것이 이 결함의 원인이다).
-  assert.equal(new Set([confirm, expired, used]).size, 3, '자리마다 할 수 있는 말이 다르다');
+  assert.equal(new Set([confirm, expired, used]).size, 3, '상황마다 할 수 있는 말이 다르다');
+  // 같은 말을 해야 하는 **쌍**은 한 벌을 공유한다(진입·작성 중 만료 · 진입 안내·완료 화면).
+  // 글자를 두 벌로 적으면 한쪽만 고쳐지는 날이 오고, 그날 두 화면이 다른 말을 한다.
+  assert.equal(priorLocalNotice(PRIOR, 'expiredFlow'), expired, '두 만료 화면이 갈라졌다');
+  assert.equal(priorLocalNotice(PRIOR, 'usedDone'), used, '「이미 접수됐다」 두 화면이 갈라졌다');
   assert.match(expired, /새 링크를 청하지 않으셔도 됩니다/, '만료 화면에서 하지 않아도 되는 일은 새 링크 요청이다');
   assert.match(used, /따로 확인하지 않으셔도 됩니다/, '접수가 끝난 화면에서 하지 않아도 되는 일은 담당자 확인이다');
   // 접수가 끝난 화면에서 「다시 신청」·「새 링크」를 말하면 그 화면에 없는 일을 가리킨다.
@@ -714,7 +754,10 @@ test('priorLocalNotice: 자리마다 끝 문장이 다르고, 적지 않으면 �
 
 test('priorLocalNotice: 등록부의 모든 자리가 쓸 수 있는 문장을 들고 있다', () => {
   const keys = Object.keys(EUM_PRIOR_TAIL);
-  assert.deepEqual(keys.sort(), ['confirm', 'expired', 'used'], '자리가 늘면 화면 대조도 함께 갱신해야 한다');
+  // 이름은 **쓰이는 자리 수와 같다**(다섯) — 화면 쪽 양방향 대조는 tests/eumseniorui 가 한다.
+  assert.deepEqual(keys.sort(),
+    ['confirm', 'expiredEntry', 'expiredFlow', 'usedDone', 'usedEntry'],
+    '자리가 늘면 화면 대조도 함께 갱신해야 한다');
   for (const [k, tail] of Object.entries(EUM_PRIOR_TAIL)) {
     assert.equal(typeof tail, 'string');
     assert.ok(tail.endsWith('.'), `${k}: 문장이 끊겨 있다`);

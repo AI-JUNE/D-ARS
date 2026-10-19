@@ -19,7 +19,7 @@ import {
   createConsumeStore,
   sanitizeNote,
 } from '../lib/eumConsume.js';
-import { EUM_DONE_MESSAGE } from '../lib/eumMessage.js';
+import { EUM_DONE_MESSAGE, EUM_DONE_NEXT, EUM_DONE_STATE } from '../lib/eumMessage.js';
 import { parseAccepted } from '../lib/eumSenior.js';
 import { issueEumToken } from '../lib/eumToken.js';
 
@@ -144,7 +144,10 @@ test('라우트: HTTP 메서드·설정 외 export 를 두지 않는다(빌드 �
 test('진입 화면: 이미 접수된 링크면 첫 화면에서 알려 준다(4단계를 걷게 하지 않는다)', () => {
   assert.match(PAGE, /consumeStore\(\)\.recordOf\(/, '진입 시 소진 확인이 없으면 헛걸음이 남는다');
   assert.match(PAGE, /record\.used/);
-  assert.match(PAGE, /consumeMessage\('used'\)/, '문구는 단일 출처에서 가져온다');
+  // 문구는 단일 출처에서 가져온다. 이 패널은 제목이 있는 자리라 한 토막을 **나눠** 쓴다
+  // (제목 = 무엇이 이미 되어 있는가 · 본문 = 다음에 무슨 일이 일어나는가) — 이어 쓴 문장은
+  // 409 응답과 완료 화면이 쓴다. 아래 「본문도 한 벌이다」 테스트가 그 둘을 대조한다.
+  assert.match(PAGE, /EUM_DONE_STATE|EUM_DONE_NEXT/, '문구는 단일 출처에서 가져온다');
   const notice = PAGE.slice(PAGE.indexOf('record.used'));
   assert.match(notice, /summaryText\(record\.note\)/, '무엇이 접수됐는지 보여 준다');
 });
@@ -220,8 +223,22 @@ test('진입 안내와 완료 화면의 **본문**도 한 벌이다(서로 반�
   // 사실을 말하는 문장은 비밀을 모르는 자리 한 곳에만 있고, 소진 안내가 그것을 가리킨다.
   assert.match(CONSUME, /used:\s*EUM_DONE_MESSAGE\.already/, '소진 안내가 접수 문구 표를 가리키지 않는다');
   assert.match(CONSUME, /EUM_DONE_MESSAGE[^\n]*from '\.\/eumMessage\.js'/, '표를 import 하지 않는다');
-  // 진입 안내는 그 표를 거쳐 온 문장을 쓴다(consumeMessage('used')).
-  assert.match(PAGE, /body=\{consumeMessage\('used'\)\}/, '진입 안내가 본문을 손으로 적는다');
+  // 진입 안내는 그 표의 **두 토막**을 제목·본문으로 나눠 쓴다. 한 토막을 그대로 본문에 넣던
+  // 동안 제목(「이미 신청하셨습니다」)과 본문의 첫 문장(「이미 신청이 접수되었습니다」)이 같은
+  // 사실을 두 번 말했다 — 그 패널은 제목으로 포커스를 옮기므로(11회차) 듣는 어르신은 방금
+  // 들은 말을 한 번 더 듣는다. 9회차가 만료·잘린 링크 패널에서 없앤 중복의 마지막 자리다.
+  assert.match(PAGE, /title=\{EUM_DONE_STATE\.already\}/, '진입 안내의 제목이 접수 문구 표에서 오지 않는다');
+  assert.match(PAGE, /body=\{EUM_DONE_NEXT\}/, '진입 안내가 본문을 손으로 적는다');
+  // 나눠 쓴 둘을 이어 붙이면 **409 응답·완료 화면의 그 문장**이다 — 두 화면이 갈라질 수 없다
+  // (13회차의 계약은 그대로이고, 바뀐 것은 한 자리에서 나눠 쓴다는 것뿐이다).
+  assert.equal(`${EUM_DONE_STATE.already}. ${EUM_DONE_NEXT}`, EUM_DONE_MESSAGE.already,
+    '제목+본문이 이어 쓴 문장과 다르다 — 두 화면이 서로 다른 말을 하게 된다');
+  assert.equal(`${EUM_DONE_STATE.accepted}. ${EUM_DONE_NEXT}`, EUM_DONE_MESSAGE.accepted);
+  // 제목이 본문을 되풀이하지 않는다(그 중복이 이 고침의 이유다).
+  assert.ok(!EUM_DONE_NEXT.includes(EUM_DONE_STATE.already), '본문이 제목을 그대로 담고 있다');
+  assert.ok(!EUM_DONE_NEXT.endsWith('.'), '패널 본문 한 줄의 규약이 깨졌다(EUM_PANEL_ASK 와 같은 자리)');
+  // 이어 쓴 문장이 필요한 자리(제목이 없거나 제목이 다른 사실을 말하는 자리)는 그대로 쓴다.
+  assert.match(ROUTE, /consumeMessage\('used'\)/, '409 응답이 접수 문구 표를 거치지 않는다');
   // 접수가 끝난 사람에게 **할 일을 만들지 않는다.** 바꾸고 싶은 경우만이고 그것은 힌트가
   // 조건부로 말한다 — 본문이 무조건 담당자를 부르면 그 전화가 새 링크를 부른다.
   assert.equal(/문의해 주세요/.test(EUM_DONE_MESSAGE.already), false,
@@ -234,7 +251,9 @@ test('진입 안내와 완료 화면의 **본문**도 한 벌이다(서로 반�
   const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ')
     .split('\n').map((l) => l.replace(/(^|[^:\w])\/\/.*$/, '$1')).join('\n');
   for (const [name, src] of Object.entries({ 'SeniorFlow.jsx': FLOW, 'page.jsx': PAGE, 'lib/eumConsume.js': CONSUME })) {
-    for (const v of Object.values(EUM_DONE_MESSAGE)) {
+    // 이어 쓴 문장도, **나눈 두 토막**도 손으로 적혀 있으면 안 된다(토막이 생긴 뒤에는
+    // 사본이 그 모양으로도 되살아날 수 있다).
+    for (const v of [...Object.values(EUM_DONE_MESSAGE), ...Object.values(EUM_DONE_STATE), EUM_DONE_NEXT]) {
       assert.ok(!strip(src).includes(v), `${name}: 접수 문구를 손으로 적었다 — ${v}`);
     }
   }

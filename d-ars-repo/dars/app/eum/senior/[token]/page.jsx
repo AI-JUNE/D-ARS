@@ -27,12 +27,13 @@ import { verifyEumToken } from '@/lib/eumToken';
 import {
   EUM_CONSUME_CHANGE_HINT,
   EUM_CONSUME_UNKNOWN_HINT,
+  EUM_DONE_NEXT,
+  EUM_DONE_STATE,
   EUM_PANEL_ASK,
-  EUM_PANEL_TITLE,
   panelTitle,
 } from '@/lib/eumMessage';
 import { parseDraft, parseStep, storageKey, summaryText } from '@/lib/eumSenior';
-import { consumeKey, consumeStore, consumeMessage } from '@/lib/eumConsume';
+import { consumeKey, consumeStore } from '@/lib/eumConsume';
 import { Notice, EUM_NOTICE_FOOT } from './ui.jsx';
 import SeniorFlow from './SeniorFlow.jsx';
 import PriorLocal from './PriorLocal.jsx';
@@ -85,7 +86,7 @@ export default async function EumSeniorPage({ params, searchParams }) {
         body={EUM_PANEL_ASK}
         foot={expired ? EUM_NOTICE_FOOT.expired : EUM_NOTICE_FOOT.link}
       >
-        {expired ? <PriorLocal storeKey={storageKey(result.sid)} where="expired" /> : null}
+        {expired ? <PriorLocal storeKey={storageKey(result.sid)} where="expiredEntry" /> : null}
       </Notice>
     );
   }
@@ -101,15 +102,20 @@ export default async function EumSeniorPage({ params, searchParams }) {
     // 청하고, 새 링크는 소진 키가 달라 재신청이 통한다. 중복 접수를 막으려고 만든 화면이 중복을
     // 만들던 셈이다. 무엇이 접수됐는지 아는지에 따라 할 말이 다르다(요약은 지어내지 않는다).
     //
-    // 제목은 등록부에서 가져온다(예전에는 이 파일이 손으로 적었다). 본문은 그대로 둔다 —
-    // 이 자리의 본문은 완료 화면과 **같은 문장**이어야 하고(13회차의 계약 · tests/eumrepeat)
-    // 그 계약이 제목·본문의 중복을 줄이는 것보다 먼저다. 남은 중복은 같은 사실을 서로 다른
-    // 낱말로 두 번 말하는 정도이고, 그 대가로 두 화면이 갈라지지 않는다.
+    // 제목·본문은 **한 토막에서 나눠** 쓴다. 예전에는 제목이 「이미 신청하셨습니다」,
+    // 본문이 「**이미 신청이 접수되었습니다**. 담당자가 곧 전화로 안내해 드립니다」로
+    // 같은 사실을 두 번 말했다(제목으로 포커스가 옮겨 간 직후 같은 말을 한 번 더 듣는다).
+    // 그때 남긴 이유는 「본문이 완료 화면과 **같은 문장**이어야 한다」는 13회차의 계약이
+    // 먼저였기 때문인데, 그 계약을 깨지 않는 길은 이 화면군이 이미 두 번 쓴 수단이었다 —
+    // 만료 패널의 `EUM_PANEL_TITLE`/`EUM_PANEL_ASK` 와 만료 임박 경고의 두 토막이다.
+    // 지금 제목은 **무엇이 이미 되어 있는가**, 본문은 **다음에 무슨 일이 일어나는가**이고,
+    // 둘을 이어 붙인 문장이 곧 완료 화면·409 응답의 그 문장이다(글자는 한 자도 다르지
+    // 않다 · lib/eumMessage 의 EUM_DONE_STATE·EUM_DONE_NEXT).
     const summary = summaryText(record.note);
     return (
       <Notice
-        title={EUM_PANEL_TITLE.used}
-        body={consumeMessage('used')}
+        title={EUM_DONE_STATE.already}
+        body={EUM_DONE_NEXT}
         detail={summary}
         hint={summary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}
         foot={EUM_NOTICE_FOOT.done}
@@ -121,7 +127,7 @@ export default async function EumSeniorPage({ params, searchParams }) {
             서버가 아는 경우에는 두지 않는다: 그때 위 `detail` 이 이미 **서버 기록**을 요약으로
             그리고 있으므로, 기기 사본을 한 줄 더 놓으면 같은 말이 두 번이거나 둘이 어긋날 때
             어느 쪽이 접수된 것인지 가릴 수 없게 된다(원본은 서버다). */}
-        {summary ? null : <PriorLocal storeKey={storageKey(result.payload.sid)} where="used" />}
+        {summary ? null : <PriorLocal storeKey={storageKey(result.payload.sid)} where="usedEntry" />}
       </Notice>
     );
   }

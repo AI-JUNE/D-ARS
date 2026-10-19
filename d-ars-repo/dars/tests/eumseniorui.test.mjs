@@ -573,14 +573,17 @@ test('만료 화면이 이 기기의 사본을 읽어 헛수고를 줄인다(진
     for (const el of elements(src)) {
       if (!/EUM_NOTICE_FOOT\.expired/.test(el)) continue;
       assert.match(el, /<PriorLocal\b/, `${name}: 만료 안내가 그 기기가 아는 것을 말하지 않는다`);
-      assert.match(el, /where="expired"/, `${name}: 만료 화면에서 할 수 없는 말을 한다(자리 이름)`);
+      // 자리 이름은 화면마다 다르고(진입·작성 중) 둘 다 만료 쪽 문장 한 벌을 가리킨다 —
+      // 한동안 두 화면이 이름 하나(`expired`)를 함께 써서, 이 대조가 다섯 자리를 셋으로만
+      // 보고 있었다(두 자리가 사라져도 통과했다 · lib/eumSenior 의 EUM_PRIOR_TAIL 주석).
+      assert.match(el, /where="expired(?:Entry|Flow)"/, `${name}: 만료 화면에서 할 수 없는 말을 한다(자리 이름)`);
       expired.push(el);
     }
   }
   assert.equal(expired.length, 2, `만료 안내가 두 자리(진입·작성 중)에 있어야 한다: ${expired.length}`);
   // 진입 화면은 **서명이 검증된 만료**에만 조각을 둔다 — 잘못된 링크에는 sid 가 없고,
   // 없는 것을 지어내 다른 사람의 사본을 읽게 하지 않는다.
-  assert.match(page, /\{expired \? <PriorLocal storeKey=\{storageKey\(result\.sid\)\} where="expired" \/> : null\}/);
+  assert.match(page, /\{expired \? <PriorLocal storeKey=\{storageKey\(result\.sid\)\} where="expiredEntry" \/> : null\}/);
 });
 
 // ── 「이미 신청하셨습니다」 화면도 그 기기가 아는 것을 말한다 ────────────────
@@ -598,16 +601,16 @@ test('만료 화면이 이 기기의 사본을 읽어 헛수고를 줄인다(진
 test('「이미 신청하셨습니다」 두 화면이 그 기기가 아는 것을 말한다(서버가 모를 때만)', () => {
   // 진입 안내 — 서명이 검증된 토큰이므로 sid 는 우리가 발급한 값이다(지어내지 않는다).
   assert.match(stripComments(page),
-    /\{summary \? null : <PriorLocal storeKey=\{storageKey\(result\.payload\.sid\)\} where="used" \/>\}/,
+    /\{summary \? null : <PriorLocal storeKey=\{storageKey\(result\.payload\.sid\)\} where="usedEntry" \/>\}/,
     '진입 「이미 신청하셨습니다」가 그 기기가 아는 것을 말하지 않는다');
   const shown = stripComments(flow);
   // 완료 화면(409) — `already` 이고 서버 요약이 없을 때만.
   assert.match(shown,
-    /\{already && !doneSummary \? \(\s*<PriorLocal storeKey=\{storageKey\(sid\)\} where="used" \/>\s*\) : null\}/,
+    /\{already && !doneSummary \? \(\s*<PriorLocal storeKey=\{storageKey\(sid\)\} where="usedDone" \/>\s*\) : null\}/,
     '완료 화면의 「내용을 모르는 쪽」이 그 기기가 아는 것을 말하지 않는다');
   // **방금** 접수된 화면에는 두지 않는다 — 그 사본은 조금 전 이 화면이 쓴 것이고,
   // 그것을 「전에 신청하신 내용」이라고 하면 그 자리에서 거짓이 된다.
-  assert.equal([...shown.matchAll(/where="used"/g)].length, 1,
+  assert.equal([...shown.matchAll(/where="used(?:Entry|Done)"/g)].length, 1,
     '완료 화면의 안내가 「방금 접수됨」 경로까지 번졌다');
   // 두 화면이 **같은 갈림**을 쓴다: 모를 때만 기기 사본을 말한다(갈림의 기준은 서버 요약이다).
   for (const [name, src] of [['page.jsx', page], ['SeniorFlow.jsx', flow]]) {
@@ -753,27 +756,48 @@ test('단계를 바꾸는 자리는 enterStep 하나뿐이고, 거기서 방문 
 // 화면을 한 번도 읽지 않은 신청이 접수된다(링크는 1회용이라 되돌릴 길이 없다).
 test('떨리는 손의 두 번째 탭이 다음 화면에 닿지 않는다(선택지·주버튼 양쪽)', () => {
   const shown = stripComments(flow);
-  // 눈금을 적는 자리는 **둘**이고, 가름선은 「그 화면 전환이 **누름의 결과**인가」다.
+  // 눈금을 적는 자리는 **넷**이고, 가름선은 하나다 — 「그 화면 전환이 **누름의 결과**인가」.
   //   ① 단계 이동(`go`)
   //   ② 「다시 시도」로 되살아난 마운트 — 그 단추는 자기 자신이 사라지므로 두 번째 탭이
   //      되살아난 화면에 떨어지고, ?step=3 이면 그 자리에 **같은 모양의 주버튼**이 온다.
-  // popstate 와 **누름이 아닌 첫 마운트**에는 적지 않는다(겨눈 손이 없다 — 적으면 문서를
-  // 막 열거나 되돌아온 직후의 멀쩡한 첫 누름을 삼킨다).
+  //   ③ **우리가 요청한 되돌아가기**(popstate) — 「앞 화면으로」·「다시 고르기」 누름이
+  //      `history.back()` 을 거쳐 돌아오는 길이다. 한동안 여기는 "겨눈 손이 없다" 는 사유로
+  //      빠져 있었는데, 그 사유는 브라우저가 일으킨 뒤로가기에만 맞았다(20회차가 한 마운트에서
+  //      같은 사유를 뒤집은 것과 같은 모양). 그래서 그 누름의 두 번째 탭이 앞 단계의 선택지에
+  //      떨어졌다 — 되돌아가려고 누른 손이 앞으로 간다.
+  //   ④ 그 길이 듣지 않는 환경의 폴백(`back` 의 catch — popstate 가 오지 않는다).
+  // **누름이 아닌 첫 마운트**와 브라우저가 일으킨 뒤로가기·앞으로가기에는 적지 않는다
+  // (겨눈 손이 없다 — 적으면 문서를 막 연 직후의 멀쩡한 첫 누름을 삼킨다).
   const marks = [...shown.matchAll(/movedAtRef\.current = /g)].map((m) => m.index);
-  assert.equal(marks.length, 2, `이동 눈금을 적는 자리가 흩어졌다: ${marks.length}곳`);
+  assert.equal(marks.length, 4, `이동 눈금을 적는 자리가 흩어졌다: ${marks.length}곳`);
   const goAt = shown.indexOf('const go = useCallback(');
   assert.ok(goAt > -1, 'go 를 찾지 못했다');
-  assert.equal(marks.filter((at) => at > goAt).length, 1, '단계 이동에서 눈금을 적지 않는다');
+  const goBody = shown.slice(goAt, shown.indexOf('}, [enterStep]);', goAt));
+  assert.match(goBody, /movedAtRef\.current = nowTick\(\);/, '단계 이동에서 눈금을 적지 않는다');
   // 되살아난 마운트 쪽: 깃발을 **읽은 그 자리**에서 적는다(사실을 두 번 적지 않는다).
   assert.match(shown, /if \(!takeRetried\(docRoot\(\)\)\) return;\s*movedAtRef\.current = nowTick\(\);/,
     '「다시 시도」로 되살아난 화면이 떨리는 손의 두 번째 탭을 그대로 받는다');
-  assert.equal([...shown.matchAll(/movedAtRef\.current = nowTick\(\);/g)].length, 2,
-    '기기 시계가 아니라 단조 눈금을 써야 한다(두 자리 모두)');
-  // popstate 처리에는 적지 않는다 — 되돌아온 직후의 첫 누름은 멀쩡한 누름이다.
+  assert.equal([...shown.matchAll(/movedAtRef\.current = nowTick\(\);/g)].length, 4,
+    '기기 시계가 아니라 단조 눈금을 써야 한다(네 자리 모두)');
+  // popstate 처리: **우리가 요청한 경우에만** 적는다. 무조건 적으면 브라우저 뒤로가기 직후의
+  // 멀쩡한 첫 누름을 삼키고, 아예 적지 않으면 되돌아가기 누름의 두 번째 탭이 앞 단계에 닿는다.
   const popAt = shown.indexOf('function onPop()');
   assert.ok(popAt > -1, 'onPop 을 찾지 못했다');
   const popBody = shown.slice(popAt, shown.indexOf("window.addEventListener('popstate'", popAt));
-  assert.equal(/movedAtRef\.current = /.test(popBody), false, '되돌아온 직후의 첫 누름을 삼킨다');
+  assert.match(popBody, /const byTap = popFromTap\(backFromRef\.current\);/,
+    '판정을 화면에서 손으로 하면 안 된다(lib/eumSenior.popFromTap)');
+  assert.match(popBody, /if \(byTap\) movedAtRef\.current = nowTick\(\);/,
+    '되돌아가기 누름의 두 번째 탭이 앞 단계의 선택지에 떨어진다');
+  // 요청 표시를 **비우기 전에** 읽어야 한다 — 비운 뒤에 읽으면 언제나 false 다(조용한 무력화).
+  assert.ok(popBody.indexOf('const byTap =') < popBody.indexOf('backFromRef.current = null'),
+    '비운 뒤에 읽으면 판정이 늘 false 가 된다');
+  // 폴백 쪽: popstate 가 오지 않으므로 요청 표시를 **여기서** 비운다. 비우지 않으면 같은
+  // 자리의 다음 누름이 영영 'ignore' 로 삼켜져 유일한 되돌리기 수단이 한 번 쓰고 죽는다.
+  const backAt = shown.indexOf('function back(e)');
+  assert.ok(backAt > -1, 'back 을 찾지 못했다');
+  const fallback = shown.slice(shown.indexOf('window.history.back();', backAt), shown.indexOf('async function submit'));
+  assert.match(fallback, /backFromRef\.current = null;[\s\S]{0,120}movedAtRef\.current = nowTick\(\);[\s\S]{0,80}enterStep\(/,
+    '폴백이 요청 표시를 비우지 않거나 눈금을 적지 않는다');
   // 삼키는 자리 셋: 활동·시간대·제출. 하나라도 빠지면 그 경로로 두 번째 탭이 들어온다.
   for (const fn of ['chooseActivity', 'chooseTimeslot']) {
     const at = shown.indexOf(`function ${fn}(`);

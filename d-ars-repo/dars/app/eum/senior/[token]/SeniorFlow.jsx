@@ -50,6 +50,7 @@ import {
   submitBlock,
   takeRetried,
   tapSettled,
+  popFromTap,
   EUM_VISIT_MIN,
 } from '@/lib/eumSenior';
 import {
@@ -182,9 +183,10 @@ export default function SeniorFlow({
   // **누름 때문에 화면이 바뀐 마지막 눈금**. 손이 떨려 한 번 더 떨어진 탭은 이미 바뀐 화면에
   // 닿으므로 「같은 요소의 두 번째 누름」이 아니라 **다른 뜻의 첫 누름**으로 도착한다 —
   // 1단계에서 활동을 고른 손가락이 그 자리에서 시간대를 고르고, 2단계에서는 「이대로
-  // 신청하기」에 떨어질 수 있다(lib/eumSenior 의 tapSettled). 적는 자리는 둘이다 —
-  // 단계 이동(`go`)과 **「다시 시도」로 되살아난 마운트**(바로 아래 효과).
-  // null 이면 아직 그런 전환이 없었다.
+  // 신청하기」에 떨어질 수 있다(lib/eumSenior 의 tapSettled). 적는 자리는 넷이고 가름선은
+  // 하나다 — **그 화면 전환이 누름의 결과인가**: 단계 이동(`go`) · 「다시 시도」로 되살아난
+  // 마운트(바로 아래 효과) · **우리가 요청한 되돌아가기**(popstate · popFromTap) 와 그것이
+  // 듣지 않는 환경의 폴백(`back` 의 catch). null 이면 아직 그런 전환이 없었다.
   const movedAtRef = useRef(null);
 
   // 단계를 바꾸는 **유일한 자리**. 방문 번호를 함께 한 칸 올린다 — 같은 번호의 단계로
@@ -262,8 +264,15 @@ export default function SeniorFlow({
   // 뒤로가기/앞으로가기 → 주소의 단계와 선택을 함께 되살린다.
   useEffect(() => {
     function onPop() {
+      // 이 되돌아가기를 **우리가 요청했는가.** 그렇다면 이 화면 전환은 「앞 화면으로」·
+      // 「다시 고르기」 **누름의 결과**이고, 떨리는 손의 두 번째 탭은 이미 바뀐 화면에
+      // 떨어진다 — 앞 단계의 그 자리에는 다른 뜻의 선택지가 있다(lib/eumSenior 의 popFromTap).
+      // 요청 표시를 **비우기 전에** 읽는다. 브라우저가 일으킨 뒤로가기·앞으로가기는 적혀
+      // 있지 않아 false 로 떨어진다(모를 때는 적지 않는다 — 멀쩡한 첫 누름을 삼키지 않게).
+      const byTap = popFromTap(backFromRef.current);
       // 요청한 되돌아가기가 도착했다 — 다음 누름은 다시 받는다.
       backFromRef.current = null;
+      if (byTap) movedAtRef.current = nowTick();
       // 제출이 끝난 뒤에는 주소가 어디를 가리키든 완료 화면에 머문다(중복 제출 방지).
       // 이때 선택을 주소에서 다시 읽으면 안 된다 — 히스토리 앞쪽 항목에는 아직 고르기 전의
       // 주소(?step=1)가 들어 있어, 방금 접수된 내용을 그린 요약이 빈 칸으로 덮인다.
@@ -320,9 +329,10 @@ export default function SeniorFlow({
     backFromRef.current = null;
     // 화면이 바뀐 순간을 적어 둔다 — 바로 뒤에 도착하는 누름은 **앞 화면을 겨눈 것**이다
     // (tapSettled). 가름선은 「그 화면 전환이 **누름의 결과**인가」다: 단계 이동은 여기
-    // 하나뿐이고, 그 밖에 하나가 더 있다 — **「다시 시도」로 되살아난 마운트**(위 효과).
-    // popstate 와 **누름이 아닌 첫 마운트**에는 적지 않는다: 겨눈 손이 없으므로, 적으면
-    // 문서가 열린 직후나 되돌아온 직후의 **멀쩡한 첫 누름**을 삼킨다.
+    // 하나뿐이고, 그 밖에 셋이 더 있다 — **「다시 시도」로 되살아난 마운트**(위 효과)와
+    // **우리가 요청한 되돌아가기**(popstate · 아래 `back`)·그 폴백.
+    // **누름이 아닌 첫 마운트**와 브라우저가 일으킨 뒤로가기·앞으로가기에는 적지 않는다:
+    // 겨눈 손이 없으므로, 적으면 문서가 열린 직후의 **멀쩡한 첫 누름**을 삼킨다.
     movedAtRef.current = nowTick();
     try {
       const here = window.history.state;
@@ -387,6 +397,13 @@ export default function SeniorFlow({
     try {
       window.history.back();
     } catch {
+      // 히스토리가 움직이지 않았으므로 **popstate 는 오지 않는다.** 요청 표시를 여기서
+      // 비우지 않으면 같은 자리의 다음 누름이 영영 'ignore' 로 삼켜진다(backAction) —
+      // 유일한 되돌리기 수단이 한 번 쓰고 죽는다.
+      backFromRef.current = null;
+      // 이 전환도 **누름의 결과**다(화면만 앞 단계로 돌린다) → 눈금을 적는다. 적는 자리가
+      // popstate 쪽과 둘로 갈리는 이유는 이 길에는 그 이벤트가 없기 때문이다.
+      movedAtRef.current = nowTick();
       enterStep(Math.max(1, step - 1));
     }
   }
@@ -534,7 +551,7 @@ export default function SeniorFlow({
       >
         {/* 이 링크로는 더 할 일이 없는 화면이다. 전에 신청을 마친 사람이라면 **그 기기는 그것을
             알고 있다** — 말해 주지 않으면 담당자에게 새 링크를 청해 처음부터 다시 고른다. */}
-        <PriorLocal storeKey={storageKey(sid)} where="expired" />
+        <PriorLocal storeKey={storageKey(sid)} where="expiredFlow" />
       </Notice>
     );
   }
@@ -743,7 +760,8 @@ export default function SeniorFlow({
               <p style={S.body}>{doneSummary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}</p>
             ) : null}
             {/* 그 갈림의 **모르는 쪽**에서는 그 기기가 아는 것을 한 줄 더 말한다 — 진입 화면과
-                같은 자리·같은 문장이다(lib/eumSenior 의 EUM_PRIOR_TAIL.used). 바로 위 힌트가
+                같은 자리·같은 문장이다(lib/eumSenior 의 EUM_PRIOR_TAIL.usedDone — 진입 쪽은
+                `usedEntry` 이고 둘은 한 벌을 가리킨다). 바로 위 힌트가
                 「담당자에게 확인해 주세요」로 끝나는데, 접수가 끝난 어르신에게 그 전화는
                 새 링크를 부르고 새 링크는 명단에 두 건을 남긴다.
                 `already` 가 아닐 때는 두지 않는다: 그 화면은 **방금** 접수된 화면이고, 그
@@ -751,7 +769,7 @@ export default function SeniorFlow({
                 `doneSummary` 가 있을 때도 두지 않는다 — 서버가 돌려준 접수 내용이 이미
                 요약으로 그려져 있고, 원본은 서버다. */}
             {already && !doneSummary ? (
-              <PriorLocal storeKey={storageKey(sid)} where="used" />
+              <PriorLocal storeKey={storageKey(sid)} where="usedDone" />
             ) : null}
             {/* 진입 화면의 「이미 신청하셨습니다」와 **같은 문장**이다(ui.jsx 의 등록부가 단일 출처) —
                 한쪽만 고쳐져 두 화면이 다른 말을 하는 일을 없앤다. */}
