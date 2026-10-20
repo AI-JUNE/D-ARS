@@ -10,12 +10,12 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { EUM_FONT_PX, EUM_TAP_PX } from '../lib/eumTheme.js';
+import { EUM_COLORS, EUM_CONTRAST_PAIRS, EUM_FONT_PX, EUM_TAP_PX } from '../lib/eumTheme.js';
 import { muteSeparatorsIn } from '../lib/eumSenior.js';
 import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
   metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
-  exportedObjectEntries, spreadShadowedKeys,
+  exportedObjectEntries, spreadShadowedKeys, styleColorRoles,
 } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -169,7 +169,11 @@ test('스크린리더: 선택지 묶음에 라벨이 있고 단계 전환이 낭
   assert.match(flow, /role="group"\s+aria-label="희망 활동 고르기"/);
   assert.match(flow, /role="group"\s+aria-label="희망 시간대 고르기"/);
   assert.match(flow, /aria-pressed=/, '선택 여부가 낭독되지 않는다');
-  assert.match(flow, /aria-live="polite"/, '단계 표시가 낭독되지 않는다');
+  // 단계 표시는 영역을 **손으로 적지 않는다** — 영역은 늘 있고 내용만 바뀌는 자리이므로
+  // ui.jsx 의 Live 하나로 받는다(완료 화면에서는 할 말이 없어 글자를 그리지 않는다 ·
+  // 예전에는 그 자리가 「완료」였고, 제목·본문과 함께 같은 사실을 세 번 말했다).
+  assert.match(stripComments(flow), /<Live>\{stepLabel \? <p style=\{S\.note\}>\{stepLabel\}<\/p> : null\}<\/Live>/,
+    '단계 표시가 낭독 영역의 단일 출처를 쓰지 않는다');
   assert.match(flow, /ref=\{headingRef\}\s+tabIndex=\{-1\}/, '단계 전환 시 제목으로 포커스를 옮겨야 한다');
   assert.match(flow, /headingRef\.current\?\.focus\(\)/);
   // 오류는 즉시 낭독돼야 한다. 표현은 ui.jsx 의 Alert 한 곳에 있다 — 자리는 단계마다
@@ -445,6 +449,54 @@ test('색·글자 크기는 lib/eumTheme.js 에서 가져온다(하드코딩 금
   // 요건이 깨지고, 아무도 쓰지 않는 이름이 남아 있으면 등록부가 썩는다.
   const used = new Set(sizes.map((v) => v.slice(2)));
   assert.deepEqual([...used].sort(), Object.keys(EUM_FONT_PX).sort(), '등록부와 화면이 어긋난다');
+});
+
+// ── 고친 결함: 같은 가드의 **색 쪽**에는 양방향 대조가 없었다 ────────────────
+//
+// 위 테스트의 이름은 「**색**·글자 크기는 …」인데, 색에 대해 실제로 본 것은 「#rrggbb
+// 리터럴이 있는가」 하나뿐이었다. 글자 크기는 6회차에, 누를 자리는 16회차에 **등록부 ↔ 화면
+// 양방향 대조**를 받았다 — 그 대조의 근거가 「모르는 이름은 조용히 undefined 가 되고, 아무도
+// 쓰지 않는 이름은 등록부를 썩힌다」인데, 색에서 조용히 떨어지는 대가가 제일 비싸다:
+// `background` 가 사라지면 그 자리는 **흰 바닥**이 되고, 하필 흰 글자를 쓰는 자리가 제출 실패
+// 안내(`C.onAlert`)와 주버튼(`C.onBrand`)이다 — 대비 1:1, 즉 **보이지 않는 글자**다.
+// 16회차의 「가드의 축이 하나였다」가 같은 테스트에서 **세 번째 축**으로 남아 있었던 셈이다.
+//
+// 지금 어긋난 자리는 없다(잠복 · 18회차의 포커스 링과 같은 성질). 막는 것은 다음에 생기는 색이다.
+test('색 등록부와 화면이 양방향으로 맞는다(모르는 이름은 조용히 떨어진다)', () => {
+  const uiRoles = styleColorRoles(stripComments(ui), ['C']);
+  // 주소창 색(`viewport.themeColor`)은 레이아웃이 들고 있다 — 등록부 대조는 두 파일을 함께
+  // 봐야 「아무도 쓰지 않는 색」 판정이 거짓 경보가 되지 않는다.
+  const layoutSrc = readFileSync(resolve(root, 'app/eum/layout.jsx'), 'utf8');
+  const layout = styleColorRoles(stripComments(layoutSrc), ['EUM_COLORS']);
+  assert.ok(uiRoles.all.length >= 8, `화면에서 색을 찾지 못했다: ${uiRoles.all.length}`);
+  // 쓰는 쪽 → 등록부: 모르는 이름은 undefined 가 되어 그 선언이 사라진다.
+  // 등록부 → 쓰는 쪽: 아무도 쓰지 않는 색은 다음 사람이 "이 색이 화면에 있다" 를 근거 없이
+  // 물려받게 한다(글자 크기·누를 자리 등록부와 같은 계약).
+  const seen = [...new Set([...uiRoles.all, ...layout.all])].sort();
+  assert.deepEqual(seen, Object.keys(EUM_COLORS).sort(), '색 등록부와 화면이 어긋난다');
+});
+
+// 그리고 **대비 4.5:1 검증이 손으로 적은 목록만큼만 참이었다.** `EUM_CONTRAST_PAIRS` 의 주석은
+// "화면에 실제로 존재하는 조합만 담는다" 인데, 화면에 새 조합이 생겨도(또는 등록된 조합이
+// 화면에서 사라져도) 아무 신호가 없었다 — 요건(명도 대비 4.5:1)의 적용 범위가 목록 밖에서
+// 조용히 늘어나는 길이다.
+// 조합 하나하나를 소스에서 되짚으려면 상속까지 따라가야 하므로(이 수준의 파서가 할 일이
+// 아니다) **역할 단위**로 대조한다: 전경으로 쓰인 색은 전부 어떤 쌍의 전경이고, 배경으로
+// 쓰인 색은 전부 어떤 쌍의 배경이다. 양방향이라 유령 쌍도 함께 걸린다.
+test('대비 쌍 등록부가 화면이 실제로 쓰는 색과 양방향으로 맞는다', () => {
+  const roles = styleColorRoles(stripComments(ui), ['C']);
+  const pairFg = [...new Set(EUM_CONTRAST_PAIRS.map((p) => p[0]))].sort();
+  const pairBg = [...new Set(EUM_CONTRAST_PAIRS.map((p) => p[1]))].sort();
+  // 테두리·포커스 링도 전경 쪽이다(글자는 아니지만 대비가 필요한 자리 · WCAG 1.4.11).
+  const fg = [...new Set([...roles.fg, ...roles.edge])].sort();
+  assert.ok(fg.length >= 5 && roles.bg.length >= 4, `역할을 읽지 못했다: ${fg.length}/${roles.bg.length}`);
+  assert.deepEqual(fg, pairFg, '전경으로 쓰이는 색과 대비 쌍의 전경이 어긋난다');
+  assert.deepEqual(roles.bg, pairBg, '배경으로 쓰이는 색과 대비 쌍의 배경이 어긋난다');
+  // 쌍의 두 자리가 등록부 밖을 가리키면 contrastRatio 가 0 을 돌려주고, 그것은 위반으로
+  // 보고되므로 조용히 통과하지는 않는다 — 그래도 이름 자체를 먼저 고정해 둔다.
+  for (const [a, b] of EUM_CONTRAST_PAIRS) {
+    assert.ok(a in EUM_COLORS && b in EUM_COLORS, `등록부 밖의 색을 가리키는 쌍: ${a}/${b}`);
+  }
 });
 
 // ── 고친 결함: 유일한 되돌리기 수단만 **누를 자리**가 작았다 ──────────────────
@@ -1679,10 +1731,11 @@ const LIVE_BY_HAND = {
   'app/eum/error.jsx': 1,
   // 대기 화면은 **문서가 처음 열릴 때만** 보인다 — 새 문서라 영역 이야기가 성립하지 않는다.
   'app/eum/loading.jsx': 1,
-  // 흐름 쪽 셋: 단계 표시(모든 단계에 **늘 있는** 영역 — 단계마다 내용만 바뀐다) ·
-  // 주버튼의 aria-live(단추는 누르기 전부터 있고 글자만 바뀐다) · 완료 화면의 본문
-  // (step 4 와 함께 태어나지만 그 전환은 제목 포커스가 낭독한다).
-  'app/eum/senior/[token]/SeniorFlow.jsx': 3,
+  // 흐름 쪽 둘: 주버튼의 aria-live(단추는 누르기 전부터 있고 글자만 바뀐다) ·
+  // 완료 화면의 본문(step 4 와 함께 태어나지만 그 전환은 제목 포커스가 낭독한다).
+  // (단계 표시는 셋째였는데 이제 `Live` 를 쓴다 — 완료 화면에서 글자를 그리지 않게 되면서
+  //  「영역은 늘 있고 내용만 바뀐다」를 손으로 적을 이유가 없어졌다.)
+  'app/eum/senior/[token]/SeniorFlow.jsx': 2,
 };
 
 test('낭독 영역을 만드는 길은 Live 하나이고, 손으로 적은 영역은 사유와 함께 등록돼 있다', () => {

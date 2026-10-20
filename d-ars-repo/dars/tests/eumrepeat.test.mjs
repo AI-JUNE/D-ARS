@@ -288,11 +288,26 @@ test('완료 화면: 409 면 서버가 알려 준 「먼저 접수된 선택」�
 // 테스트였다(9회차에 없앤 것과 같은 모양). 그 사이 같은 사실을 말하는 진입 안내는 「담당자에게
 // 문의해 주세요」라고 말하고 있었고, 아무 대조도 그것을 보지 않았다. 지금은 두 화면이 같은
 // 표(lib/eumMessage.EUM_DONE_MESSAGE)를 가리키는지 본다.
-test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 문장이 다르다', () => {
-  assert.notEqual(EUM_DONE_MESSAGE.already, EUM_DONE_MESSAGE.accepted, '두 경우를 같은 말로 덮으면 안 된다');
-  assert.match(FLOW, /\{already \? EUM_DONE_MESSAGE\.already : EUM_DONE_MESSAGE\.accepted\}/,
-    '완료 화면이 접수 문구 단일 출처를 쓰지 않는다');
+// 정정: 이 테스트는 완료 화면이 **이어 쓴 한 문장**(EUM_DONE_MESSAGE)을 본문에 쓰는지를
+// 보았다. 그 자리는 제목이 있는 자리이므로(h1) 이어 쓴 문장은 **제목과 같은 사실을 두 번**
+// 말한다 — 22회차가 진입 패널에서 없앤 중복이 이 화면에 그대로 남아 있었다. 이제 제목은
+// 「무엇이 되어 있는가」(stepTitle → EUM_DONE_STATE), 본문은 「다음에 무슨 일이 일어나는가」
+// (EUM_DONE_NEXT)이고, 두 경우의 갈림은 **제목**이 든다.
+test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 제목이 다르다', () => {
+  assert.notEqual(EUM_DONE_STATE.already, EUM_DONE_STATE.accepted, '두 경우를 같은 말로 덮으면 안 된다');
+  assert.match(FLOW, /\{stepTitle\(step, \{ already \}\)\}/,
+    '완료 화면의 제목이 접수 문구 단일 출처를 거치지 않는다');
+  assert.match(FLOW, /<p style=\{S\.body\} role="status">\{EUM_DONE_NEXT\}<\/p>/,
+    '본문이 제목과 같은 사실을 되풀이한다(이어 쓴 문장은 제목이 없는 자리의 것이다)');
+  // 이어 쓴 문장은 이제 **제목이 없는 자리**만 쓴다 — 화면이 그것을 다시 들면 중복이 돌아온다.
+  // (주석은 왜 그런지를 적는 자리라 걷어낸 코드만 본다 — 이 파일의 다른 대조와 같은 계약.)
+  const flowCode = FLOW.replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .split('\n').map((l) => l.replace(/(^|[^:\w])\/\/.*$/, '$1')).join('\n');
+  assert.equal(/EUM_DONE_MESSAGE/.test(flowCode), false, '제목이 있는 자리가 이어 쓴 문장을 쓴다');
   assert.match(FLOW, /EUM_CONSUME_CHANGE_HINT/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
+  // 단계 표시도 같은 사실을 말하지 않는다 — 예전에는 그 자리가 「완료」였다(셋째 줄).
+  assert.match(FLOW, /const stepLabel = step <= 3 \? `3단계 중 \$\{step\}단계` : '';/,
+    '완료 화면의 단계 표시가 끝났다는 사실을 한 번 더 말한다');
 });
 
 // 고친 결함: 완료 화면은 요약을 `labelOf(…) · labelOf(…)` 로 **손으로 조립**했다(두 자리).

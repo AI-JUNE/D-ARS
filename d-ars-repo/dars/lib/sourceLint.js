@@ -739,3 +739,68 @@ export function spreadShadowedKeys(src, name) {
   }
   return out;
 }
+
+// ── 색이 **어느 역할**로 쓰였는가 ─────────────────────────────────────────
+//
+// 왜 필요한가 — 고친 결함: 어르신 화면의 색·크기 가드는 한 테스트에 들어 있고 그 이름이
+// 「**색**·글자 크기는 lib/eumTheme.js 에서 가져온다(하드코딩 금지)」다. 6회차가 글자 크기에,
+// 16회차가 누를 자리에 **등록부 ↔ 화면 양방향 대조**를 걸었는데(모르는 이름은 조용히
+// undefined 가 되고, 아무도 쓰지 않는 이름은 등록부를 썩힌다) **이름 맨 앞에 있는 색에는
+// 그 대조가 없었다** — 본 것은 「#rrggbb 리터럴이 있는가」 하나뿐이다. 그래서
+//   · `C.alertBgg` 처럼 **모르는 이름**을 쓰면 그 선언이 조용히 사라진다. 하필 그 자리가
+//     제출 실패 안내(흰 글자 · `C.onAlert`)라면 배경이 빠져 **흰 바닥 위 흰 글자**가 된다 —
+//     대비 1:1 이고, 그 문장은 무언가 잘못됐을 때 읽어야 하는 글자다(6·7회차의 그 순간).
+//   · `EUM_CONTRAST_PAIRS` 의 주석은 "화면에 **실제로 존재하는 조합만** 담는다" 인데,
+//     화면에 새 조합이 생겨도(또는 등록된 조합이 화면에서 사라져도) 아무 신호가 없었다.
+//     즉 대비 4.5:1 검증은 **손으로 적은 목록**만큼만 참이었다.
+// 지금 어긋난 자리는 **없다**(잠복 · 18회차의 포커스 링과 같은 성질). 위험한 쪽은 다음에
+// 생기는 색이다.
+//
+// 돌려주는 것: 역할별 **색 이름** 목록(중복 제거 · 이름순).
+//   fg   — 글자색(`color` · 밑줄·글자 그림자 같은 「읽히는 색」)
+//   bg   — 바탕색(`background` · `background-color`)
+//   edge — 테두리·포커스 링(`border*` · `outline*` · `box-shadow`) — 글자는 아니지만
+//          대비가 필요한 자리다(WCAG 1.4.11)
+//   all  — 역할과 무관하게 소스에 나타난 모든 색 이름(등록부 양방향 대조용)
+// 한계(정직하게): 선언 단위 스캐너다(이 파일의 다른 함수와 같다). 인라인 style 객체와
+// `<style>` 템플릿 **양쪽**을 같은 규칙으로 읽고, 어느 스타일 객체에 속하는지는 보지 않는다 —
+// 「이 색이 저 배경 위에 온다」까지 알려면 상속을 따라가야 하고, 그것은 이 수준의 파서가
+// 할 수 있는 일이 아니다. 그래서 호출측은 **역할 단위**로 대조한다(조합 하나하나가 아니라
+// "전경으로 쓰인 색은 전부 어떤 쌍의 전경이다"). 주석은 호출측이 걷어낸다.
+const COLOR_ROLE_FG = 'fg';
+const COLOR_ROLE_BG = 'bg';
+const COLOR_ROLE_EDGE = 'edge';
+
+function colorRoleOf(prop) {
+  const p = String(prop).replace(/-/g, '').toLowerCase();
+  if (p === 'color') return COLOR_ROLE_FG;
+  // `background-color` 가 `endsWith('color')` 로 전경이 되지 않게 **먼저** 본다.
+  if (p.startsWith('background')) return COLOR_ROLE_BG;
+  if (p.startsWith('border') || p.startsWith('outline')) return COLOR_ROLE_EDGE;
+  if (p === 'boxshadow' || p === 'textshadow') return COLOR_ROLE_EDGE;
+  if (p.endsWith('color')) return COLOR_ROLE_FG;
+  return null;
+}
+
+export function styleColorRoles(src, prefixes = ['C']) {
+  const bags = { fg: new Set(), bg: new Set(), edge: new Set(), all: new Set() };
+  const done = () => {
+    const out = {};
+    for (const k of Object.keys(bags)) out[k] = [...bags[k]].sort();
+    return out;
+  };
+  if (typeof src !== 'string' || !src) return done();
+  const names = (Array.isArray(prefixes) ? prefixes : [prefixes])
+    .filter((p) => typeof p === 'string' && /^[A-Za-z_$][\w$]*$/.test(p));
+  if (!names.length) return done();
+  const token = new RegExp(`\\b(?:${names.join('|')})\\.([A-Za-z_$][\\w$]*)`, 'g');
+  for (const m of src.matchAll(token)) bags.all.add(m[1]);
+  // `prop: 값` — 값은 다음 선언 경계(`,` `;` 줄바꿈)까지. 속성 이름은 **콜론 바로 앞**에
+  // 붙어 있어야 한다(`:focus-visible` 처럼 앞이 공백인 콜론은 선언이 아니다).
+  for (const m of src.matchAll(/([A-Za-z][A-Za-z-]+)\s*:\s*([^;,\n]*)/g)) {
+    const role = colorRoleOf(m[1]);
+    if (!role) continue;
+    for (const c of m[2].matchAll(token)) bags[role].add(c[1]);
+  }
+  return done();
+}

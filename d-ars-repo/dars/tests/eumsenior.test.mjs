@@ -6,6 +6,7 @@ import {
   ACTIVITIES,
   TIMESLOTS,
   STEP_TITLE,
+  stepTitle,
   parseStep,
   clampStep,
   maxReachableStep,
@@ -46,6 +47,8 @@ import {
   EUM_SETTLE_MS,
   tapSettled,
 } from '../lib/eumSenior.js';
+// 완료 화면의 제목·본문은 접수 사실의 **한 토막**에서 갈라져 나온다(아래 제목 테스트).
+import { EUM_DONE_NEXT, EUM_DONE_STATE } from '../lib/eumMessage.js';
 
 test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
   assert.equal(ACTIVITIES.length, 4);
@@ -60,6 +63,45 @@ test('선택지는 각 4개다(한 화면 버튼 4개 이내 요건)', () => {
 test('단계는 4개이고 모든 단계에 제목이 있다', () => {
   assert.equal(EUM_STEP_MAX, 4);
   for (let i = 1; i <= 4; i++) assert.ok(STEP_TITLE[i], `${i}단계 제목 누락`);
+});
+
+// ── 고친 결함: 완료 화면이 같은 사실을 **세 줄**로 말했다 ───────────────────
+//
+// 4단계 제목 「신청이 끝났습니다」 / 단계 표시 「완료」 / 본문 「**신청이 접수되었습니다**.
+// 담당자가 곧 전화로 안내해 드립니다」 — 이 화면은 전환과 함께 제목으로 포커스를 옮기므로
+// (SeniorFlow) 듣는 어르신은 같은 사실을 연달아 세 번 듣고, 보는 어르신에게는 24px 넘는
+// 글자 석 줄이 같은 말을 한다. 9회차(만료·잘린 링크)·22회차(「이미 접수됐다」 패널)가 없앤
+// 중복의 마지막 자리다.
+// 22회차가 이 자리를 미룬 이유는 「그 h1 이 네 단계가 한 표에서 나오는 자리라, 한 단계만
+// 다른 표에서 가져오면 단계 제목의 단일 출처가 갈라진다」였다 — 사실은 맞고 결론만 넓었다:
+// 표를 가르지 않고 **표가 그 토막을 가리키면** 된다.
+test('완료 화면 제목: 접수 사실의 토막에서 오고 본문을 되풀이하지 않는다', () => {
+  // 제목은 **무엇이 되어 있는가**, 본문은 **다음에 무슨 일이 일어나는가**(패널과 같은 계약).
+  assert.equal(STEP_TITLE[EUM_STEP_MAX], EUM_DONE_STATE.accepted,
+    '완료 화면 제목이 접수 문구 단일 출처에서 오지 않는다');
+  assert.ok(!STEP_TITLE[EUM_STEP_MAX].includes(EUM_DONE_NEXT), '제목이 본문을 그대로 담고 있다');
+  assert.ok(!EUM_DONE_NEXT.includes(STEP_TITLE[EUM_STEP_MAX]), '본문이 제목을 그대로 담고 있다');
+  // 옛 제목이 되살아나면 다시 세 줄이 된다.
+  assert.equal(Object.values(STEP_TITLE).includes('신청이 끝났습니다'), false,
+    '같은 사실을 다른 낱말로 한 번 더 말하는 제목이 되살아났다');
+
+  // 완료 화면만 두 가지다 — 그 갈림은 이 함수 한 곳에서 한다.
+  assert.equal(stepTitle(4, { already: true }), EUM_DONE_STATE.already);
+  assert.equal(stepTitle(4, { already: false }), EUM_DONE_STATE.accepted);
+  assert.equal(stepTitle(4), EUM_DONE_STATE.accepted, '모르면 방금 접수된 쪽으로 둔다');
+  // 완료가 아닌 단계는 접수 여부와 무관하다(그 화면의 제목이 바뀌면 안 된다).
+  for (const s of [1, 2, 3]) {
+    assert.equal(stepTitle(s, { already: true }), STEP_TITLE[s], `${s}단계 제목이 접수 여부에 흔들린다`);
+    assert.equal(stepTitle(s), STEP_TITLE[s]);
+  }
+  // 이상 입력에 throw 하지 않고 빈 제목을 만들지 않는다 — 제목이 비면 패널의 머리글이 사라진다.
+  for (const bad of [null, undefined, '열', 0, 9, ['3'], Symbol('x')]) {
+    const t = stepTitle(bad, null);
+    assert.ok(typeof t === 'string' && t, `입력: ${String(bad)}`);
+  }
+  for (const bad of [null, 'yes', 42, [], Symbol('x')]) {
+    assert.equal(stepTitle(4, bad), EUM_DONE_STATE.accepted, `state 입력: ${String(bad)}`);
+  }
 });
 
 test('parseStep: 범위 밖·이상값은 1단계로 되돌린다', () => {

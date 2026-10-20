@@ -75,6 +75,13 @@ export const EUM_TOKEN_MESSAGE = {
   signature: `${EUM_PANEL_TITLE.link}. ${EUM_PANEL_ASK}`,
   malformed: `${EUM_PANEL_TITLE.link}. ${EUM_PANEL_ASK}`,
   missing: `${EUM_PANEL_TITLE.link}. ${EUM_PANEL_ASK}`,
+  // 수명이 상한 밖인 토큰(`lib/eumToken.withinTokenLifetime`). 어르신에게는 「잘못된 링크」와
+  // **같은 사실**이다 — 어느 쪽이든 그 링크로는 신청할 수 없고 할 일은 담당자에게 청하는
+  // 것뿐이며, 그 차이를 어르신이 가릴 길도 없다(만료와는 다르다: 만료는 늦은 것이고 이쪽은
+  // 우리가 발급하지 않은 모양이다). 사유를 따로 둔 이유는 **서버 로그**다 —
+  // 라우트가 `token_lifetime` 으로 남기므로 「상한을 넘는 링크가 제시됐다」를 되짚을 수 있다
+  // (모르는 사유로 떨어뜨리면 그 사실이 malformed 에 섞여 사라진다).
+  lifetime: `${EUM_PANEL_TITLE.link}. ${EUM_PANEL_ASK}`,
 };
 
 // 모르는 사유는 **가장 보수적인 안내**(잘못된 링크)로 떨어진다 — 빈 문자열을 돌려주면
@@ -95,6 +102,7 @@ const PANEL_TITLE_SLOT = {
   signature: 'link',
   malformed: 'link',
   missing: 'link',
+  lifetime: 'link',
 };
 
 // 사유별 패널 제목. 모르는 사유는 tokenMessage 와 같은 쪽(잘못된 링크)으로 떨어진다 —

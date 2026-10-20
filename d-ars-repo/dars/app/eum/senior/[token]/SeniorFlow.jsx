@@ -31,7 +31,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ACTIVITIES,
   TIMESLOTS,
-  STEP_TITLE,
+  stepTitle,
   clampStep,
   summaryText,
   buildPreferences,
@@ -70,10 +70,12 @@ import {
 // 제출 실패 안내도 같은 자리에서 가져온다 — 예전에는 이 파일이 다섯 문장을 손으로 적었고,
 // 그중 둘이 「아래 단추를…」로 **자리를 가리키고** 있었다(그 자리를 밀어낸 것이 그 안내
 // 자신이었다 · ui.jsx 의 Alert 참조).
-// 완료 화면의 두 문장도 같은 자리에서 가져온다 — 예전에는 이 파일이 손으로 적었고, 같은
+// 완료 화면의 문장도 같은 자리에서 가져온다 — 예전에는 이 파일이 손으로 적었고, 같은
 // 사실(「이미 접수됐다」)을 보여 주는 **진입 안내**는 거기서 「담당자에게 문의해 주세요」라고
 // 말했다. 할 일이 없는 사람을 담당자에게 보내면 새 링크가 오고, 명단에 두 건이 남는다
-// (lib/eumMessage.js 의 EUM_DONE_MESSAGE 참조).
+// (lib/eumMessage.js 의 EUM_DONE_STATE·EUM_DONE_NEXT 참조). 지금 그 화면은 **제목**으로
+// 「무엇이 되어 있는가」를, **본문**으로 「다음에 무슨 일이 일어나는가」를 말한다 — 진입
+// 패널과 같은 꼴이고, 이어 쓴 한 문장은 제목이 없는 자리(409 응답)만 쓴다.
 // 제목·머리말도 같은 자리에서 가져온다 — 예전에는 이 파일이 둘 다 손으로 적었고, 만료 패널은
 // 제목과 본문이 **같은 문장**이었다(제목으로 포커스가 옮겨 간 직후 같은 말을 한 번 더 듣는다).
 // 「이미 접수됐다」 뒤에 붙는 힌트 두 줄과 만료 임박 경고도 같은 자리에서 가져온다 — 예전에는
@@ -83,7 +85,7 @@ import {
 // **한 벌**이라 1·2단계에서 화면에 없는 것을 가리켰다(lib/eumMessage 의 EUM_SOON_NEXT 참조).
 import {
   EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT,
-  EUM_DONE_MESSAGE, EUM_PANEL_ASK, EUM_PANEL_TITLE, soonMessage, submitMessage, tokenMessage,
+  EUM_DONE_NEXT, EUM_PANEL_ASK, EUM_PANEL_TITLE, soonMessage, submitMessage, tokenMessage,
 } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
 // 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker) — 예전에는 네 화면이
@@ -560,7 +562,12 @@ export default function SeniorFlow({
   // 단계 표시. 예전에는 「1단계 / 3단계」였는데 슬래시는 **낭독되지 않아** "1단계 3단계" 로
   // 들렸다 — 지금 몇 번째인지가 아니라 단계 둘을 읽어 주는 것처럼 들린다. 이 문단은 바로
   // aria-live 영역이라 단계마다 다시 낭독되는 자리다. 낱말로 말한다(EUM_MUTE_MARKS 참조).
-  const stepLabel = step <= 3 ? `3단계 중 ${step}단계` : '완료';
+  //
+  // 완료 화면(4단계)에서는 **아무 말도 하지 않는다.** 예전에는 「완료」였는데, 그 화면의
+  // 제목이 이미 「신청이 접수되었습니다」이고 본문이 다음에 일어날 일을 말한다 — 「완료」는
+  // 진행 상황을 알리는 자리에서 **끝났다는 사실을 한 번 더** 말하는 셋째 줄이었다
+  // (lib/eumSenior 의 STEP_TITLE 주석 참조). 셀 단계가 없는 화면에서는 셀 것도 없다.
+  const stepLabel = step <= 3 ? `3단계 중 ${step}단계` : '';
   // 완료 화면이 보여 줄 요약. 세 경우가 다르다(아래 4단계 주석 참조) — 모르면 빈 문자열이고
   // 화면은 요약을 아예 그리지 않는다. 조립은 lib/eumSenior.summaryText 한 곳에서만 한다:
   // 예전에는 이 자리에서 `labelOf(…) · labelOf(…)` 로 손수 이어 붙여, 확인 화면과 **형식이
@@ -582,8 +589,14 @@ export default function SeniorFlow({
       <EumStyles />
       <div style={S.wrap}>
         <Kicker />
-        <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{STEP_TITLE[step]}</h1>
-        <p style={S.note} role="status" aria-live="polite">{stepLabel}</p>
+        {/* 제목은 **그 화면이 무엇인가**를 말한다. 완료 화면만 두 가지이고(방금 접수 ·
+            이미 접수돼 있었음) 그 갈림은 lib/eumSenior.stepTitle 한 곳에서 한다 — 화면이
+            손으로 가르면 제목이 두 자리에서 정해진다. */}
+        <h1 style={S.h1} ref={headingRef} tabIndex={-1}>{stepTitle(step, { already })}</h1>
+        {/* 낭독 영역은 **늘 있고** 내용만 바뀐다(ui.jsx 의 Live). 완료 화면에서는 할 말이
+            없으므로 글자를 그리지 않는다 — 영역을 손으로 적어 두면 그 자리가 빈 문단으로
+            남는다(빈 영역은 한 픽셀도 차지하지 않는다). */}
+        <Live>{stepLabel ? <p style={S.note}>{stepLabel}</p> : null}</Live>
 
         {/* 만료 임박 안내는 스크린리더도 들어야 한다 — 눈으로만 보이는 문단이면 보이지 않는
             어르신은 링크가 곧 만료되는 것을 끝내 알 수 없다. 매초 바뀌는 초 숫자는
@@ -746,13 +759,14 @@ export default function SeniorFlow({
                이번 선택으로 대신하면 그 자리에서 거짓이 된다. */}
         {step === 4 ? (
           <>
-            {/* 진입 안내(page.jsx 의 「이미 신청하셨습니다」)와 **같은 문장**이다. 예전에는
-                이 자리만 「담당자가 곧 전화로 안내해 드립니다」라고 바르게 말하고, 진입 안내는
-                「담당자에게 문의해 주세요」라고 말했다 — 접수가 끝난 사람에게 할 일을 만들어
-                주면 그 전화가 새 링크를 부르고, 새 링크는 소진 키가 달라 재신청이 통한다. */}
-            <p style={S.body} role="status">
-              {already ? EUM_DONE_MESSAGE.already : EUM_DONE_MESSAGE.accepted}
-            </p>
+            {/* 진입 안내(page.jsx)와 **같은 꼴**이다 — 제목이 「무엇이 되어 있는가」,
+                본문이 「다음에 무슨 일이 일어나는가」. 예전에는 이 자리가 두 토막을 이어 쓴
+                한 문장이어서 바로 위 제목과 같은 사실을 두 번 말했다(그 제목은 「신청이
+                끝났습니다」였다 · lib/eumSenior 의 STEP_TITLE 주석).
+                본문이 「담당자에게 문의해 주세요」가 아닌 이유는 그대로다 — 접수가 끝난
+                사람에게 할 일을 만들어 주면 그 전화가 새 링크를 부르고, 새 링크는 소진 키가
+                달라 재신청이 통한다(명단에 두 건). */}
+            <p style={S.body} role="status">{EUM_DONE_NEXT}</p>
             {doneSummary ? <p style={S.summary}>{doneSummary}</p> : null}
             {/* 진입 화면(page.jsx)의 「이미 신청하셨습니다」와 **같은 갈림**이다 —
                 접수 내용을 아는지에 따라 할 말이 다르다. */}

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -766,4 +766,50 @@ test('importedModules: import 가 없거나 못 읽으면 빈 배열(throw 금�
   // 글자열 안의 'from' 에 속지 않는다(문장 경계를 넘어 짝지어지지도 않는다).
   assert.deepEqual(importedModules("const s = \"imported from '@/lib/kpi'\";"), []);
   assert.deepEqual(importedModules("export const A = 1;\nconst B = from;"), []);
+});
+
+// ── 색이 **어느 역할**로 쓰였는가 ─────────────────────────────────────────
+// 고친 결함: 어르신 화면의 색 가드는 「#rrggbb 리터럴이 있는가」 하나만 보았다 — 글자 크기
+// (6회차)·누를 자리(16회차)에 걸린 **등록부 ↔ 화면 양방향 대조**가 색에는 없었고, 대비 쌍
+// 등록부가 화면이 실제로 쓰는 조합과 맞는지도 아무도 보지 않았다. 그 대조를 하려면 먼저
+// 「이 색이 전경인가 배경인가 테두리인가」를 셀 수 있어야 한다.
+test('styleColorRoles: 인라인 style 과 CSS 템플릿을 같은 규칙으로 읽는다', () => {
+  const src = [
+    "const A = { color: C.text, background: C.bg, border: `3px solid ${C.brand}` };",
+    "const B = { ...A, background: C.sub, cursor: 'progress' };",
+    'const CSS = `',
+    '  html, body { background: ${C.bg}; }',
+    '  .x :focus-visible { box-shadow: none; outline: 4px solid ${C.focus}; }',
+    '  .y { background-color: ${C.warnBg}; border-color: ${C.warnEdge}; }',
+    '  .z { text-decoration-color: ${C.onAlert}; min-height: 100dvh; }',
+    '`;',
+  ].join('\n');
+  const r = styleColorRoles(src, ['C']);
+  // `background-color` 가 「color 로 끝난다」로 전경이 되지 않는다(배경을 먼저 본다).
+  assert.deepEqual(r.bg, ['bg', 'sub', 'warnBg']);
+  // 글자를 꾸미는 색(밑줄)도 읽히는 자리라 전경이다.
+  assert.deepEqual(r.fg, ['onAlert', 'text']);
+  // 테두리·포커스 링은 글자가 아니지만 대비가 필요한 자리다(WCAG 1.4.11).
+  assert.deepEqual(r.edge, ['brand', 'focus', 'warnEdge']);
+  // 역할과 무관한 전체 목록은 등록부 양방향 대조에 쓴다.
+  assert.deepEqual(r.all, ['bg', 'brand', 'focus', 'onAlert', 'sub', 'text', 'warnBg', 'warnEdge']);
+});
+
+test('styleColorRoles: 접두어가 다르면 세지 않고, 못 읽으면 빈 목록(throw 금지)', () => {
+  const src = 'const A = { color: EUM_COLORS.text, background: C.bg };';
+  assert.deepEqual(styleColorRoles(src, ['EUM_COLORS']).fg, ['text']);
+  assert.deepEqual(styleColorRoles(src, ['EUM_COLORS']).bg, [], '다른 접두어의 색을 끌어오면 안 된다');
+  assert.deepEqual(styleColorRoles(src, ['C', 'EUM_COLORS']).all, ['bg', 'text']);
+  // 색이 아닌 속성은 세지 않는다 — 센 뒤 「쓰이지 않는 색」 판정이 거짓이 된다.
+  assert.deepEqual(styleColorRoles('const A = { fontSize: C.body };', ['C']).fg, []);
+  assert.deepEqual(styleColorRoles('const A = { fontSize: C.body };', ['C']).all, ['body']);
+  const empty = { fg: [], bg: [], edge: [], all: [] };
+  for (const bad of [null, undefined, '', 42, {}, []]) {
+    assert.deepEqual(styleColorRoles(bad, ['C']), empty, `소스: ${String(bad)}`);
+  }
+  // (`undefined` 는 기본 인자가 받아 `['C']` 가 되므로 여기 넣지 않는다.)
+  for (const bad of [null, '', 42, [], ['1bad'], {}]) {
+    assert.deepEqual(styleColorRoles('const A = { color: C.text };', bad), empty, `접두어: ${String(bad)}`);
+  }
+  assert.deepEqual(styleColorRoles('const A = { color: C.text };').fg, ['text'], '기본 접두어는 C 다');
 });

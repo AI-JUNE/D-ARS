@@ -20,7 +20,7 @@
 //   - throw 하지 않는다. 거부는 예외가 아니라 `{ ok:false, reason }` 이다(저장소 공통 계약).
 //   - 결과에 **토큰을 따로 담지 않는다**. 인증 수단의 사본을 두 개 돌릴 이유가 없다.
 
-import { EUM_TOKEN_TTL_MS, issueEumToken, normalizeSid } from './eumToken.js';
+import { EUM_TOKEN_MAX_TTL_MS, EUM_TOKEN_TTL_MS, issueEumToken, normalizeSid } from './eumToken.js';
 import { TOKEN_SPECS } from './tokenAudit.js';
 
 // 어르신 화면 경로. 라우트(app/eum/senior/[token])와 어긋나면 링크가 404 가 되므로
@@ -30,12 +30,15 @@ export const EUM_LINK_PATH = '/eum/senior';
 // 기본 주소 — 라이브 배포처(EUM_INTEGRATION.md). 로컬 시험은 --base 로 바꾼다.
 export const EUM_LINK_DEFAULT_BASE = 'https://d-ars.vercel.app';
 
-// 수명 상한은 토큰 명세(lib/tokenAudit)의 maxTtlMs 를 그대로 쓴다 — 같은 숫자를 두 곳에 적으면
-// 한쪽만 늘어나는 날이 온다. 명세를 못 찾으면 기본 수명으로 **좁히는 쪽**으로 물러선다.
+// 이 파일이 명세에서 보는 것은 **1회용 판정 수준**(oneTime)뿐이다 — 아래 linkAdvisories 가
+// 그 강도를 숨기지 않고 말하는 데 쓴다.
+//
+// 수명 상한(maxTtlMs)은 여기서 풀지 않는다 → `lib/eumToken.EUM_TOKEN_MAX_TTL_MS`.
+// 예전에는 이 파일이 그것을 따로 풀어 상수(`EUM_LINK_MAX_TTL_MS`)를 하나 더 만들었고,
+// 그동안 상한을 아는 곳은 **발급 쪽뿐**이었다 — 검증은 토큰이 적어 온 수명을 한 번도 보지
+// 않았다(lib/eumToken 의 그 자리 주석 참조). 상한은 발급과 검증이 **같이** 알아야 하는
+// 값이므로 토큰이 들고, 이 파일은 그것을 가져와 사람이 읽는 사유까지 붙인다.
 const EUM_SPEC = TOKEN_SPECS.find((s) => s.name === 'eum-link') || null;
-export const EUM_LINK_MAX_TTL_MS = EUM_SPEC && Number.isFinite(EUM_SPEC.maxTtlMs)
-  ? EUM_SPEC.maxTtlMs
-  : EUM_TOKEN_TTL_MS;
 
 // http 를 허용하는 곳은 개발용 로컬 주소뿐이다. 이 링크는 토큰을 URL 에 실어 보내므로
 // 평문 http 로 나가면 경로 중간에서 그대로 읽힌다(= 남이 대신 신청할 수 있다).
@@ -73,7 +76,7 @@ export function resolveTtlMs(minutes) {
   const n = Number(minutes);
   if (!Number.isFinite(n) || Math.floor(n) !== n || n <= 0) return { ok: false, reason: 'ttl_invalid' };
   const ms = n * 60000;
-  if (ms > EUM_LINK_MAX_TTL_MS) return { ok: false, reason: 'ttl_too_long' };
+  if (ms > EUM_TOKEN_MAX_TTL_MS) return { ok: false, reason: 'ttl_too_long' };
   return { ok: true, ttlMs: ms, defaulted: false };
 }
 
@@ -101,7 +104,7 @@ export const EUM_LINK_REASON = {
   sid_invalid: 'sid 가 규격 밖입니다 — 영문·숫자·_·- 만, 1~64자(이음 측 식별자를 그대로 씁니다).',
   base_invalid: '주소를 쓸 수 없습니다 — https 주소여야 하고(로컬 시험만 http), 자격정보를 담을 수 없습니다.',
   ttl_invalid: '수명(분)이 잘못됐습니다 — 1 이상의 정수로 적어 주세요.',
-  ttl_too_long: `수명이 상한을 넘습니다 — 최대 ${Math.round(EUM_LINK_MAX_TTL_MS / 60000)}분(lib/tokenAudit 명세).`,
+  ttl_too_long: `수명이 상한을 넘습니다 — 최대 ${Math.round(EUM_TOKEN_MAX_TTL_MS / 60000)}분(lib/tokenAudit 명세).`,
   now_invalid: '발급 시각이 잘못됐습니다.',
   issue_failed: '토큰을 발급하지 못했습니다.',
 };
