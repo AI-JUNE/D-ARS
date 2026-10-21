@@ -383,6 +383,11 @@ export default function SeniorFlow({
   //     **신청 화면 밖**으로 나갔다. 손이 떨려 두 번 누르는 것은 이 사용자층에서 흔하고,
   //     제출 쪽은 이미 같은 이유로 submittingRef 를 두고 있다.
   // 판정은 lib/eumSenior.backAction 한 곳에서 한다(순수 로직 · 단위 테스트).
+  //
+  // 그리고 **어느 길로 돌아가도 주소가 화면을 설명한다**: 가로채지 않으면 href 가(고른 것이
+  // 실려 있다), 가로채면 popstate 가 주소를 읽어 되살리고, 히스토리가 듣지 않으면 아래
+  // catch 가 주소를 그 단계로 고쳐 쓴다. 한동안 마지막 하나만 화면을 돌리고 주소를 두고
+  // 갔다(그 자리 주석 참조).
   function back(e) {
     let state = null;
     try {
@@ -406,7 +411,25 @@ export default function SeniorFlow({
       // 이 전환도 **누름의 결과**다(화면만 앞 단계로 돌린다) → 눈금을 적는다. 적는 자리가
       // popstate 쪽과 둘로 갈리는 이유는 이 길에는 그 이벤트가 없기 때문이다.
       movedAtRef.current = nowTick();
-      enterStep(Math.max(1, step - 1));
+      const want = Math.max(1, step - 1);
+      enterStep(want);
+      // **주소도 함께 데려온다.** 예전에는 화면만 앞 단계로 돌리고 주소는 뒤 단계를 가리킨
+      // 채 남았다 — 그러면 화면이 한 번 다시 그려지는 순간(탭 복원·「다시 시도」) 복원의
+      // 기준은 주소이므로 **주소가 이긴다**: 되돌아간 어르신이 방금 떠난 화면으로 되돌려진다
+      // (17회차가 제출의 `'selection'` 경로에서 `setStep(1)` 을 `go(1, …)` 로 고친 것과
+      //  같은 모양이다 — 「주소가 화면을 설명하지 못하는 상태에서 다시 그려지면 주소가 이긴다」).
+      // 쌓지 않고 **고쳐 쓴다**(replaceState): 되돌아가는 길에 항목을 쌓으면 깊이가 늘어
+      // 다음 누름의 판정(backAction)이 어긋나고, 지금 서 있는 항목이 곧 앞 단계의 항목이 된다.
+      // 여기까지 왔다는 것은 traversal 자체가 듣지 않는 환경이라는 뜻이므로 상태 쓰기도
+      // 안 될 수 있다 — 안 되면 종전과 같다(화면만 돌아간다).
+      try {
+        const here = window.history.state;
+        window.history.replaceState(
+          stepState(want, historyDepth(here)), '', stepQuery(want, draftRef.current),
+        );
+      } catch {
+        /* 히스토리 조작 불가 — 화면은 앞 단계로 돌아가 있다 */
+      }
     }
   }
 

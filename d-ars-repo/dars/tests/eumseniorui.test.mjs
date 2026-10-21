@@ -335,6 +335,38 @@ test('되돌아가기: 가로채기는 조건부다(되돌아갈 곳이 없으�
   assert.ok(cleared >= 2, `popstate·새 항목 양쪽에서 비워야 한다: ${cleared}곳`);
 });
 
+// ── 고친 결함: 되돌아가기 **폴백**이 주소를 데려오지 않았다 ──────────────────
+//
+// `history.back()` 이 던지는 환경에서는 popstate 가 오지 않으므로 화면을 직접 앞 단계로
+// 돌린다. 그런데 그때 **주소는 뒤 단계를 가리킨 채** 남았다 — 그러면 화면이 한 번 다시
+// 그려지는 순간(탭 복원·「다시 시도」) 복원의 기준은 주소이므로 **주소가 이긴다**:
+// 되돌아간 어르신이 방금 떠난 화면으로 되돌려지고, 되돌리기 수단을 또 눌러야 한다.
+// 17회차가 제출의 `'selection'` 경로에서 `setStep(1)` 을 `go(1, …)` 로 고친 것과 **같은
+// 모양**이고(「주소가 화면을 설명하지 못하는 상태에서 다시 그려지면 주소가 이긴다」),
+// 그때 고친 자리 옆에 같은 모양이 하나 남아 있었다. 범위는 좁다(이 길은 traversal 이
+// 듣지 않는 환경에서만 닿는다) — 고치는 쪽을 고른 이유는 **어느 길로 돌아가도 주소가
+// 화면을 설명한다**는 계약이 경로 목록에 기대지 않게 하기 위해서다.
+test('되돌아가기 폴백: 화면만 돌리지 않고 주소도 그 단계로 데려온다', () => {
+  const shown = stripComments(flow);
+  const backAt = shown.indexOf('function back(e)');
+  assert.ok(backAt > -1, 'back 을 찾지 못했다');
+  const fallback = shown.slice(
+    shown.indexOf('window.history.back();', backAt),
+    shown.indexOf('function finishSubmitted', backAt),
+  );
+  assert.ok(fallback.length > 100, '폴백 블록을 찾지 못했다');
+  // 화면과 주소가 **같은 값**으로 간다 — 두 자리에서 각자 계산하면 어긋날 수 있다.
+  assert.match(fallback, /const want = Math\.max\(1, step - 1\);/, '폴백이 갈 단계를 한 곳에서 정하지 않는다');
+  assert.match(fallback, /enterStep\(want\);/, '단계 이동은 enterStep 한 곳이다');
+  assert.match(
+    fallback,
+    /replaceState\(\s*stepState\(want, historyDepth\(here\)\), '', stepQuery\(want, draftRef\.current\),?\s*\)/,
+    '폴백이 주소를 그 단계로 고쳐 쓰지 않는다(고른 것도 함께 실어야 한다)',
+  );
+  // 되돌아가는 길에 항목을 **쌓지 않는다** — 깊이가 늘면 다음 누름의 판정(backAction)이 어긋난다.
+  assert.equal(/pushState/.test(fallback), false, '되돌아가면서 히스토리 항목을 쌓고 있다');
+});
+
 test('히스토리 항목에 깊이가 함께 실린다(우리가 쌓은 것인지 아는 유일한 단서)', () => {
   // 복원은 항목을 **쌓지도 지우지도 않는다** → 깊이도 지금 항목의 것을 그대로 둔다.
   // 정정: 한동안 여기서 무조건 뿌리(0)로 적었다. 처음 열린 문서에서는 맞는 값이지만(우리가
@@ -1217,6 +1249,38 @@ test('마무리 문구: 등록부와 쓰이는 곳이 양방향으로 맞는다'
   assert.deepEqual(used.sort(), keys.sort(), '등록부와 화면이 어긋난다');
   // 「5분이 지나면 닫힙니다」류의 문장이 되살아나면 그 거짓이 다시 모든 자리에 붙는다.
   assert.equal(/지나면 닫힙니다/.test(text), false, '닫히지 않는 화면에 닫힌다고 적은 문장이 되살아났다');
+});
+
+// ── 고친 결함: 어르신 화면이 **코드가 보장하지 않는 숫자**를 말했다 ────────────────
+//
+// 만료 안내의 마무리 문구는 「링크는 안전을 위해 보내 드린 뒤 **5분** 동안만 열립니다」였다.
+// 그 숫자를 정하는 쪽은 **발급자**다 — `npm run eum:link -- --minutes=10` 은 상한
+// (lib/tokenAudit 명세의 10분) 안이라 그대로 발급되고, CLI 는 담당자에게 「수명은 발급
+// 시각부터 10분」이라고 **정확히** 말한다. 같은 링크를 두고 담당자 쪽 도구와 어르신 화면이
+// 서로 다른 숫자를 말하는 상태였고, 두 절반을 맞춰 보는 곳이 없었다.
+// 23회차가 「5분」을 검증에서 확인하게 만들 때 실제로 고정한 값도 **상한(10분)** 이다 —
+// 보장이 선 자리와 이 문장이 말하는 값이 처음부터 달랐다. 화면이 이 링크의 수명을 알 길도
+// 없다(만료 뒤에 받는 것은 남은 시간 0 뿐이고, 적어 온 수명은 검증이 쓰고 버린다).
+// 그래서 숫자를 말하지 않고, 그 숫자가 쓸모 있는 유일한 자리 — **곧 받을 새 링크** — 를
+// 말한다(발급 도구가 담당자에게 하는 「통화 중에 보내 주세요」의 어르신 쪽 짝이다).
+test('수명 숫자: 어르신이 읽는 문구에 「N분」을 손으로 적지 않는다(발급자가 정하는 값이다)', () => {
+  const sources = {
+    ...eumSources,
+    'lib/eumMessage.js': readFileSync(resolve(root, 'lib/eumMessage.js'), 'utf8'),
+    'lib/eumSenior.js': readFileSync(resolve(root, 'lib/eumSenior.js'), 'utf8'),
+    'lib/eumCountdown.js': readFileSync(resolve(root, 'lib/eumCountdown.js'), 'utf8'),
+  };
+  for (const [name, src] of Object.entries(sources)) {
+    // 코드에서 계산해 끼우는 값(「남은 시간 {secondsLeft(left)}초」)은 숫자가 리터럴에 없으므로
+    // 여기 걸리지 않는다 — 막는 것은 **손으로 적은 숫자**다.
+    const hit = stripComments(src).match(/.{0,30}\d+\s*(?:분|초|시간).{0,20}/);
+    assert.equal(hit, null, `${name}: 코드가 보장하지 않는 수명을 문구가 말한다 — ${hit && hit[0]}`);
+  }
+  // 그 자리에서 할 수 있는 말은 **다음 링크**를 두고 하는 말이다(이 화면을 보는 사람은 곧
+  // 새 링크를 받는다 — 바로 위 본문이 그것을 청하라고 한다).
+  const expired = exportedObjectEntries(ui, 'EUM_NOTICE_FOOT').find((e) => e.key === 'expired');
+  assert.ok(expired, '등록부에서 만료 쪽 문장을 찾지 못했다');
+  assert.match(expired.value, /새 링크/, '만료 화면이 곧 받을 링크에 대해 아무 말도 하지 않는다');
 });
 
 // ── 어르신 화면이 head 로 말하는 이름 ─────────────────────────────────────

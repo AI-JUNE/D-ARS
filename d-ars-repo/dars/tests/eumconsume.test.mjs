@@ -106,6 +106,37 @@ test('claim: 자리를 만드느라 버렸으면 그 사실을 응답에 실어 
   assert.equal(s.has('k-aaaaaaaaaaaaaaaa', T0 + 1), false, '버려진 링크는 다시 제출 가능해진다');
 });
 
+// ── 고친 결함: 소진 기록이 **자기 자신을 축출**할 수 있었다 ────────────────────
+// `claim` 은 기록을 적은 **뒤** trim 을 부르고, trim 은 「가장 먼저 만료될 것부터」 버린다.
+// 그런데 이 흐름에서 **가장 이른 만료는 가장 늦게 제출한 사람의 것**이다 — 5분 링크를
+// 끝까지 쓴 사람이고, 천천히 고르는 어르신이 이 화면이 처음부터 배려하려던 그 사람이다.
+// 즉 상한에 닿은 순간 첫 번째 후보가 **지금 접수된 그 링크**였다. 그러면 응답은 접수
+// 성공인데 1회용 기록이 남지 않아 같은 링크로 곧바로 다시 제출할 수 있고(화면은 상한 8초에
+// 요청을 끊고 다시 누를 수 있다 — 그 재시도가 409 로 막히는 것이 설계다), 라우트가 남기는
+// 경고는 「다른 링크의 기록을 버렸다」로 읽힌다.
+test('claim: 방금 적은 기록은 버리지 않는다(접수된 그 링크가 재제출 가능해지지 않게)', () => {
+  const s = createConsumeStore({ max: 2 });
+  s.claim('k-early1-aaaaaaaaa', T0 + 300_000, T0);
+  s.claim('k-early2-bbbbbbbbb', T0 + 290_000, T0);
+  // 5분 링크를 끝까지 쓴 사람 — 남은 수명이 가장 짧아 축출 후보 1순위였다.
+  const r = s.claim('k-slow-cccccccccccc', T0 + 1_000, T0);
+  assert.deepEqual(r, { ok: true, evicted: 1 });
+  assert.equal(s.has('k-slow-cccccccccccc', T0 + 1), true, '접수한 그 링크의 기록이 버려졌다');
+  assert.equal(s.has('k-early2-bbbbbbbbb', T0 + 1), false, '버릴 것은 **다른** 기록이다');
+  assert.equal(s.stats().size, 2, '상한은 그대로 지킨다');
+});
+
+test('claim: 후보가 자기 하나뿐이면 상한+1 로 묶인다(자라지는 않는다)', () => {
+  // max 가 1 미만인 것은 설정 오류다. 그때도 접수된 기록을 버리지 않는 쪽을 고르고,
+  // 그 대가(한 건 넘침)의 범위를 여기 적어 둔다 — 다음 claim 이 앞의 것을 거둬 간다.
+  const s = createConsumeStore({ max: 0 });
+  assert.deepEqual(s.claim('k-only-aaaaaaaaaaaa', T0 + 10_000, T0), { ok: true });
+  assert.equal(s.has('k-only-aaaaaaaaaaaa', T0 + 1), true);
+  assert.equal(s.stats().size, 1);
+  assert.deepEqual(s.claim('k-next-bbbbbbbbbbbb', T0 + 20_000, T0), { ok: true, evicted: 1 });
+  assert.equal(s.stats().size, 1, '기록이 무한히 자라면 상한의 뜻이 없다');
+});
+
 test('claim: 버렸어도 접수 자체는 성공이다(말하지 않는 것만 하지 않는다)', () => {
   const s = createConsumeStore({ max: 1 });
   s.claim('k-dddddddddddddddd', T0 + 10_000, T0);
