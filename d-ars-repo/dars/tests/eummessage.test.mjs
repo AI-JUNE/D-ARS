@@ -23,6 +23,7 @@ import {
   EUM_DONE_MESSAGE,
   EUM_DONE_STATE,
   EUM_DONE_NEXT,
+  EUM_ACTION,
   EUM_BOUNDARY_MESSAGE,
   EUM_KICKER,
   EUM_PANEL_ASK,
@@ -35,7 +36,7 @@ import {
   soonMessage,
 } from '../lib/eumMessage.js';
 import { muteSeparatorsIn, EUM_STEP_MIN, EUM_STEP_MAX } from '../lib/eumSenior.js';
-import { importedModules } from '../lib/sourceLint.js';
+import { importedModules, stripSourceComments } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -62,13 +63,9 @@ const SCREENS = {
 
 // 금지 사본 검사는 **주석을 걷어낸 코드**에만 적용한다 — 왜 그런지를 적은 주석까지 막으면
 // 다음 사람이 이유를 모른 채 되돌리는 쪽이 더 위험하다(tests/eumseniorui.test.mjs 와 같은 계약).
-function stripComments(src) {
-  return String(src)
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n')
-    .map((line) => line.replace(/(^|[^:\w])\/\/.*$/, '$1'))
-    .join('\n');
-}
+// 걷어내기 자체는 **한 곳**에서 가져온다(lib/sourceLint) — 같은 함수가 테스트 파일 여섯 자리에
+// 각자 적혀 판본이 셋으로 갈려 있었고, 이 파일의 판본이 그중 의도한 것이었다.
+const stripComments = stripSourceComments;
 
 test('사유별로 무엇이 잘못됐는지 다르게 말한다(만료 vs 잘못된 링크)', () => {
   assert.equal(tokenMessage('expired'), '링크가 만료되었습니다. 담당자에게 다시 요청해 주세요');
@@ -430,17 +427,36 @@ test('만료 임박 경고: 단계마다 그 화면에서 할 수 있는 일을 
   for (const s of [1, 2, 3]) {
     const msg = soonMessage(s);
     assert.ok(msg.startsWith(`${EUM_SOON_LEAD}. `), `${s}단계: 앞 토막이 한 벌이 아니다 — ${msg}`);
-    assert.match(msg, /신청해 주세요/, `${s}단계: 남은 1분 안에 할 일을 말하지 않는다`);
+    // 뒤 토막은 **하라는 말**로 끝난다. 예전 대조는 글자 「신청해 주세요」를 찾았는데, 그러면
+    // 3단계 토막이 눌러야 하는 단추를 **이름**으로 가리키는 쪽으로 바뀔 길이 막힌다(25회차 ·
+    // 아래 참조). 지키려는 것은 낱말이 아니라 「남은 1분 안에 할 일을 말한다」다.
+    assert.match(msg, /주세요\.$/, `${s}단계: 남은 1분 안에 할 일을 말하지 않는다 — ${msg}`);
     // 매초 바뀌는 숫자를 섞으면 낭독이 1초마다 끊기고 처음부터 다시 읽힌다(초 숫자는
     // 화면이 aria-hidden 으로 따로 붙인다).
     assert.equal(/\d/.test(msg), false, `${s}단계: 문장에 숫자가 있다 — ${msg}`);
     assert.ok(!msg.includes('초'), `${s}단계: 초 단위를 문장에 넣었다`);
   }
   // 고친 결함 그 자체: 고른 것이 없는 화면에서 「지금 고르신 것」을 가리키지 않는다.
-  assert.ok(!soonMessage(1).includes('고르신 것'), '1단계에는 고른 것이 없다');
-  assert.ok(!soonMessage(2).includes('고르신 것'), '2단계에는 시간대가 아직 없다');
-  assert.match(soonMessage(3), /고르신 것/, '확인 화면에서는 고른 것이 화면에 있다 — 그 말이 맞는 유일한 자리다');
+  // (정정: 이제 **어느 단계도** 그 말을 하지 않는다 — 3단계 토막은 고른 것 대신 눌러야 하는
+  //  단추를 이름으로 가리킨다. 고른 것은 바로 위 요약이 이미 말하고, 그 요약은 주버튼의
+  //  설명으로도 연결돼 있다 · 25회차.)
+  for (const s of [1, 2, 3]) {
+    assert.ok(!soonMessage(s).includes('고르신 것'), `${s}단계: 화면에 없는 것을 가리키는 말이 되살아났다`);
+  }
   assert.notEqual(soonMessage(1), soonMessage(2), '두 고르는 화면의 남은 일이 다르다');
+
+  // ── 고친 결함: 3단계 토막이 **무엇을 눌러야 하는지를 말하지 않았다** ──────────
+  // 그 문장은 「지금 고르신 것을 신청해 주세요」였다. 그런데 이 경고는 화면 **맨 위**(제목
+  // 바로 아래의 낭독 영역)에 뜨고 눌러야 하는 주버튼은 화면 **맨 아래**에 있으며, 그 순간
+  // 포커스는 선택지나 제목에 얹혀 있다 — 11·12회차가 「아래 단추」에서 세운 규칙(단추는
+  // 자리가 아니라 **이름**으로 가리켜야 찾을 수 있다)이 필요한 자리인데, 가리키는 말이
+  // 아예 없었다. 경계 화면은 이미 그 규칙을 지키고 있었다(errorBody ← errorRetry).
+  assert.ok(soonMessage(3).includes(EUM_ACTION.submit),
+    '눌러야 하는 단추를 이름으로 가리키지 않는다 — 포커스가 멀리 있을 때 찾을 단서가 없다');
+  for (const s of [1, 2]) {
+    assert.ok(!soonMessage(s).includes(EUM_ACTION.submit), `${s}단계에는 그 단추가 화면에 없다`);
+  }
+  assert.match(MESSAGE_SRC, /3: `\$\{EUM_ACTION\.submit\}/, '단추 이름을 손으로 또 적었다');
 
   // 모르는 단계는 **앞 토막만** 돌려준다 — 침묵은 이 경고에서 가장 비싼 결과다(15회차).
   for (const bad of ['알 수 없음', '', null, undefined, 0, 4, 42, 'constructor', '__proto__']) {
@@ -475,7 +491,10 @@ test('경계 화면 문구: 자리를 가리키는 낱말이 없고 문장 끝�
   // 단추와 안내가 갈라질 수 있으므로 끼워서 짓는다(두 벌 금지).
   assert.ok(EUM_BOUNDARY_MESSAGE.errorBody.includes(EUM_BOUNDARY_MESSAGE.errorRetry),
     '본문이 단추 이름을 가리키지 않는다 — 포커스가 제목에 있을 때 찾을 단서가 없다');
-  assert.match(MESSAGE_SRC, /errorBody: `[^`]*\$\{EUM_RETRY_LABEL\}/, '단추 이름을 손으로 또 적었다');
+  // 이름은 조작 요소 등록부에서 온다 — 25회차에 흐름 화면의 이름 넷을 같은 표로 올리면서
+  // 이 단추도 그 표로 모았다(이름의 집이 둘이면 「단일 출처」가 다시 말뿐이 된다).
+  assert.match(MESSAGE_SRC, /errorBody: `[^`]*\$\{EUM_ACTION\.retry\}/, '단추 이름을 손으로 또 적었다');
+  assert.equal(EUM_BOUNDARY_MESSAGE.errorRetry, EUM_ACTION.retry, '단추 이름이 두 자리에서 정해진다');
   // 실패가 이어질 때 할 수 있는 일은 담당자에게 말하는 것뿐이다 — 그 한 줄이 사라지면
   // 어르신은 스스로 재발급할 수단이 없는 채 멈춘다(QUALITY_BAR §3).
   assert.match(EUM_BOUNDARY_MESSAGE.errorHint, /담당자/);
@@ -497,6 +516,42 @@ test('경계 화면 문구: 등록부와 화면이 양방향으로 맞는다(손
   // 등록만 하고 안 쓰면 표가 썩고, 없는 이름을 가리키면 그 자리가 **빈 칸**이 된다
   // (undefined → 아무 말도 하지 않는다 · EUM_NOTICE_FOOT 과 같은 계약).
   assert.deepEqual([...used].sort(), Object.keys(EUM_BOUNDARY_MESSAGE).sort(), '표와 화면이 어긋난다');
+});
+
+// ── 고친 결함: **조작 요소의 이름**만 문구 단일 출처 밖에 있었다 ─────────────
+//
+// 이 파일이 지키는 것 (3)은 「화면은 전부 그 자리를 가리킨다」인데, 화면에서 **누르는 것들의
+// 이름**은 그 대조 밖에 있었다 — 신청 흐름이 넷을 손으로 적었다. 경계 화면 쪽은 이미 그렇지
+// 않았다(`errorRetry` 가 이 표에 있고 본문이 그것을 끼워서 짓는다). 그래서 흐름 화면에서
+// 그 규칙이 필요한 문장 하나가 **아무것도 가리키지 못했다** — 만료 임박 경고의 3단계 토막이고,
+// 그 자리 대조는 바로 위 테스트가 한다. 여기서는 이름이 **한 벌로 남는지**를 양방향으로 본다.
+test('조작 요소 이름: 등록부와 화면이 양방향으로 맞는다(손으로 적은 사본 금지)', () => {
+  // 이름을 쓰는 자리는 둘이다 — 흐름 화면(직접)과 경계 화면 문구표(이 파일 안에서 끼워 쓴다).
+  const where = {
+    'app/eum/senior/[token]/SeniorFlow.jsx': SCREENS['app/eum/senior/[token]/SeniorFlow.jsx'],
+    'lib/eumMessage.js': MESSAGE_SRC,
+  };
+  const used = new Set();
+  for (const src of Object.values(where)) {
+    for (const m of stripComments(src).matchAll(/\bEUM_ACTION\.(\w+)/g)) used.add(m[1]);
+  }
+  // 등록만 하고 안 쓰면 표가 썩고, 없는 이름을 가리키면 그 자리가 **빈 칸**이 된다
+  // (undefined → 단추에 글자가 없다 · EUM_NOTICE_FOOT 과 같은 계약).
+  assert.deepEqual([...used].sort(), Object.keys(EUM_ACTION).sort(), '등록부와 쓰이는 곳이 어긋난다');
+
+  // 사본이 되살아나면 이름이 두 자리에서 정해지고, 그날 가리키는 문장만 옛 이름을 말한다.
+  for (const [name, src] of Object.entries({ ...where, ...BOUNDARY, ...SCREENS })) {
+    if (name === 'lib/eumMessage.js') continue; // 집
+    const code = stripComments(src);
+    for (const [key, label] of Object.entries(EUM_ACTION)) {
+      assert.ok(!code.includes(label), `${name}: 조작 요소 이름을 손으로 적었다 — ${key}: ${label}`);
+    }
+  }
+  // 이름은 글자뿐이어야 한다(값을 받는 자리가 되면 등록부가 아니게 된다).
+  for (const [key, label] of Object.entries(EUM_ACTION)) {
+    assert.ok(typeof label === 'string' && label.length >= 2, `${key}: 이름이 비었다`);
+    assert.ok(!label.endsWith('.'), `${key}: 단추 이름에 마침표를 붙였다 — ${label}`);
+  }
 });
 
 // ── 문구를 화면에서 떼어 낼 때 함께 떨어져 나간 검사 ───────────────────────
@@ -524,6 +579,10 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     // (eumCountdown)에 있던 동안 이 대조를 비껴가고 있었다(가드가 문구를 따라오지 않은 자리).
     EUM_CONSUME_HINT: { change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT },
     EUM_SOON: { lead: EUM_SOON_LEAD, ...EUM_SOON_NEXT },
+    // 조작 요소의 이름도 **화면에 그려지는 글자**다(25회차에 이 표로 옮겨 왔다) — 화면 쪽
+    // 대조에서 빠졌으므로 여기서 같은 판정으로 받는다. 끝에 붙은 줄임표(「신청하는 중…」)는
+    // 무엇과 무엇을 가르지 않으므로 경계가 아니다(muteSeparatorsIn 의 계약).
+    EUM_ACTION,
   };
   const bad = [];
   let seen = 0;

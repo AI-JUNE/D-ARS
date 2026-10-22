@@ -15,7 +15,7 @@ import { muteSeparatorsIn } from '../lib/eumSenior.js';
 import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
   metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
-  exportedObjectEntries, spreadShadowedKeys, styleColorRoles,
+  exportedObjectEntries, spreadShadowedKeys, styleColorRoles, stripSourceComments,
 } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,13 +33,13 @@ const prior = read('PriorLocal.jsx');
 // 금지 문구 검사는 **주석을 걷어낸 코드**에만 적용한다.
 // 설계 의도를 적은 주석("기존 D-ARS 제품과 분리한다")까지 금지하면, 왜 그런지를 적을 수 없게 되어
 // 다음 사람이 규칙을 모른 채 되돌리는 쪽이 더 위험하다. 화면에 나가는 것은 코드뿐이다.
-function stripComments(src) {
-  return String(src)
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n')
-    .map((line) => line.replace(/(^|[^:\\w])\/\/.*$/, '$1'))
-    .join('\n');
-}
+//
+// 정정: 이 함수는 한동안 **이 파일 안에** 손으로 적혀 있었고, 같은 함수가 테스트 파일 여섯
+// 자리에 각자 적혀 **판본이 셋**으로 갈려 있었다. 이 파일의 판본은 문자 클래스가
+// `[^:\\w]`(= `:`·역슬래시·**글자 w** 가 아닌 것)여서 의도보다 **더 지우는** 쪽이었다 —
+// 하필 이 파일이 금지 문구·브랜드 누출을 대조하는 쪽이라, 더 지우는 것은 **조용히 통과하는
+// 방향**이다. 지금은 걷어내기의 단일 출처가 lib/sourceLint 하나다(그 자리 주석 참조).
+const stripComments = stripSourceComments;
 
 const code = [page, flow, ui, prior].map(stripComments).join('\n');
 
@@ -435,10 +435,11 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
       if (marks.length) bad.push(`${name}: "${s}" → ${marks.join('')}`);
     }
   }
-  // 기준이 20 → 12 로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다(제목·머리말). 그 표들은
-  // tests/eummessage.test.mjs 의 「모든 문구 표에 …」가 같은 판정으로 본다 — 11회차 메모가
-  // 적은 "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게, 옮긴 자리에서 함께 세운다.
-  assert.ok(seen >= 12, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
+  // 기준이 20 → 12 → 10 으로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다(제목·머리말,
+  // 그리고 25회차의 조작 요소 이름 넷). 그 표들은 tests/eummessage.test.mjs 의
+  // 「모든 문구 표에 …」가 같은 판정으로 본다 — 11회차 메모가 적은 "가드가 문구를 따라오지
+  // 않은 것" 을 되풀이하지 않게, 옮긴 자리에서 함께 세운다.
+  assert.ok(seen >= 10, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
   assert.deepEqual(bad, [], `낭독되지 않는 기호로 문구를 가르고 있다\n${bad.join('\n')}`);
 });
 
@@ -737,7 +738,10 @@ test('전송 중: 눌림을 aria-disabled 로 말해 포커스를 잃지 않는�
   assert.match(flow, /if \(busy \|\| submittingRef\.current\) return;/);
   // 글자가 바뀐 것을 포커스 위치와 무관하게 알린다.
   assert.match(submit, /aria-live="polite"/, '전송 중 바뀐 글자가 낭독되지 않는다');
-  assert.match(submit, /신청하는 중…/);
+  // 글자는 **등록부**에서 온다 — 예전에는 이 파일이 화면에 적힌 글자를 그대로 찾으며 통과했고,
+  // 그 동안 조작 요소의 이름 넷이 문구 단일 출처 밖에 손으로 적혀 있었다(25회차).
+  assert.match(submit, /\{busy \? EUM_ACTION\.submitting : EUM_ACTION\.submit\}/,
+    '주버튼 글자가 문구 단일 출처에서 오지 않는다');
 });
 
 // ── 고친 결함: 「무엇을 신청하는가」가 **단추에 연결돼 있지 않았다** ────────────
@@ -934,7 +938,11 @@ test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 
   assert.ok(button > -1 && confirmAlert > -1, '확인 화면에 주버튼과 안내 자리가 모두 있어야 한다');
   assert.ok(confirmAlert > button, '안내가 주버튼보다 앞에 있다 — 생기는 순간 그 단추를 밀어낸다');
   // 밀려나는 것은 「다시 고르기」 링크 하나뿐이다 — 안내 자리는 그 링크보다 앞이어야 한다.
-  assert.ok(confirmAlert < shown.indexOf('다시 고르기'), '안내가 되돌아가기 링크보다 뒤에 있다');
+  // (그 링크의 **글자**는 이제 등록부에서 온다 — 25회차에 조작 요소 이름 넷을 문구 단일
+  //  출처로 올렸다. 자리는 그 참조로 찾는다.)
+  const rechoose = shown.indexOf('{EUM_ACTION.rechoose}');
+  assert.ok(rechoose > -1, '되돌아가기 링크를 찾지 못했다');
+  assert.ok(confirmAlert < rechoose, '안내가 되돌아가기 링크보다 뒤에 있다');
 
   // 고르는 화면(1단계)의 안내는 반대다 — 그 문장이 가리키는 것은 **선택지**이므로 위에 온다.
   const chooseAlert = shown.indexOf('<Alert text={alertAtChoose}');

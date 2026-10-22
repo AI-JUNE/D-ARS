@@ -18,6 +18,7 @@ import {
   pollInitial, pollNext, SCREEN_LOST_AFTER,
   SCREEN_POLL_INTERVAL_MS, SCREEN_POLL_TIMEOUT_MS,
 } from '../lib/ivrFallback.js';
+import { stripSourceComments } from '../lib/sourceLint.js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), 'utf8');
@@ -92,10 +93,12 @@ function jsxFiles(dir, out = []) {
   return out;
 }
 
-// 주석·문자열 안의 'fetch(' 는 불변식이 아니다 — 줄 주석을 먼저 걷어낸다.
-function stripLineComments(src) {
-  return src.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
-}
+// 주석·문자열 안의 'fetch(' 는 불변식이 아니다 — 주석을 먼저 걷어낸다.
+// 걷어내기는 **한 곳**에서 가져온다(lib/sourceLint) — 이 파일의 판본은 앞을 보지 않는
+// `//.*$` 여서 주소의 `//` 에서 줄을 끊었고(그 뒤의 `fetch(` 를 못 본다) **블록 주석은 아예
+// 걷어내지 않았다**(그 안의 `fetch(` 를 위반으로 센다). 같은 함수가 테스트 파일 일곱 자리에
+// 판본 셋으로 갈려 있던 자리다 · 25회차.
+const stripLineComments = stripSourceComments;
 
 test('화면(app/**/*.jsx)에 상한 없는 맨 fetch 가 없다', () => {
   const offenders = [];

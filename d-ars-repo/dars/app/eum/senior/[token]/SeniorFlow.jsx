@@ -83,7 +83,13 @@ import {
 // `lib/eumCountdown`(눈금)에 있었다. 문장 두 줄을 얻으려고 서버 쪽 판정 모듈을 브라우저로
 // 끌고 들어오던 자리이고(그 파일에는 공유 저장소 어댑터가 예약돼 있다), 임박 경고는 문장이
 // **한 벌**이라 1·2단계에서 화면에 없는 것을 가리켰다(lib/eumMessage 의 EUM_SOON_NEXT 참조).
+// 조작 요소의 **이름**도 같은 자리에서 가져온다 — 예전에는 이 파일이 넷을 손으로 적었다
+// (「이대로 신청하기」·「신청하는 중…」·「앞 화면으로」·「다시 고르기」). 경계 화면의 단추 이름은
+// 이미 그 표에 있었고(`errorRetry`) 그 화면의 본문은 그것을 끼워서 지었는데, 흐름 화면만 규칙
+// 밖에 있었다 — 그래서 만료 임박 경고가 눌러야 하는 단추를 **이름으로 가리킬 수 없었다**
+// (lib/eumMessage 의 EUM_ACTION 주석 참조).
 import {
+  EUM_ACTION,
   EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT,
   EUM_DONE_NEXT, EUM_PANEL_ASK, EUM_PANEL_TITLE, soonMessage, submitMessage, tokenMessage,
 } from '@/lib/eumMessage';
@@ -708,7 +714,7 @@ export default function SeniorFlow({
                 </button>
               ))}
             </div>
-            <a href={stepQuery(1, { activity, timeslot })} style={S.back} onClick={back}>앞 화면으로</a>
+            <a href={stepQuery(1, { activity, timeslot })} style={S.back} onClick={back}>{EUM_ACTION.back}</a>
           </>
         ) : null}
 
@@ -751,7 +757,7 @@ export default function SeniorFlow({
                 aria-live="polite"
                 aria-describedby={EUM_SUMMARY_ID}
               >
-                {busy ? '신청하는 중…' : '이대로 신청하기'}
+                {busy ? EUM_ACTION.submitting : EUM_ACTION.submit}
               </button>
             </div>
           </>
@@ -772,7 +778,7 @@ export default function SeniorFlow({
         <Alert text={alertAtConfirm} />
 
         {step === 3 ? (
-          <a href={stepQuery(2, { activity, timeslot })} style={S.back} onClick={back}>다시 고르기</a>
+          <a href={stepQuery(2, { activity, timeslot })} style={S.back} onClick={back}>{EUM_ACTION.rechoose}</a>
         ) : null}
 
         {/* 완료 화면은 **실제로 접수된 것**만 말한다. 세 경우가 서로 다르다.
@@ -792,10 +798,23 @@ export default function SeniorFlow({
             <p style={S.body} role="status">{EUM_DONE_NEXT}</p>
             {doneSummary ? <p style={S.summary}>{doneSummary}</p> : null}
             {/* 진입 화면(page.jsx)의 「이미 신청하셨습니다」와 **같은 갈림**이다 —
-                접수 내용을 아는지에 따라 할 말이 다르다. */}
-            {already ? (
-              <p style={S.body}>{doneSummary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}</p>
-            ) : null}
+                접수 내용을 아는지에 따라 할 말이 다르다.
+
+                고친 결함: 이 줄이 **`already` 안에 들어 있었다.** 그래서 「접수됐다」는 같은
+                사실을 보여 주는 세 자리 중 둘(링크를 다시 열었을 때의 진입 안내 · 제출이 409 로
+                돌아왔을 때)만 「바꾸고 싶으시면 담당자에게 말씀해 주세요」를 말하고, **방금
+                접수된 화면**은 말하지 않았다. 하필 바꿀 일이 가장 자주 생기는 자리가 거기다 —
+                이 과제가 20·21회차에 가드를 둔 사고(「떨리는 손의 두 번째 탭이 「이대로
+                신청하기」에 떨어져 확인 화면을 한 번도 읽지 않은 신청이 접수된다」)가 실제로
+                일어나면 어르신이 보는 것은 제목 「신청이 접수되었습니다」 · 고르지 않은 내용의
+                요약 · 「이제 이 화면을 닫으셔도 됩니다」 뿐이었다. 되돌릴 길이 있는데
+                (담당자에게 말하면 된다) 그 길을 말하는 줄만 그 화면에서 빠져 있었다.
+                `tapSettled` 는 400ms 어림이고 판정할 수 없으면 통과시키므로 절대 가드가 아니다.
+                갈림의 기준은 **「접수 내용을 아는가」**이지 409 인지가 아니다 — 진입 패널은
+                처음부터 그 기준(`summary ? … : …`)을 쓰고 있었고, 여기만 가드 하나가 더 있었다
+                (「진입 화면과 같은 갈림」이라는 서술이 코드보다 앞서 있던 자리다).
+                `!already` 면 요약은 늘 있다(제출이 통과한 선택이다) → 바꾸는 길을 말한다. */}
+            <p style={S.body}>{doneSummary ? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT}</p>
             {/* 그 갈림의 **모르는 쪽**에서는 그 기기가 아는 것을 한 줄 더 말한다 — 진입 화면과
                 같은 자리·같은 문장이다(lib/eumSenior 의 EUM_PRIOR_TAIL.usedDone — 진입 쪽은
                 `usedEntry` 이고 둘은 한 벌을 가리킨다). 바로 위 힌트가

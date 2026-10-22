@@ -32,6 +32,9 @@ import {
 import { EUM_TOKEN_MAX_TTL_MS, EUM_TOKEN_TTL_MS, verifyEumToken } from '../lib/eumToken.js';
 import { consumeKey } from '../lib/eumConsume.js';
 import { TOKEN_SPECS } from '../lib/tokenAudit.js';
+// 주석 걷어내기는 **한 곳**에서 가져온다(lib/sourceLint) — 같은 함수가 테스트 파일마다 손으로
+// 적혀 판본이 셋으로 갈려 있었다.
+import { stripSourceComments } from '../lib/sourceLint.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
@@ -103,8 +106,7 @@ test('[통합] 수명 상한은 토큰 명세(lib/tokenAudit)와 같은 값을 �
   // 상한을 푸는 자리는 **하나**다 — 이 파일이 따로 풀던 동안 상한을 아는 곳이 발급 쪽뿐이었고,
   // 검증은 토큰이 적어 온 수명을 보지 않았다. 상한은 양쪽이 같이 알아야 하는 값이다.
   // 주석은 **왜 그런지**를 적는 자리라 걷어낸 코드만 본다(다른 소스 대조와 같은 계약).
-  const link = read('lib/eumLink.js').replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').map((l) => l.replace(/(^|[^:\w])\/\/.*$/, '$1')).join('\n');
+  const link = stripSourceComments(read('lib/eumLink.js'));
   assert.equal(/maxTtlMs/.test(link), false,
     'lib/eumLink 가 상한을 따로 푼다 — 푸는 자리가 둘이면 한쪽만 늘어난다');
   assert.match(link, /EUM_TOKEN_MAX_TTL_MS/, '상한을 토큰 쪽에서 가져오지 않는다');

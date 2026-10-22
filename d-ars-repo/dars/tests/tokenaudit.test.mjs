@@ -12,6 +12,10 @@ import {
 import { EUM_TOKEN_TTL_MS } from '../lib/eumToken.js';
 import { SESSION_HOURS } from '../lib/auth.js';
 import { DEFAULT_TTL_SEC } from '../lib/session.js';
+// 주석 걷어내기는 **한 곳**에서 가져온다(lib/sourceLint). 이 파일의 판본은 앞을 보지 않는
+// `//.*$` 여서 주소의 `//`(`redis://…` 꼴)에서 줄을 끊었다 — 아래 가드에서 **조용히 통과하는
+// 방향**이다(더 지우면 찾을 낱말이 사라진다).
+import { stripSourceComments } from '../lib/sourceLint.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const STRONG = 'Qx7#kM2pL9vT4nR8sW1zY6bH3dJ5gC0e';   // 32자·문자 다양
@@ -167,7 +171,7 @@ test('[통합] 선언한 1회용 수준이 실제 소진 배선과 일치한다(
     assert.match(store, /new Map\(\)/, '인메모리 기록이 아니면 수준을 다시 판정해야 한다');
     // 주석은 불변식이 아니다 — 문서가 "Redis 도입은 [승인 필요]" 라고 적는 것과 코드가 Redis 를
     // 실제로 쓰는 것은 다르다. 실행되는 줄만 본다.
-    const code = store.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+    const code = stripSourceComments(store);
     assert.equal(/neon\s*\(|DATABASE_URL|redis/i.test(code), false, '공유 저장소를 쓰면 durable 로 올려야 한다');
   }
 });

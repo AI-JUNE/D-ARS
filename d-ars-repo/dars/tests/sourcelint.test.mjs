@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles, stripSourceComments } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -812,4 +812,46 @@ test('styleColorRoles: 접두어가 다르면 세지 않고, 못 읽으면 빈 �
     assert.deepEqual(styleColorRoles('const A = { color: C.text };', bad), empty, `접두어: ${String(bad)}`);
   }
   assert.deepEqual(styleColorRoles('const A = { color: C.text };').fg, ['text'], '기본 접두어는 C 다');
+});
+
+// ── 주석 걷어내기: 같은 일을 여섯 자리에서 각자 짓던 것을 한 곳으로 모았다 ─────
+//
+// 이 저장소의 소스 대조는 거의 전부 「주석을 걷어낸 코드만 본다」는 계약 위에 서 있는데,
+// 그 걷어내기가 테스트 파일마다 손으로 적혀 **판본 셋**으로 갈려 있었다(내력은 lib/sourceLint
+// 의 그 자리 주석). 아래는 그 한 벌의 계약이다.
+test('stripSourceComments: 줄 주석·블록 주석을 걷어내고 주소는 남긴다', () => {
+  assert.equal(stripSourceComments('const a = 1; // 설명\nconst b = 2;'), 'const a = 1; \nconst b = 2;');
+  assert.equal(stripSourceComments('// 첫 줄 전체가 주석\nx'), '\nx');
+  assert.equal(stripSourceComments('a /* 가운데 */ b'), 'a   b');
+  assert.equal(stripSourceComments('/* 여러\n줄 */x'), ' x');
+  // 주소는 앞이 `:` 라 살아남는다 — 이것이 셋 중 의도한 판본의 이유다.
+  assert.equal(stripSourceComments("const u = 'https://a/b';"), "const u = 'https://a/b';");
+  assert.equal(stripSourceComments("const u = 'redis://h';"), "const u = 'redis://h';");
+  // 낱말 문자 뒤에 붙은 `//` 는 주석으로 보지 않는다(덜 지우는 쪽이 가드의 보수적인 방향이다).
+  // 한동안 두 테스트 파일의 판본이 `[^:\\w]`(= `:`·역슬래시·**글자 w** 가 아닌 것)라 이 줄의
+  // 뒤쪽을 버렸다 — 하필 그 판본이 금지 문구·브랜드 누출을 대조하는 쪽이었다.
+  assert.equal(stripSourceComments('const a = x//y;'), 'const a = x//y;');
+  assert.equal(stripSourceComments('const b = w//y;'), 'const b = w//y;');
+  // 이상 입력에 throw 하지 않는다(이 파일의 다른 스캐너와 같은 계약).
+  for (const bad of [null, undefined, '', 42, {}, []]) {
+    assert.equal(stripSourceComments(bad), '', `입력: ${String(bad)}`);
+  }
+});
+
+// 같은 함수를 다시 짓는 길을 막는다 — 지금 어긋나 보이는 자리는 없었지만(잠복), 여섯 벌이
+// 판본 셋으로 갈린 것이 그 길의 증거다. 손으로 지은 판본이 되살아나면 여기서 실패한다.
+test('주석 걷어내기를 테스트 파일이 다시 짓지 않는다(양방향)', () => {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)));
+  const tail = ['\\/', '\\/', '.*$/'].join('');  // 손으로 지은 판본의 꼬리(어느 판본이든 이 모양)
+  const hand = [];
+  const users = [];
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith('.test.mjs') || f === 'sourcelint.test.mjs') continue;
+    const src = fs.readFileSync(path.join(dir, f), 'utf8');
+    if (src.includes(tail)) hand.push(f);
+    if (src.includes('stripSourceComments')) users.push(f);
+  }
+  assert.deepEqual(hand, [], `주석 걷어내기를 손으로 다시 지었다: ${hand.join(', ')}`);
+  // 쓰는 쪽이 하나도 없으면 위 대조가 빈 채로 통과한다(가드가 비어 통과하면 안 된다).
+  assert.ok(users.length >= 6, `걷어내기 단일 출처를 쓰는 테스트가 줄었다: ${users.length}`);
 });

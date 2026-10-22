@@ -33,6 +33,9 @@ import {
 // (한 벌로 들고 있던 동안 그 문장은 1·2단계에서 화면에 없는 것을 가리켰다 ·
 //  단계별 대조는 tests/eummessage.test.mjs.)
 import { EUM_SOON_LEAD, soonMessage } from '../lib/eumMessage.js';
+// 주석 걷어내기는 **한 곳**에서 가져온다 — 이 파일도 손으로 적고 있었고, 그 판본의 문자
+// 클래스가 `[^:\\w]` 여서 의도보다 더 지우는 쪽이었다(lib/sourceLint 의 그 자리 주석 참조).
+import { stripSourceComments } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(resolve(root, p), 'utf8');
@@ -147,7 +150,10 @@ test('임박 안내는 그 다음에 보게 되는 화면과 같은 낱말을 �
   assert.equal(/닫힙니다/.test(EUM_SOON_LEAD), false, '닫히지 않는 화면에 닫힌다고 적은 문장이 되살아났다');
   // 지금 할 일을 함께 말한다 — 남은 1분 안에 끝낼 수 있다는 것이 이 경고의 목적이다.
   // 그 「할 일」은 단계마다 다르다(1단계에는 고른 것도 신청 단추도 없다 · tests/eummessage).
-  for (const step of [1, 2, 3]) assert.match(soonMessage(step), /신청해 주세요/);
+  // 글자 「신청해 주세요」를 찾지 않는다 — 3단계 토막은 눌러야 하는 단추를 **이름**으로
+  // 가리키므로(25회차 · 「이대로 신청하기 단추를 눌러 주세요」) 낱말이 아니라 **하라는 말로
+  // 끝나는가**를 본다. 단계별 문장 대조는 tests/eummessage.test.mjs 가 한다.
+  for (const step of [1, 2, 3]) assert.match(soonMessage(step), /주세요\.$/);
 });
 
 // ── 되살아난 화면도 같은 눈금을 쓴다 ─────────────────────────────────────────
@@ -234,11 +240,7 @@ test('화면에 절대 만료시각을 넘기지 않는다 — 기기 시계와 
   assert.equal(/expiresAt/.test(page), false, 'page 가 절대 만료시각을 넘기고 있다');
   assert.equal(/expiresAt/.test(flow), false, '화면이 절대 만료시각을 들고 있다');
   // 주석을 걷어낸 코드에 Date.now() 가 남아 있으면 시계 비교가 되살아난 것이다.
-  const code = flow
-    .replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n')
-    .map((l) => l.replace(/(^|[^:\\w])\/\/.*$/, '$1'))
-    .join('\n');
+  const code = stripSourceComments(flow);
   assert.equal(/Date\.now\(\)/.test(code), false, '화면이 다시 기기 시계로 만료를 판정하고 있다');
   assert.match(flow, /from '@\/lib\/eumCountdown'/, '남은 시간 계산은 단일 출처에서 가져온다');
 });

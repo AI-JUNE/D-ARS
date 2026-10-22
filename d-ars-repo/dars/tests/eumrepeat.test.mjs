@@ -22,6 +22,9 @@ import {
 import { EUM_DONE_MESSAGE, EUM_DONE_NEXT, EUM_DONE_STATE } from '../lib/eumMessage.js';
 import { parseAccepted } from '../lib/eumSenior.js';
 import { issueEumToken } from '../lib/eumToken.js';
+// 주석 걷어내기는 **한 곳**에서 가져온다(lib/sourceLint) — 이 파일도 두 자리에서 손으로
+// 짓고 있었고, 같은 함수가 테스트 파일 여섯 자리에 판본 셋으로 갈려 있었다.
+import { stripSourceComments } from '../lib/sourceLint.js';
 
 const T0 = 1_760_000_000_000;
 const EXP = T0 + 5 * 60 * 1000;
@@ -210,6 +213,37 @@ test('진입 안내와 완료 화면의 문구는 단일 출처다(한쪽만 고
   assert.equal(/'바꾸고 싶으시면/.test(FLOW) || />바꾸고 싶으시면/.test(FLOW), false);
 });
 
+// ── 고친 결함: **방금 접수된 어르신에게만** 바꾸는 길을 말하지 않았다 ──────────
+//
+// 「접수됐다」는 사실을 보여 주는 자리는 셋이다 — 링크를 다시 열었을 때(진입 안내) · 제출이
+// 409 로 돌아왔을 때 · **방금 접수됐을 때**. 그런데 「바꾸고 싶으시면 담당자에게 말씀해
+// 주세요」는 앞의 둘에만 있었다: 완료 화면이 그 줄을 `already` 안에 두고 있었기 때문이다.
+// 하필 바꿀 일이 가장 자주 생기는 자리가 셋째다 — 이 과제가 20·21회차에 가드를 둔 사고
+// (「떨리는 손의 두 번째 탭이 「이대로 신청하기」에 떨어져 **확인 화면을 한 번도 읽지 않은**
+// 신청이 접수된다」)가 실제로 일어나면, 어르신이 보는 것은 「신청이 접수되었습니다」 ·
+// 고르지 않은 내용의 요약 · 「이제 이 화면을 닫으셔도 됩니다」뿐이었다. 되돌릴 길은 있는데
+// (담당자에게 말하면 된다) 그 길을 말하는 줄만 그 화면에서 빠져 있었다. `tapSettled` 는
+// 400ms 어림이고 판정할 수 없으면 통과시키므로 절대 가드가 아니다.
+// 갈림의 기준은 **「접수 내용을 아는가」**이지 409 인지가 아니다 — 진입 패널은 처음부터 그
+// 기준(`summary ? … : …`)이었고, 바로 위 테스트의 이름(「같은 갈림」)이 코드보다 앞서 있었다.
+test('완료 화면: 방금 접수된 어르신에게도 바꾸는 길을 말한다(진입 화면과 같은 갈림)', () => {
+  const code = stripSourceComments(FLOW);
+  const done = code.slice(code.indexOf('{step === 4 ?'));
+  assert.ok(done.length > 100, '완료 화면 블록을 찾지 못했다');
+  // 갈림은 **요약을 아는지** 하나뿐이다 — `already` 가 다시 끼면 셋째 자리가 조용히 빠진다.
+  assert.match(done, /\n\s*<p style=\{S\.body\}>\{doneSummary \? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT\}<\/p>/,
+    '접수 내용을 아는지가 아니라 409 인지로 갈리고 있다');
+  assert.equal(/already \? \(\s*<p style=\{S\.body\}>\{doneSummary/.test(done), false,
+    '바꾸는 길을 말하는 줄이 다시 409 안으로 들어갔다');
+  // 진입 패널과 **같은 기준**이라는 사실을 양쪽에서 고정한다(한쪽만 고쳐지는 날을 막는다).
+  assert.match(PAGE, /hint=\{summary \? EUM_CONSUME_CHANGE_HINT : EUM_CONSUME_UNKNOWN_HINT\}/,
+    '진입 패널의 갈림이 바뀌었다 — 두 화면이 다시 다른 기준을 쓴다');
+  // 보조 사본 한 줄은 그대로 `already` 쪽에 남는다 — 이유가 다르다(방금 쓴 사본을
+  // 「전에 신청하신 내용」이라고 하면 거짓이다).
+  assert.match(done, /\{already && !doneSummary \? \(/,
+    '보조 사본 안내가 방금 접수된 화면에도 그려진다(그 사본은 조금 전 이 화면이 쓴 것이다)');
+});
+
 // 고친 결함: 바로 위 테스트의 **이름**은 「진입 안내와 완료 화면의 문구는 단일 출처다」인데
 // 실제로 대조한 것은 **뒤에 붙는 두 힌트**뿐이었다. 정작 두 화면의 **본문**은 각자 적혀 있었고,
 // 그래서 같은 사실을 두고 서로 **반대되는 다음 행동**을 말했다 —
@@ -248,8 +282,7 @@ test('진입 안내와 완료 화면의 **본문**도 한 벌이다(서로 반�
     assert.match(v, /담당자가 곧/, `${k}: 다음에 일어날 일을 말하지 않는다`);
   }
   // 사본이 되살아나면 두 화면이 다시 갈라진다(주석은 왜 그런지를 적는 자리라 걷어낸다).
-  const strip = (s) => s.replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').map((l) => l.replace(/(^|[^:\w])\/\/.*$/, '$1')).join('\n');
+  const strip = stripSourceComments;
   for (const [name, src] of Object.entries({ 'SeniorFlow.jsx': FLOW, 'page.jsx': PAGE, 'lib/eumConsume.js': CONSUME })) {
     // 이어 쓴 문장도, **나눈 두 토막**도 손으로 적혀 있으면 안 된다(토막이 생긴 뒤에는
     // 사본이 그 모양으로도 되살아날 수 있다).
@@ -301,8 +334,7 @@ test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 제�
     '본문이 제목과 같은 사실을 되풀이한다(이어 쓴 문장은 제목이 없는 자리의 것이다)');
   // 이어 쓴 문장은 이제 **제목이 없는 자리**만 쓴다 — 화면이 그것을 다시 들면 중복이 돌아온다.
   // (주석은 왜 그런지를 적는 자리라 걷어낸 코드만 본다 — 이 파일의 다른 대조와 같은 계약.)
-  const flowCode = FLOW.replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').map((l) => l.replace(/(^|[^:\w])\/\/.*$/, '$1')).join('\n');
+  const flowCode = stripSourceComments(FLOW);
   assert.equal(/EUM_DONE_MESSAGE/.test(flowCode), false, '제목이 있는 자리가 이어 쓴 문장을 쓴다');
   assert.match(FLOW, /EUM_CONSUME_CHANGE_HINT/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
   // 단계 표시도 같은 사실을 말하지 않는다 — 예전에는 그 자리가 「완료」였다(셋째 줄).
