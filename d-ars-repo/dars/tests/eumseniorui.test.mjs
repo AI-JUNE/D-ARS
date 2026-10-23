@@ -454,9 +454,12 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
 //  본문은 제목이 말하지 않은 것(할 일)만 말한다.)
 test('빈 상태·만료 상태 안내가 화면과 같은 문구를 쓴다', () => {
   assert.match(page, /title=\{panelTitle\(result\.reason\)\}/, '사유별 제목을 문구 단일 출처에서 가져와야 한다');
-  assert.match(page, /body=\{EUM_PANEL_ASK\}/, '할 일 안내를 손으로 적으면 화면마다 갈라진다');
+  // 본문도 **사유에서** 온다 — 만료 쪽만 조건절을 들어야 해서 갈린 자리다(그 화면에만 보조
+  // 사본 줄이 붙고, 무조건 청하라는 말이 그 줄과 정면으로 어긋났다 · 문장 대조는
+  // tests/eummessage 의 「만료 패널의 본문은 …」).
+  assert.match(page, /body=\{panelAsk\(result\.reason\)\}/, '할 일 안내를 손으로 적으면 화면마다 갈라진다');
   assert.match(flow, /title=\{EUM_PANEL_TITLE\.expired\}/, '작성 중 만료 제목을 손으로 적으면 두 화면이 갈라진다');
-  assert.match(flow, /body=\{EUM_PANEL_ASK\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
+  assert.match(flow, /body=\{panelAsk\('expired'\)\}/, '작성 중 만료 안내를 손으로 적으면 두 화면이 갈라진다');
   // 401 안내도 같은 표에서 가져온다. 안내는 **그것이 속한 단계와 함께** 들린다(stepError) —
   // 예전에는 글자열 하나라서 고르는 화면까지 따라다녔다.
   assert.match(flow, /setError\(stepError\(at, tokenMessage\('signature'\), atVisit\)\)/, '401 안내도 같은 표에서 가져온다');
@@ -1196,7 +1199,9 @@ test('토큰 없는 진입은 잘못된 링크와 같은 문구를 쓰고, 토�
   for (const name of cut) {
     const src = boundary[name];
     assert.match(src, /panelTitle\('missing'\)/, `${name}: 안내 문구 단일 출처를 써야 한다`);
-    assert.match(src, /body=\{EUM_PANEL_ASK\}/, `${name}: 할 일 안내도 같은 자리에서 와야 한다`);
+    // 본문도 제목과 **같은 사유**에서 온다 — 만료 쪽만 조건절을 들어야 해서 갈린 자리이고
+    // (tests/eummessage 의 「만료 패널의 본문은 …」), 이 화면들의 할 일은 무조건 하나다.
+    assert.match(src, /body=\{panelAsk\('missing'\)\}/, `${name}: 할 일 안내도 같은 자리에서 와야 한다`);
     assert.ok(!/verifyEumToken|consumeStore|claim\(/.test(src), `${name}: 판정은 [token]/page.jsx 한 곳뿐이다`);
     assert.match(src, /absolute: '이음 어르신 신청'/, `${name}: 제품 브랜드 템플릿을 쓰지 않는다`);
     assert.equal(/<button\b/.test(src), false, `${name}: 어르신이 스스로 재발급할 수단이 없으므로 단추를 두지 않는다`);

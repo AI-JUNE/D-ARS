@@ -18,7 +18,7 @@
 // 않으니 담당자에게 다시 청하면 된다는 것. 어르신이 스스로 할 수 있는 일은 그것뿐이라 단추는 두지
 // 않는다. 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `senior/[token]` 한 곳뿐).
 
-import { EUM_PANEL_ASK, panelTitle } from '@/lib/eumMessage';
+import { panelAsk, panelTitle } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from './senior/[token]/ui.jsx';
 
 // head 는 `app/eum/layout.jsx` 가 단일 출처다 — 여기 적는 것은 레이아웃이 말할 수 없는 것뿐이고,
@@ -38,5 +38,8 @@ export default function EumRootNoLink() {
   // 않는다 — 애초에 열린 적 없는 5분을 두고 한 말이었다(ui.jsx 의 EUM_NOTICE_FOOT 참조).
   //
   // 제목·본문은 같은 사실을 두 번 말하지 않는다(senior/page.jsx 와 같은 자리·같은 이유).
-  return <Notice title={panelTitle('missing')} body={EUM_PANEL_ASK} foot={EUM_NOTICE_FOOT.link} />;
+  // 본문도 **사유에서 온다** — 만료 화면만 조건절을 들어야 해서 갈린 자리이고(그쪽에는
+  // 보조 사본 줄이 붙는다 · lib/eumMessage 의 EUM_PANEL_ASK_EXPIRED), 토큰이 없는 이 화면의
+  // 할 일은 무조건 하나다. 제목과 **같은 사유**로 고르므로 둘이 어긋날 수 없다.
+  return <Notice title={panelTitle('missing')} body={panelAsk('missing')} foot={EUM_NOTICE_FOOT.link} />;
 }

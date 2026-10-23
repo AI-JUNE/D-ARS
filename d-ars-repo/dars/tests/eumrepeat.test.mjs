@@ -310,11 +310,21 @@ test('클라이언트 화면은 소진 판정 모듈을 아예 import 하지 않
 // ── 완료 화면: 실제로 접수된 것만 말한다 ───────────────────────────────────
 test('완료 화면: 409 면 서버가 알려 준 「먼저 접수된 선택」을 읽는다', () => {
   assert.match(FLOW, /parseAccepted\(data && data\.accepted\)/);
+  // 본문 읽기는 이제 **busy 를 푸는 앞**에 있다(바로 아래 「busy 를 푼 뒤에는 await 가 없다」
+  // 테스트의 이유). 그래서 이 갈림에는 `await` 가 없고 미리 읽어 둔 `prior` 를 쓴다 —
+  // 읽는 자리가 하나라는 사실은 그 테스트가 함께 고정한다.
+  assert.match(FLOW, /const prior = await acceptedFrom\(res\);/,
+    '409 본문을 응답 직후 한 자리에서 읽지 않는다');
   const branch = FLOW.slice(FLOW.indexOf('res.status === 409'), FLOW.indexOf('res.status === 410'));
-  assert.match(branch, /await acceptedFrom\(res\)/);
+  assert.ok(branch.length > 20, '409 갈림을 찾지 못했다');
+  assert.equal(/await/.test(branch), false, '409 갈림이 다시 응답을 기다린다');
+  assert.match(branch, /setAccepted\(prior\)/);
   assert.match(branch, /setAlready\(true\)/);
   assert.equal(/finishSubmitted\(body\)/.test(branch), false,
     '방금 고른 것을 접수된 것처럼 그리면 안 된다');
+  // 409 가 아니면 곧바로 null 이어야 한다 — 그래야 다른 경로의 대기가 늘지 않는다.
+  assert.match(FLOW, /if \(!res \|\| res\.status !== 409\) return null;/,
+    '409 가 아닌 응답에서도 본문을 읽으려 기다린다');
 });
 
 // 정정: 이 테스트는 두 문장이 **화면 안에 적혀 있는지**를 보며 통과했다 — 즉 사본을 고정하는
@@ -376,9 +386,37 @@ test('제출 중에는 화면이 스스로 만료를 선언하지 않는다(서�
 test('제출 중 만료 보류가 서버 판정을 무르게 하지 않는다(410 은 그대로 만료 화면)', () => {
   assert.match(FLOW, /setExpiredByServer\(true\)/);
   // busy 는 응답이 도착하면 반드시 풀린다 — 풀리지 않으면 만료 화면이 영영 뜨지 않는다.
-  const submitBody = FLOW.slice(FLOW.indexOf('async function submit'));
+  // 주석이 아니라 **코드**에서 순서를 본다(주석에 적힌 이름으로 통과하지 않게).
+  const code410 = stripSourceComments(FLOW);
+  const submitBody = code410.slice(code410.indexOf('async function submit'));
   assert.ok(submitBody.indexOf('setBusy(false)') < submitBody.indexOf('res.status === 410'),
     '응답 판정 전에 busy 를 풀어야 만료 보류가 끝난다');
+});
+
+// ── 고친 결함: 그 보류가 **본문을 읽는 사이**에 끊겼다 ──────────────────────
+//
+// 위 `!busy` 가 지키려는 것은 「응답을 기다리는 동안 화면이 스스로 만료를 선언하지 않는다」다.
+// 그런데 `setBusy(false)` 와 「이 화면이 무엇이 되는가」를 정하는 상태 변경 사이에 `await` 가
+// 하나 있었다 — 409 본문 읽기(`acceptedFrom`). 그러면 busy 가 풀리고 done 은 아직 false 인
+// 커밋이 한 번 생기고, 그때 눈금이 0 에 닿아 있으면 화면은 **서버가 방금 「이미 접수됐다」고
+// 답한 신청** 위에 「링크가 만료되었습니다」를 그린다(그 전환은 제목으로 포커스를 옮기므로
+// 듣는 어르신의 첫 마디가 거짓이고, 그 패널에는 되돌릴 단추가 없다).
+// 하필 409 의 전제가 **나쁜 연결**이다(첫 요청이 서버에 닿았는데 응답이 늦어 다시 누른
+// 경우다 — 바로 위 테스트들이 적어 둔 그 경로). 그 연결에서 본문 스트림 읽기가 짧다는
+// 보장은 없다. 그래서 자리 하나를 옮기는 대신 **불변식**으로 고정한다 — 다음에 응답을
+// 한 번 더 읽는 코드가 생기는 날 여기서 실패한다.
+test('busy 를 푼 뒤에는 await 가 없다(만료 보류가 응답을 읽는 사이에 끊기지 않는다)', () => {
+  const code = stripSourceComments(FLOW);
+  const submitAt = code.indexOf('async function submit');
+  assert.ok(submitAt > 0, 'submit 을 찾지 못했다');
+  const submitBody = code.slice(submitAt);
+  const at = submitBody.indexOf('setBusy(false)');
+  assert.ok(at > 0, 'submit 안에서 busy 를 푸는 자리를 찾지 못했다');
+  assert.equal(/await/.test(submitBody.slice(at)), false,
+    'busy 를 푼 뒤에 기다리는 자리가 있으면 done 이 아직 false 인 커밋이 생긴다 — 화면이 방금 접수된 신청 위에 만료를 선언할 수 있다');
+  // 본문 읽기는 그 **앞**에 있어야 한다(없으면 409 가 먼저 접수된 선택을 말할 수 없다).
+  const readAt = submitBody.indexOf('await acceptedFrom(res)');
+  assert.ok(readAt > 0 && readAt < at, '409 본문을 busy 를 푼 뒤에 읽는다');
 });
 
 // ── 토큰 왕복(실제 값으로) ─────────────────────────────────────────────────

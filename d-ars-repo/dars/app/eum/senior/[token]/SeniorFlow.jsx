@@ -91,7 +91,7 @@ import {
 import {
   EUM_ACTION,
   EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT,
-  EUM_DONE_NEXT, EUM_PANEL_ASK, EUM_PANEL_TITLE, soonMessage, submitMessage, tokenMessage,
+  EUM_DONE_NEXT, EUM_PANEL_TITLE, panelAsk, soonMessage, submitMessage, tokenMessage,
 } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
 // 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker) — 예전에는 네 화면이
@@ -457,7 +457,13 @@ export default function SeniorFlow({
 
   // 409 본문에서 「먼저 접수된 선택」을 읽는다. 읽지 못하면 null — 모른다고 말하는 편이
   // 그럴듯하게 채우는 것보다 낫다. 본문이 JSON 이 아니어도 던지지 않는다.
+  //
+  // 409 **인지까지 여기서 가른다.** 그래야 호출측이 응답이 도착한 직후 조건 없이 한 번
+  // 부를 수 있다 — 본문 읽기를 `busy` 를 푸는 **앞**으로 옮기는 것이 이번 고침이고
+  // (submit 의 그 자리 주석), 응답이 없거나 다른 상태코드면 여기서 곧바로 null 이라
+  // 기다리는 시간이 늘지 않는다.
   async function acceptedFrom(res) {
+    if (!res || res.status !== 409) return null;
     try {
       const data = await res.json();
       return parseAccepted(data && data.accepted);
@@ -514,6 +520,22 @@ export default function SeniorFlow({
       method: 'POST',
       body: { token, activity, timeslot },
     });
+    // ── 응답 **본문까지 읽은 뒤에** busy 를 푼다 ───────────────────────────
+    //
+    // 고친 결함: `setBusy(false)` 와 「이 화면이 무엇이 되는가」를 정하는 상태 변경 사이에
+    // `await` 가 하나 있었다 — 409 본문 읽기다. 22회차는 「응답을 기다리는 동안 화면이
+    // 스스로 만료를 선언하지 않는다」를 `!busy` 로 세웠는데, 그 보호가 **본문을 읽는 그
+    // 사이**에서 끊겼다: busy 가 풀리고 done 은 아직 false 인 커밋이 한 번 생기고, 그때
+    // 눈금이 0 에 닿아 있으면 화면은 **서버가 방금 「이미 접수됐다」고 답한 신청** 위에
+    // 「링크가 만료되었습니다」를 그린다(되돌릴 단추가 없는 화면이고, 전환과 함께 그 제목이
+    // 낭독된다 — 어르신이 듣는 첫 마디가 거짓이다).
+    // 하필 이 경로의 전제가 **나쁜 연결**이다 — 첫 요청이 서버에 닿았는데 응답이 늦어 다시
+    // 누른 경우가 409 다(22회차가 적어 둔 그 경로 그대로). 그 연결에서 본문 스트림을 읽는
+    // 데 걸리는 시간이 짧다는 보장은 없다.
+    // 그래서 읽기를 앞으로 옮긴다 — 재발 방지는 자리 하나가 아니라 **불변식**으로 둔다:
+    // 「busy 를 푼 뒤에는 `await` 가 없다」(tests/eumrepeat.test.mjs 가 소스로 대조한다).
+    // 409 가 아니면 `acceptedFrom` 이 곧바로 null 이므로 다른 경로의 대기는 늘지 않는다.
+    const prior = await acceptedFrom(res);
     submittingRef.current = false;
     setBusy(false);
 
@@ -540,7 +562,7 @@ export default function SeniorFlow({
     // 라고 말했다. 담당자에게 간 것은 첫 선택인데 어르신은 바뀐 줄 믿고, 약속 날 서로 다른
     // 것을 기대한 채 만난다. 어긋난 줄 아는 사람이 아무도 없다는 것이 이 오류의 성질이다.
     if (res.status === 409) {
-      const prior = await acceptedFrom(res);
+      // 본문은 위에서 이미 읽었다(busy 를 푸는 앞) — 여기서 더 기다리지 않는다.
       setAlready(true);
       setAccepted(prior);
       finishSubmitted(prior ? { ...body, ...prior } : null);
@@ -574,9 +596,13 @@ export default function SeniorFlow({
   // 언제나 서버다(410 → expiredByServer).
   if (expiredNow) {
     return (
+      // 본문은 **조건절을 든다** — 아래 보조 사본 줄이 「그대로 괜찮으시면 담당자에게 새
+      // 링크를 청하지 않으셔도 됩니다」라고 말하는데, 예전 본문은 그 위에서 무조건 청하라고
+      // 했다(한 화면이 서로 반대되는 말을 했고, 그 첫 줄이 명단의 두 번째 건을 만들었다 ·
+      // lib/eumMessage 의 EUM_PANEL_ASK_EXPIRED). 진입 쪽 만료 화면과 **같은 한 자리**다.
       <Notice
         title={EUM_PANEL_TITLE.expired}
-        body={EUM_PANEL_ASK}
+        body={panelAsk('expired')}
         foot={EUM_NOTICE_FOOT.expired}
         headingRef={expiredHeadingRef}
       >
@@ -649,11 +675,19 @@ export default function SeniorFlow({
             그리고 문장은 **이 화면에서 할 수 있는 일**을 말해야 한다. 예전에는 한 벌이라
             1~3단계 어디서나 「지금 고르신 것을 신청해 주세요」였는데, 1단계에는 고른 것도
             신청 단추도 없다 — 들리는 것이 존재 이유 전부인 경고가 **화면에 없는 것을
-            가리키고** 있었다(lib/eumMessage 의 EUM_SOON_NEXT). */}
+            가리키고** 있었다(lib/eumMessage 의 EUM_SOON_NEXT).
+
+            고친 결함: 그 갈림이 **단계까지**였다. 3단계 토막은 눌러야 하는 단추를 이름으로
+            가리키는데(25회차) 그 이름은 상태에 따라 바뀐다 — 제출이 떠 있는 동안 그 자리에
+            적힌 글자는 「신청하는 중…」이고 「이대로 신청하기」는 화면에 **없다**. 남은
+            시간이 1분을 막 넘긴 상태에서 누른 제출은 응답을 기다리는 사이 눈금이 1분 아래로
+            내려가므로, 경고가 **처음 뜨는 시점이 제출 중**인 경우가 드물지 않다. 그래서
+            지금은 `busy` 도 함께 넘긴다 — 기다리는 동안 화면이 만료를 선언하지 않는 것과
+            **같은 결정**이다(바로 위 expiredNow 의 `!busy`). */}
         <Live>
           {soon ? (
             <p style={S.warn}>
-              {soonMessage(step)}
+              {soonMessage(step, busy)}
               <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
             </p>
           ) : null}

@@ -29,7 +29,7 @@ import {
   EUM_CONSUME_UNKNOWN_HINT,
   EUM_DONE_NEXT,
   EUM_DONE_STATE,
-  EUM_PANEL_ASK,
+  panelAsk,
   panelTitle,
 } from '@/lib/eumMessage';
 import { parseDraft, parseStep, storageKey, summaryText } from '@/lib/eumSenior';
@@ -78,12 +78,20 @@ export default async function EumSeniorPage({ params, searchParams }) {
     // 받았는데, 만료 쪽은 그 둘이 **글자까지 같았다** — 제목으로 포커스가 옮겨 간 직후
     // (ui.jsx 의 Notice) 어르신은 같은 문장을 한 번 더 듣고, 눈으로는 24px 넘는 글자 두 줄이
     // 같은 말을 한다. 지금은 제목이 **무엇이 잘못됐는가**, 본문이 **무엇을 하면 되는가**다
-    // (lib/eumMessage 의 EUM_PANEL_TITLE·EUM_PANEL_ASK — 알림 한 줄에 쓰이는 tokenMessage 는
+    // (lib/eumMessage 의 panelTitle·panelAsk — 알림 한 줄에 쓰이는 tokenMessage 는
     // 제목이 없는 자리라 두 토막을 그대로 이어 쓴다).
+    //
+    // 본문도 **사유에서 온다**. 예전에는 두 사유가 한 문장을 함께 썼는데(「담당자에게 다시
+    // 요청해 주세요」), 그 무조건적인 말이 만료 화면에서만 바로 아래 보조 사본 줄과 정면으로
+    // 어긋났다 — 「그대로 괜찮으시면 담당자에게 새 링크를 청하지 않으셔도 됩니다」.
+    // 신청을 이미 마친 어르신을 그 첫 줄이 담당자에게 보내고, 그 전화가 새 링크를 부르고,
+    // 새 링크는 소진 키가 달라 재신청이 통한다(명단에 두 건 · lib/eumMessage 의
+    // EUM_PANEL_ASK_EXPIRED 주석). 지금은 만료 쪽 본문이 조건절을 들고, 그 조건은 서버가
+    // 아니라 **어르신이** 가린다.
     return (
       <Notice
         title={panelTitle(result.reason)}
-        body={EUM_PANEL_ASK}
+        body={panelAsk(result.reason)}
         foot={expired ? EUM_NOTICE_FOOT.expired : EUM_NOTICE_FOOT.link}
       >
         {expired ? <PriorLocal storeKey={storageKey(result.sid)} where="expiredEntry" /> : null}

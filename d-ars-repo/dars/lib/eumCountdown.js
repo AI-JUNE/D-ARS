@@ -26,7 +26,7 @@
 export const EUM_SOON_MS = 60 * 1000;
 
 // 만료 임박 안내 **문구는 이 파일에 두지 않는다** → lib/eumMessage.js 의
-// `EUM_SOON_LEAD`·`EUM_SOON_NEXT`·`soonMessage(step)`.
+// `EUM_SOON_LEAD`·`EUM_SOON_NEXT`·`EUM_SOON_BUSY`·`soonMessage(step, busy)`.
 //
 // 왜 옮겼나: 이 파일은 눈금과 판정(언제 임박인가)을 들고, 화면에 그려지는 **문장**의 단일
 // 출처는 lib/eumMessage 하나다(9·11·12회차가 `lib/eumToken`·`SeniorFlow`·경계 화면에서 차례로
@@ -35,6 +35,8 @@ export const EUM_SOON_MS = 60 * 1000;
 // 그리고 **한 벌이라는 것 자체**가 결함이었다: 그 문장은 1~3단계 어디서나 「지금 고르신 것을
 // 신청해 주세요」라고 말했는데, 고른 것도 신청 단추도 없는 1·2단계에서는 가리킬 것이 화면에
 // 없는 말이었다(자세한 내용은 lib/eumMessage 의 그 등록부 주석 참조).
+// (그 갈림도 한동안 **단계까지**였다 — 제출이 떠 있는 동안에는 3단계의 그 단추마저 그
+//  이름으로 화면에 없다. 지금은 `busy` 도 함께 가른다 · lib/eumMessage 의 EUM_SOON_BUSY.)
 //
 // 아래 `isSoon` 은 **언제** 말하는가만 정한다 — 무엇을 말하는가는 표의 몫이다.
 

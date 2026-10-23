@@ -29,7 +29,7 @@
 // 들어온 주소를 화면에 **되비추지 않는다** — 주소를 그리면 그 자리가 곧 반사형 삽입 지점이 되고,
 // 어르신에게 자기가 누른 긴 주소는 읽을 수 있는 정보가 아니다.
 
-import { EUM_PANEL_ASK, panelTitle } from '@/lib/eumMessage';
+import { panelAsk, panelTitle } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from '../senior/[token]/ui.jsx';
 
 // head 는 `app/eum/layout.jsx` 가 단일 출처다 — 여기 적는 것은 레이아웃이 말할 수 없는 것뿐이고,
@@ -59,5 +59,7 @@ export function generateStaticParams() {
 
 export default function EumWrongPath() {
   // 이 화면은 닫히지 않는다(토큰이 없다) — 마무리 문구는 「링크를 끝까지 눌러 주세요」다.
-  return <Notice title={panelTitle('missing')} body={EUM_PANEL_ASK} foot={EUM_NOTICE_FOOT.link} />;
+  // 본문도 제목과 **같은 사유**에서 온다 — 만료 화면만 조건절을 들어야 해서 갈린 자리이고
+  // (lib/eumMessage 의 EUM_PANEL_ASK_EXPIRED), 토큰이 없는 이 화면의 할 일은 무조건 하나다.
+  return <Notice title={panelTitle('missing')} body={panelAsk('missing')} foot={EUM_NOTICE_FOOT.link} />;
 }

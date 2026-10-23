@@ -13,7 +13,7 @@
 //
 // 토큰을 다루지 않는다 — 검증할 것도, 소진할 것도 없다(판정은 `[token]/page.jsx` 한 곳뿐이다).
 
-import { EUM_PANEL_ASK, panelTitle } from '@/lib/eumMessage';
+import { panelAsk, panelTitle } from '@/lib/eumMessage';
 import { Notice, EUM_NOTICE_FOOT } from './[token]/ui.jsx';
 
 // head 는 `app/eum/layout.jsx` 가 단일 출처다 — 여기 적는 것은 레이아웃이 말할 수 없는 것뿐이고,
@@ -34,5 +34,7 @@ export default function EumSeniorNoToken() {
   // 제목·본문이 같은 사실을 두 번 말하지 않는다 — 제목은 **무엇이 잘못됐는가**(「링크가
   // 올바르지 않습니다」 · 예전에는 결과만 말하는 「링크를 열 수 없습니다」를 이 파일이 손으로
   // 적고, 이유는 본문의 첫 문장에 있었다), 본문은 **무엇을 하면 되는가**다.
-  return <Notice title={panelTitle('missing')} body={EUM_PANEL_ASK} foot={EUM_NOTICE_FOOT.link} />;
+  // 본문도 제목과 **같은 사유**에서 온다 — 만료 화면만 조건절을 들어야 해서 갈린 자리이고
+  // (lib/eumMessage 의 EUM_PANEL_ASK_EXPIRED), 토큰이 없는 이 화면의 할 일은 무조건 하나다.
+  return <Notice title={panelTitle('missing')} body={panelAsk('missing')} foot={EUM_NOTICE_FOOT.link} />;
 }

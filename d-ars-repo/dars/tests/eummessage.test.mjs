@@ -27,15 +27,18 @@ import {
   EUM_BOUNDARY_MESSAGE,
   EUM_KICKER,
   EUM_PANEL_ASK,
+  EUM_PANEL_ASK_EXPIRED,
   EUM_PANEL_TITLE,
   panelTitle,
+  panelAsk,
   EUM_CONSUME_CHANGE_HINT,
   EUM_CONSUME_UNKNOWN_HINT,
   EUM_SOON_LEAD,
   EUM_SOON_NEXT,
+  EUM_SOON_BUSY,
   soonMessage,
 } from '../lib/eumMessage.js';
-import { muteSeparatorsIn, EUM_STEP_MIN, EUM_STEP_MAX } from '../lib/eumSenior.js';
+import { muteSeparatorsIn, EUM_PRIOR_TAIL, EUM_STEP_MIN, EUM_STEP_MAX } from '../lib/eumSenior.js';
 import { importedModules, stripSourceComments } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -68,7 +71,10 @@ const SCREENS = {
 const stripComments = stripSourceComments;
 
 test('사유별로 무엇이 잘못됐는지 다르게 말한다(만료 vs 잘못된 링크)', () => {
-  assert.equal(tokenMessage('expired'), '링크가 만료되었습니다. 담당자에게 다시 요청해 주세요');
+  // 글자를 손으로 다시 적지 않는다 — 그러면 이 테스트가 **사본을 고정**하는 테스트가 되고,
+  // 문구를 고치는 날 「왜 바뀌면 안 되는가」가 아니라 「무엇이 적혀 있었는가」만 지킨다.
+  // 지키려는 것은 두 사유가 **다르게** 말한다는 사실이다(아래 두 줄).
+  assert.match(tokenMessage('expired'), /^링크가 만료되었습니다\. /);
   assert.notEqual(tokenMessage('expired'), tokenMessage('malformed'));
   assert.equal(tokenMessage('signature'), tokenMessage('malformed'));
   assert.equal(tokenMessage('missing'), tokenMessage('malformed'));
@@ -164,22 +170,79 @@ test('패널 제목: 사유별 알림 문장과 같은 토막에서 나온다(�
     const title = panelTitle(reason);
     assert.ok(title && Object.values(EUM_PANEL_TITLE).includes(title), `${reason}: 제목이 등록부 밖이다`);
     // 알림 한 줄(제목 없는 자리)은 「무엇이 잘못됐는가 + 무엇을 하면 되는가」를 이어 쓴다.
-    assert.equal(tokenMessage(reason), `${title}. ${EUM_PANEL_ASK}`,
+    // 뒤 토막도 **사유로** 고른다(panelAsk) — 만료만 조건절을 들기 때문이고, 그 갈림이
+    // 제목과 다른 자리에서 정해지면 한 화면이 「만료되었습니다」 아래에 잘린 링크용 본문을
+    // 붙이게 된다(두 함수가 같은 자리 이름을 쓴다 · lib/eumMessage 의 panelSlot).
+    assert.equal(tokenMessage(reason), `${title}. ${panelAsk(reason)}`,
       `${reason}: 제목과 알림 문장이 다른 토막에서 나온다 — 한쪽만 고쳐지면 갈라진다`);
+    assert.ok(Object.values(PANEL_ASKS).includes(panelAsk(reason)), `${reason}: 본문이 등록부 밖이다`);
+  }
+  // 만료만 다른 본문을 쓴다 — 그 화면에만 보조 사본 줄이 붙고, 무조건 청하라는 말이 그 줄과
+  // 정면으로 어긋났다(아래 「만료 패널의 본문은 …」 테스트가 그 사실을 따로 고정한다).
+  assert.notEqual(panelAsk('expired'), panelAsk('malformed'), '만료 본문이 다시 한 벌로 합쳐졌다');
+  for (const r of ['signature', 'malformed', 'missing', 'lifetime']) {
+    assert.equal(panelAsk(r), EUM_PANEL_ASK, `${r}: 잘못된 링크 쪽 본문이 갈라졌다`);
   }
   // 모르는 사유는 두 함수가 **같은 쪽**으로 떨어져야 한다(안내가 서로 다른 상태를 말하지 않게).
   for (const bad of ['알 수 없는 사유', '', null, undefined, 42, 'constructor', '__proto__']) {
     assert.equal(panelTitle(bad), EUM_PANEL_TITLE.link, `입력: ${String(bad)}`);
+    assert.equal(panelAsk(bad), EUM_PANEL_ASK, `입력: ${String(bad)}`);
     assert.match(tokenMessage(bad), new RegExp(`^${EUM_PANEL_TITLE.link}`), `입력: ${String(bad)}`);
+  }
+});
+
+// ── 고친 결함: 만료 패널이 **한 화면에서 서로 반대되는 말**을 했다 ────────────
+//
+// 그 화면은 세 줄을 이어서 말한다 — 본문 「담당자에게 다시 요청해 주세요」(무조건) · 보조
+// 사본 한 줄 「… 그대로 괜찮으시면 담당자에게 **새 링크를 청하지 않으셔도** 됩니다」(조건부) ·
+// 마무리 「… 새 링크를 받으시면 바로 열어 주세요」. 신청을 이미 마친 어르신이 만료 링크를
+// 다시 열면 **첫 줄**이 담당자에게 전화를 걸게 하고, 그 전화가 새 링크를 부르고, 새 링크는
+// 소진 키가 달라 재신청이 통한다 → 담당자 명단에 같은 어르신 두 건. 보조 사본 줄은 바로 그
+// 중복을 막으려고 18회차에 넣은 것인데, 본문이 그것을 **미리 뒤집고** 있었다(그리고 본문이
+// 위라 먼저 읽힌다). 21·22·25회차가 「이미 접수됐다」 쪽에서 세 번 없앤 것과 같은 모양이다.
+// 25회차는 이 자리를 「본문을 그 조각이 바꾸게 해야 하므로 디자인 결정」으로 남겼는데, 고칠
+// 길이 하나 더 있었다 — 21회차가 쓴 그 수단, **본문을 무조건 참인 문장으로 바꾸는 것**이다.
+// 조건은 서버가 아니라 **어르신이** 가린다(신청을 마쳤는지 아는 사람은 어르신이다).
+const PANEL_ASKS = { link: EUM_PANEL_ASK, expired: EUM_PANEL_ASK_EXPIRED };
+
+test('만료 패널의 본문은 보조 사본 줄과 어긋나지 않는다(무조건 청하라고 하지 않는다)', () => {
+  const ask = panelAsk('expired');
+  // 조건절을 든다 — 「…(하)면」 꼴 하나는 있어야 한다. 무조건 청하라는 말로 되돌아가면 실패.
+  assert.match(ask, /면 /, '만료 본문이 다시 무조건적인 말이 됐다');
+  assert.notEqual(ask, EUM_PANEL_ASK, '만료 본문이 잘린 링크 쪽과 같은 한 벌로 돌아갔다');
+  // 그래도 **할 일을 말한다** — 조건절만 남기고 다음 행동이 사라지면 막다른 화면이 된다.
+  assert.match(ask, /담당자/, '어르신이 연락할 상대를 말하지 않는다');
+  assert.match(ask, /주세요$/, '패널 본문 한 줄의 규약(마침표 없음·하라는 말)이 깨졌다');
+  // 바로 아래 줄과 **같은 조건**을 가리켜야 한다(그 줄이 「그대로 괜찮으시면」이다).
+  assert.match(EUM_PRIOR_TAIL.expiredEntry, /그대로 괜찮으시면/, '보조 사본 줄의 조건절이 사라졌다');
+  assert.equal(EUM_PRIOR_TAIL.expiredEntry, EUM_PRIOR_TAIL.expiredFlow, '두 만료 화면이 갈라졌다');
+  // 두 만료 화면(진입·작성 중)이 **같은 한 자리**에서 본문을 가져온다.
+  assert.match(SCREENS['app/eum/senior/[token]/page.jsx'], /body=\{panelAsk\(result\.reason\)\}/,
+    '진입 화면이 본문을 사유에서 고르지 않는다');
+  assert.match(SCREENS['app/eum/senior/[token]/SeniorFlow.jsx'], /body=\{panelAsk\('expired'\)\}/,
+    '작성 중 만료 화면이 본문을 사유에서 고르지 않는다');
+  // 잘린·잘못된 링크 화면은 종전 그대로다 — 그쪽에는 보조 사본 줄이 애초에 없다(sid 가 없다).
+  for (const name of ['app/eum/page.jsx', 'app/eum/senior/page.jsx', 'app/eum/[...rest]/page.jsx']) {
+    assert.match(SCREENS[name], /body=\{panelAsk\('missing'\)\}/, `${name}: 본문이 사유에서 오지 않는다`);
+    assert.ok(!/PriorLocal/.test(SCREENS[name]), `${name}: 보조 사본 줄이 생겼다 — 본문 판정을 다시 정해야 한다`);
+  }
+  // 사본이 되살아나면 화면마다 본문이 갈라진다(9회차의 「두 번째 판본」과 같은 모양).
+  for (const [name, src] of Object.entries(SCREENS)) {
+    for (const [key, msg] of Object.entries(PANEL_ASKS)) {
+      assert.ok(!stripComments(src).includes(msg), `${name}: 본문을 손으로 적었다 — ${key}`);
+    }
   }
 });
 
 test('패널 제목: 본문이 제목을 되풀이하지 않고, 등록부와 화면이 양방향으로 맞는다', () => {
   // 패널 본문은 제목이 말한 문장을 **담지 않는다**(같은 말을 두 번 하지 않는다).
-  for (const title of Object.values(EUM_PANEL_TITLE)) {
-    assert.ok(!EUM_PANEL_ASK.includes(title), `본문이 제목을 되풀이한다 — ${title}`);
+  // 본문은 이제 **두 벌**이다(만료만 조건절을 든다) — 규약은 둘 다 지켜야 한다.
+  for (const [key, ask] of Object.entries(PANEL_ASKS)) {
+    for (const title of Object.values(EUM_PANEL_TITLE)) {
+      assert.ok(!ask.includes(title), `${key}: 본문이 제목을 되풀이한다 — ${title}`);
+    }
+    assert.ok(ask.length > 5 && !ask.endsWith('.'), `${key}: 본문 한 줄의 규약이 깨졌다`);
   }
-  assert.ok(EUM_PANEL_ASK.length > 5 && !EUM_PANEL_ASK.endsWith('.'), '본문 한 줄의 규약이 깨졌다');
   // 등록부 ↔ 화면 양방향: 쓰이지 않는 제목이 남으면 표가 썩고, 손으로 적은 사본이 생기면
   // 화면마다 제목이 갈라진다(9회차의 「두 번째 판본」과 같은 모양).
   const text = Object.values(SCREENS).map(stripComments).join('\n');
@@ -458,6 +521,36 @@ test('만료 임박 경고: 단계마다 그 화면에서 할 수 있는 일을 
   }
   assert.match(MESSAGE_SRC, /3: `\$\{EUM_ACTION\.submit\}/, '단추 이름을 손으로 또 적었다');
 
+  // ── 고친 결함: 그 갈림이 **단계까지**였다 ─────────────────────────────────
+  // 바로 위 두 줄의 사유는 「그 단추가 화면에 없다」다. 그런데 그 단추의 글자는 상태에 따라
+  // 바뀐다 — 제출이 떠 있는 동안 그 자리는 `EUM_ACTION.submitting`(「신청하는 중…」)이고
+  // 「이대로 신청하기」는 **화면에 없다**. 남은 시간이 1분을 막 넘긴 상태에서 누른 제출은
+  // 응답을 기다리는 사이(상한 8초) 눈금이 1분 아래로 내려가므로, 경고가 **처음 뜨는 시점이
+  // 제출 중**인 경우가 드물지 않다. 그때 들리는 말은 없는 이름이고, 찾을 수 있는 단추를
+  // 눌러도 아무 일도 일어나지 않는다(중복 전송은 우리가 막는다) — 14회차가 가장 나쁜
+  // 결과로 꼽은 「눌러도 꼼짝하지 않는 단추」다.
+  // 지금은 기다리는 동안의 할 일을 따로 말한다 — 화면이 그 동안 만료를 선언하지 않는 것과
+  // **같은 결정**이다(22회차의 `!busy`).
+  const busyMsg = soonMessage(3, true);
+  assert.ok(busyMsg.startsWith(`${EUM_SOON_LEAD}. `), `제출 중: 앞 토막이 한 벌이 아니다 — ${busyMsg}`);
+  assert.match(busyMsg, /주세요\.$/, `제출 중: 할 일을 말하지 않는다 — ${busyMsg}`);
+  assert.equal(/\d/.test(busyMsg), false, '제출 중 문장에 숫자가 있다');
+  assert.ok(!busyMsg.includes('초'), '제출 중 문장에 초 단위를 넣었다');
+  // 핵심: 화면에 **없는 이름**을 가리키지 않는다. 어느 단계에서 눌렸든 같다.
+  for (const s of [1, 2, 3]) {
+    assert.ok(!soonMessage(s, true).includes(EUM_ACTION.submit),
+      `제출 중(${s}단계): 그 이름의 단추는 화면에 없다 — 글자는 「${EUM_ACTION.submitting}」이다`);
+    assert.equal(soonMessage(s, true), busyMsg, '제출 중에는 단계를 보지 않는다(기다리는 것이 할 일이다)');
+  }
+  // 그 자리에 적힌 글자를 **대신 가리키지도** 않는다 — 누르라고 할 단추가 아니다.
+  assert.ok(!busyMsg.includes(EUM_ACTION.submitting), '진행 중인 단추를 누르라고 가리킨다');
+  assert.notEqual(busyMsg, soonMessage(3), '제출 중에도 같은 말을 한다');
+  // 등록부에 끼워 넣지 않는다 — 그 표는 **단계 ↔ 이름** 양방향 대조의 자리다(위 참조).
+  assert.equal(Object.values(EUM_SOON_NEXT).includes(EUM_SOON_BUSY), false,
+    '단계 등록부에 단계가 아닌 이름이 끼면 위 양방향 대조가 무의미해진다');
+  assert.match(MESSAGE_SRC, /if \(busy\) return `\$\{EUM_SOON_LEAD\}\. \$\{EUM_SOON_BUSY\}\.`;/,
+    '제출 중 토막을 손으로 또 짓는다');
+
   // 모르는 단계는 **앞 토막만** 돌려준다 — 침묵은 이 경고에서 가장 비싼 결과다(15회차).
   for (const bad of ['알 수 없음', '', null, undefined, 0, 4, 42, 'constructor', '__proto__']) {
     assert.equal(soonMessage(bad), `${EUM_SOON_LEAD}.`, `입력: ${String(bad)}`);
@@ -574,11 +667,11 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     // 대조(tests/eumseniorui)에서 빠졌으므로 여기서 같은 판정으로 받는다 — 11회차가 겪은
     // "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게.
     EUM_PANEL_TITLE,
-    EUM_PANEL_TEXT: { ask: EUM_PANEL_ASK, kicker: EUM_KICKER },
+    EUM_PANEL_TEXT: { ask: EUM_PANEL_ASK, askExpired: EUM_PANEL_ASK_EXPIRED, kicker: EUM_KICKER },
     // 이번에 옮겨 온 넷도 같은 판정으로 받는다 — 판정 모듈(eumConsume)·눈금 모듈
     // (eumCountdown)에 있던 동안 이 대조를 비껴가고 있었다(가드가 문구를 따라오지 않은 자리).
     EUM_CONSUME_HINT: { change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT },
-    EUM_SOON: { lead: EUM_SOON_LEAD, ...EUM_SOON_NEXT },
+    EUM_SOON: { lead: EUM_SOON_LEAD, busy: EUM_SOON_BUSY, ...EUM_SOON_NEXT },
     // 조작 요소의 이름도 **화면에 그려지는 글자**다(25회차에 이 표로 옮겨 왔다) — 화면 쪽
     // 대조에서 빠졌으므로 여기서 같은 판정으로 받는다. 끝에 붙은 줄임표(「신청하는 중…」)는
     // 무엇과 무엇을 가르지 않으므로 경계가 아니다(muteSeparatorsIn 의 계약).
