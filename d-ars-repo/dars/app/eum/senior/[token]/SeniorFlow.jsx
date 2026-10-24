@@ -54,10 +54,10 @@ import {
   EUM_VISIT_MIN,
 } from '@/lib/eumSenior';
 import {
-  elapsedSince,
+  countingDown,
   isExpired,
   isSoon,
-  leftAfter,
+  leftNow,
   markClock,
   nowTick,
   readClock,
@@ -163,8 +163,10 @@ export default function SeniorFlow({
   const [baseTick] = useState(clock.tick);
   // 이어받은 경우에만 경과를 **첫 값에 반영**한다. 첫 마운트에서 그러면 서버가 그린 첫 그림과
   // 어긋날 수 있고(하이드레이션), 이어받는 경우에는 하이드레이션이 애초에 없다.
+  // 계산은 눈금 효과와 **같은 한 함수**를 쓴다(lib/eumCountdown.leftNow) — 「지금 남은
+  // 시간」을 구하는 자리가 셋이 되는 순간(첫 값·1초 틱·다시 보임) 두 벌로 갈라진다.
   const [left, setLeft] = useState(() => (
-    clock.resumed ? leftAfter(clock.left, elapsedSince(clock.tick)) : clock.left
+    clock.resumed ? leftNow(clock.left, clock.tick) : clock.left
   ));
   // 서버가 만료라고 판정한 경우 — 화면은 전송 지연만큼 너그럽게 세므로 아직 유효해 보일 수 있다.
   // 어긋나면 **서버 쪽이 맞다**(최종 판정자).
@@ -299,19 +301,43 @@ export default function SeniorFlow({
     return () => window.removeEventListener('popstate', onPop);
   }, [restored, enterStep]);
 
-  // 남은 시간(1초 간격). 제출이 끝났으면 더 세지 않는다 — 완료 화면이 만료로 덮이지 않게.
-  useEffect(() => {
-    if (initialLeft === null || done) return undefined;
-    const id = setInterval(() => {
-      setLeft(leftAfter(initialLeft, elapsedSince(baseTick)));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [initialLeft, baseTick, done]);
-
   // 화면이 스스로 만료를 선언하는 조건(판정 근거는 아래 이른 return 의 주석). 거기서 구하지
-  // 않고 여기 둔 이유는, 그 전환에서 포커스를 옮기는 아래 효과가 **훅이라 조건 뒤에 둘 수
-  // 없기** 때문이다.
+  // 않고 여기 둔 이유는, 이 값을 읽는 효과 둘이 **훅이라 조건 뒤에 둘 수 없기** 때문이다
+  // (그 전환에서 포커스를 옮기는 효과 · 눈금을 멈추는 효과). 만료를 판정하는 자리는
+  // 이 한 줄뿐이다 — 아래 효과는 판정하지 않고 **이 결과를 받는다**.
   const expiredNow = !done && !busy && (expiredByServer || isExpired(left));
+
+  // 남은 시간. 다시 재는 계기는 **둘**이고 둘 다 `recount` 한 곳을 부른다.
+  //  ① 1초 간격 — 보이는 동안의 평소 눈금.
+  //  ② 화면이 **다시 보이는 순간** — 고친 결함이다. 브라우저는 보이지 않는 탭의 타이머를
+  //     조이거나 멈추므로, 문자를 다시 보려고 앱을 바꿨다 돌아온 어르신에게는 눈금이 떠난
+  //     시점의 값으로 멈춰 있었다(다음 틱까지). 그 사이 만료 임박 경고가 침묵하고 옆에
+  //     적힌 초 숫자가 거짓이 된다 — 하필 시간이 가장 급한 순간이다(lib/eumCountdown 의
+  //     leftNow 주석). 경과 계산은 처음부터 맞았고 빠져 있던 것은 **다시 재는 계기**다.
+  //     `pageshow` 를 함께 듣는 이유는 뒤로/앞으로 캐시에서 되살아난 문서다 — 그때는
+  //     `visibilitychange` 가 오지 않는 브라우저가 있고, 둘 다 「지금 보이는가」만 묻는
+  //     같은 한 함수로 받으므로 두 번 와도 값이 같다.
+  // 멈추는 조건은 lib/eumCountdown.countingDown 한 곳에서 정한다 — 제출이 끝났으면(완료
+  // 화면이 만료로 덮이지 않게) 그리고 **이미 만료를 선언했으면** 더 세지 않는다. 뒤의 것이
+  // 고친 결함이다: 종전에는 `done` 만 보아, 만료 패널로 뒤집힌 뒤에도 1초 타이머가 그 문서가
+  // 사는 동안 영영 돌았다(그 패널에는 닫을 단추가 없다).
+  useEffect(() => {
+    if (!countingDown({ initialLeft, done, expired: expiredNow })) return undefined;
+    const recount = () => setLeft(leftNow(initialLeft, baseTick));
+    const id = setInterval(recount, 1000);
+    const onShown = () => {
+      // 숨겨지는 쪽에서는 아무것도 하지 않는다 — 다시 잴 이유는 **보이게 된** 순간에만 있다.
+      if (typeof document !== 'undefined' && document.hidden) return;
+      recount();
+    };
+    document.addEventListener('visibilitychange', onShown);
+    window.addEventListener('pageshow', onShown);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onShown);
+      window.removeEventListener('pageshow', onShown);
+    };
+  }, [initialLeft, baseTick, done, expiredNow]);
 
   // 흐름 → 만료 안내로 **화면이 통째로 뒤집히는** 순간. 포커스가 얹혀 있던 요소(선택지·주버튼)가
   // 그 순간 문서에서 사라지므로 브라우저는 포커스를 body 로 돌려보낸다. 그러면 바뀐 화면이

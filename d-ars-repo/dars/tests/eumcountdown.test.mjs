@@ -19,6 +19,8 @@ import {
   initialLeftMs,
   elapsedSince,
   leftAfter,
+  leftNow,
+  countingDown,
   isExpired,
   isSoon,
   secondsLeft,
@@ -292,4 +294,127 @@ test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 
   // 빈 칸이 화면을 밀어내면 안 된다 — 영역에는 style 을 주지 않는다(내용 없는 블록은 0px).
   assert.equal(/<Live[^>]*style/.test(flow), false,
     '빈 낭독 영역에 style 이 붙으면 경고가 없는 화면까지 자리를 잃는다');
+});
+
+// ── 다시 재는 계기가 둘이어도 값은 한 벌이다 ─────────────────────────────────
+//
+// 고친 결함: 화면이 남은 시간을 다시 재는 길은 `setInterval` **하나뿐**이었다. 브라우저는
+// 보이지 않는 탭의 타이머를 조이거나 멈추므로(모바일에서는 흔히 멈춘다), 어르신이 문자를
+// 다시 보려고 앱을 바꿨다 돌아온 순간 눈금은 **떠난 시점의 값**이었다 — 다음 틱까지
+// 만료 임박 경고가 침묵하고(isSoon 이 옛 값을 본다) 옆에 적힌 초 숫자가 거짓이 된다.
+// 하필 그 떠남이 이 사용자층의 기본 경로이고(링크를 문자로 받는다), 하필 그 순간이 남은
+// 1분이다. 위 resumeClock 이 고친 결함과 **같은 해**이고, 그때 좁았던 축은 「다시 마운트」
+// 였고 이번에 좁았던 축은 「다시 보임」이다.
+
+test('지금 남은 시간: 출발점과 눈금만으로 다시 잰다(계기가 둘이어도 같은 값)', () => {
+  assert.equal(leftNow(300000, 100, 100), 300000);
+  assert.equal(leftNow(300000, 100, 1100), 299000);
+  assert.equal(leftNow(300000, 100, 400000), 0, '남은 시간은 음수가 되지 않는다');
+  assert.equal(leftNow(null, 100, 1100), null, '모르면 0 이 아니라 null 이다(만료로 뭉개지 않는다)');
+  // 1초 틱과 「다시 보임」이 같은 눈금에서 부르면 **같은 값**을 말해야 한다(두 벌 금지).
+  assert.equal(leftNow(60000, 7, 7 + 12345), leftAfter(60000, elapsedSince(7, 7 + 12345)));
+  // 이상 입력에 던지지 않는다 — 남은 시간 하나 때문에 신청 화면이 빈 화면이 되면 안 된다.
+  for (const v of [undefined, '', 'x', [], {}, () => {}, Symbol.iterator]) {
+    assert.doesNotThrow(() => leftNow(v, v, v), `입력에 던졌다: ${String(v)}`);
+  }
+});
+
+test('더 셀 이유가 없으면 멈춘다(완료 뒤 · 만료를 선언한 뒤 · 남은 기간을 모를 때)', () => {
+  assert.equal(countingDown({ initialLeft: 300000, done: false, expired: false }), true);
+  assert.equal(countingDown({ initialLeft: 300000, done: true, expired: false }), false,
+    '제출이 끝난 화면을 계속 세면 완료 화면이 만료로 덮인다');
+  // 고친 결함: 멈추는 조건이 `done` 하나였다 — 만료 패널로 뒤집힌 뒤에도 1초 타이머가
+  // 그 문서가 사는 동안 영영 돌았다(그 패널에는 어르신이 누를 단추가 없다).
+  assert.equal(countingDown({ initialLeft: 300000, done: false, expired: true }), false,
+    '만료를 선언한 뒤에도 타이머가 돈다(어르신 기기의 배터리다)');
+  assert.equal(countingDown({ initialLeft: null, done: false, expired: false }), false,
+    '남은 기간을 모르면 셀 것이 없다 — 판정은 서버에 맡긴다');
+  // 이 함수는 만료를 **판정하지 않고 받는다** — 판정 자리는 화면의 expiredNow 한 곳이다.
+  // 그래서 0 이하는 「만료」가 아니라 「셀 수 있는 기간이 아니다」로만 떨어진다.
+  assert.equal(countingDown({ initialLeft: 0, done: false, expired: false }), false);
+  assert.equal(countingDown({ initialLeft: -1, done: false, expired: false }), false);
+  // 모르는 모양은 **세지 않는 쪽**으로 떨어지고, 던지지 않는다.
+  for (const bad of [undefined, null, 0, '', 'x', [], () => {}, Symbol.iterator,
+    { initialLeft: '300000' }, { initialLeft: NaN }]) {
+    assert.doesNotThrow(() => countingDown(bad), `입력에 던졌다: ${String(bad)}`);
+    assert.equal(countingDown(bad), false, `모르는 모양을 세고 있다: ${String(bad)}`);
+  }
+});
+
+// ── 화면이 선언하는 만료는 **서버 기준으로도 만료**다 ─────────────────────────
+//
+// 26회차는 「다음에 볼 자리」에 이것을 남겼다 — 눈금이 0 에 닿은 상태에서 제출이 401 로
+// 돌아오면 그 안내(「링크가 올바르지 않습니다」)는 그려지지 않고 화면은 자기 눈금으로 만료를
+// 선언한다. 적어 둔 걱정은 「만료의 최종 판정자는 서버다」가 서버가 **다른 말을 한** 경우를
+// 다루지 않는다는 것이었고, 사유를 바꿀지는 한 건으로 따로 서야 한다고 했다.
+// 다시 보니 **고칠 것이 없었다.** 이 파일의 눈금은 서버보다 늘 **너그러운 쪽**으로만 틀리게
+// 지어져 있다(머리 주석의 「남는 오차와 그 방향」) —
+//   · 출발점은 서버가 **렌더 시점에** 잰 남은 기간이고, 세기 시작하는 눈금은 그보다 **뒤**다
+//     (전송·하이드레이션, 또는 이어받기). 늦게 시작하므로 늘 더 남은 것처럼 센다.
+//   · 경과는 뒤로 가지 않는다(elapsedSince 가 음수를 0 으로 흡수한다).
+// 그러므로 화면의 남은 시간 ≥ 서버의 남은 시간이고, 화면이 0 을 보았다면 서버 기준으로도
+// 0 이하다 — 만료 패널은 그 자리에서 **참**이다. 그리고 그 패널에는 401 안내에 없는 것이
+// 하나 더 있다(그 기기의 보조 사본 한 줄 · PriorLocal): 덮는 쪽이 더 쓸모 있는 사실이다.
+// 결론이 그 불변식에 매달려 있으므로 불변식을 여기 못박는다 — 눈금이 엄한 쪽으로 기울면
+// (출발점을 서버 시각으로 잡거나 음수 경과를 흡수하지 않으면) 이 테스트가 먼저 깨진다.
+test('눈금은 서버보다 너그러운 쪽으로만 틀린다(화면이 만료를 선언하면 서버도 만료다)', () => {
+  const serverLeft = 300000; // 서버가 렌더 시점에 잰 남은 기간
+  for (const delay of [0, 1, 250, 4000, 60000]) { // 렌더 → 세기 시작(전송·하이드레이션)
+    for (const since of [0, 1, 1000, 299000, 300000, 450000]) { // 세기 시작 → 지금
+      const shown = leftNow(serverLeft, 0, since);
+      const truth = serverLeft - (delay + since); // 서버 기준 남은 시간
+      assert.ok(shown >= Math.max(0, truth),
+        `화면이 서버보다 엄하게 셌다: 화면 ${shown} < 서버 ${truth}`);
+      if (isExpired(shown)) {
+        assert.ok(truth <= 0, `화면이 아직 살아 있는 링크를 만료라고 선언했다(서버 ${truth}ms)`);
+      }
+    }
+  }
+  // 반대 방향도 막혀 있다 — 눈금이 뒤로 가도(시계 수정·눈금 교체) 남은 시간이 **늘어나지
+  // 않는다**. 늘어나면 만료가 영영 오지 않고, 어르신은 고를 것을 다 고른 뒤 410 을 만난다.
+  assert.equal(leftNow(serverLeft, 1000, 0), serverLeft);
+});
+
+test('만료를 선언한 뒤에는 눈금을 멈춘다(만료 판정 자리는 늘리지 않는다)', () => {
+  const code = stripSourceComments(read('app/eum/senior/[token]/SeniorFlow.jsx'));
+  // 멈추는 조건은 단일 출처가 정한다 — 화면이 손으로 적으면 `done` 하나만 보던 그 모양으로
+  // 돌아간다(그때는 만료 패널로 뒤집힌 뒤에도 타이머가 영영 돌았다).
+  assert.match(code, /countingDown\(\{ initialLeft, done, expired: expiredNow \}\)/,
+    '눈금을 멈추는 조건이 단일 출처(lib/eumCountdown.countingDown)를 쓰지 않는다');
+  // 만료 판정은 여전히 **한 곳**이다. 둘이 되면 「만료됐다」를 서로 다른 두 식이 정하고,
+  // 그 둘이 갈리는 날 화면과 타이머가 서로 다른 사실을 믿는다.
+  assert.equal((code.match(/isExpired\(/g) || []).length, 1,
+    '화면의 만료 판정 자리가 둘이 됐다 — expiredNow 한 줄이어야 한다');
+  // 의존성에 만료가 들어 있어야 **선언되는 순간** 실제로 멈춘다.
+  const start = code.indexOf('if (!countingDown(');
+  const end = code.indexOf('}, [initialLeft, baseTick, done, expiredNow]);', start);
+  assert.ok(start > -1 && end > start,
+    '눈금 효과를 찾지 못했다 — 만료가 의존성에 없으면 선언되어도 타이머가 그대로 돈다');
+});
+
+test('눈금을 다시 재는 계기가 둘이고, 둘 다 같은 한 함수를 부른다', () => {
+  const code = stripSourceComments(read('app/eum/senior/[token]/SeniorFlow.jsx'));
+  const start = code.indexOf('if (!countingDown(');
+  const end = code.indexOf('}, [initialLeft, baseTick, done, expiredNow]);', start);
+  assert.ok(start > -1 && end > start, '눈금 효과를 찾지 못했다');
+  const block = code.slice(start, end);
+
+  assert.match(block, /setLeft\(leftNow\(initialLeft, baseTick\)\)/,
+    '다시 재는 계산이 단일 출처(leftNow)를 쓰지 않는다');
+  assert.match(block, /setInterval\(recount, 1000\)/, '1초 눈금이 그 함수를 부르지 않는다');
+  // 보이지 않는 탭의 타이머는 조이거나 멈춘다 — 다시 보이는 순간 **즉시** 다시 재지 않으면
+  // 돌아온 어르신은 떠난 시점의 눈금을 본다(만료 임박 경고가 침묵한다).
+  assert.match(block, /addEventListener\('visibilitychange', onShown\)/,
+    '화면이 다시 보이는 순간 눈금을 다시 재지 않는다');
+  // 뒤로/앞으로 캐시에서 되살아난 문서에는 visibilitychange 가 오지 않는 브라우저가 있다.
+  assert.match(block, /addEventListener\('pageshow', onShown\)/,
+    '캐시에서 되살아난 문서가 옛 눈금으로 남는다');
+  // 걸었으면 **떼어야** 한다 — 떼지 않으면 다시 마운트될 때마다(「다시 시도」) 쌓인다.
+  assert.match(block, /clearInterval\(id\)/, '1초 눈금을 치우지 않는다');
+  assert.match(block, /removeEventListener\('visibilitychange', onShown\)/, '듣기를 떼지 않는다');
+  assert.match(block, /removeEventListener\('pageshow', onShown\)/, '듣기를 떼지 않는다');
+  // 「지금 남은 시간」을 화면에 쓰는 자리는 **한 곳**이다(recount) — 계기가 늘어날 때마다
+  // 각자 계산하면 그중 하나만 고쳐지는 날 두 계기가 다른 값을 말한다.
+  assert.equal((code.match(/setLeft\(/g) || []).length, 1,
+    '남은 시간을 쓰는 자리가 둘이 됐다 — 다시 재는 계산은 recount 한 곳이어야 한다');
 });
