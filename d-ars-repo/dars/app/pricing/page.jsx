@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { LEGAL_META } from '@/lib/legalContent';
+import { PLANS, contactHref } from '@/lib/plans';
 
 // 루트 템플릿 '%s · D-ARS' 가 접미를 붙이므로 세그먼트 제목만 지정(중복 '· D-ARS · D-ARS' 방지).
 export const metadata = { title: '요금제', description: 'D-ARS(보이는 ARS) 요금제 — 파일럿 · 표준 · 기관' };
@@ -7,28 +8,7 @@ export const metadata = { title: '요금제', description: 'D-ARS(보이는 ARS)
 const TR='#2563eb', TRD='#1d4ed8', INK='#0f172a', MUT='#64748b';
 const PAGE='#f8fafc', CARD='#ffffff', LINE='#e2e8f0', BADGE='#eef4ff';
 
-// ⚠️ [승인 필요] 아래 금액은 안내용 초안이다. 실제 구독 결제는 승인·검수 전까지
-//   비활성이며, 현재 CTA 는 결제가 아닌 "도입 문의" 로 연결한다.
-const PLANS = [
-  {
-    id:'pilot', name:'파일럿', price:'무료', unit:'체험',
-    sub:'도입 전 기능 검증',
-    feats:['데모 데이터로 전체 기능 체험','보이는 ARS 화면 미리보기','시나리오 1종·기본 통계','이메일 문의 지원'],
-    cta:'무료로 체험', href:'/dashboard', highlight:false,
-  },
-  {
-    id:'standard', name:'표준', price:'290,000', unit:'월(부가세 별도)',
-    sub:'중소 규모 콜센터·복지 상담',
-    feats:['실시간 세션 모니터링','시나리오 빌더·필요서류 안내','UMS 발송·통계 리포트','콜봇(STT·LLM·TTS·CTI) 연계','표준 SLA·접근/감사 로그'],
-    cta:'도입 문의', href:'contact', highlight:true,
-  },
-  {
-    id:'org', name:'기관', price:'맞춤 견적', unit:'공공·대규모',
-    sub:'지자체·공공기관·대형 사업',
-    feats:['이상징후 스코어링·자동 연계','전용 DB·데이터 보관정책 협의','전용 지원·맞춤 SLA','온프레미스/전용 클라우드 옵션','보안·개인정보 위탁 계약'],
-    cta:'견적 문의', href:'contact', highlight:false,
-  },
-];
+// 요금제 데이터는 `lib/plans.js` 한 곳에서만 적는다 — 랜딩이 같은 값을 그린다([승인 필요] 금액 초안).
 
 const wrap = { maxWidth:1120, margin:'0 auto', padding:'0 20px' };
 
@@ -40,7 +20,7 @@ function CTA({ plan }) {
     background: plan.highlight ? TR : BADGE,
   };
   if (plan.href === 'contact') {
-    return <a href={'mailto:' + LEGAL_META.contactEmail + '?subject=D-ARS%20' + encodeURIComponent(plan.name) + '%20도입%20문의'} style={style}>{plan.cta} →</a>;
+    return <a href={contactHref(LEGAL_META.contactEmail, plan.name)} style={style}>{plan.cta} →</a>;
   }
   return <Link href={plan.href} style={style}>{plan.cta} →</Link>;
 }
@@ -56,19 +36,26 @@ export default function PricingPage() {
           <p style={{ color:MUT, fontSize:'clamp(14px,3.5vw,16px)', maxWidth:600, margin:'0 auto', lineHeight:1.6 }}>
             파일럿으로 먼저 검증하고, 표준·기관 요금제로 확장하세요. 공공·대규모 도입은 맞춤 견적으로 안내합니다.
           </p>
-          <div style={{ display:'inline-block', marginTop:14, background:BADGE, color:'#1d4ed8', border:'1px solid '+LINE, borderRadius:999, padding:'6px 14px', fontSize:12.5 }}>
-            ⚠️ 구독 결제 연동은 준비 중입니다 · 현재는 도입 문의로 진행 <b>[승인 필요]</b>
+          {/* 「[승인 필요]」는 사내 표기다 — 사실(결제 비활성·문의로 진행)은 그대로 알리고 표기는
+              코드에만 둔다(⚠️ [승인 필요] 구독 결제 활성화는 승인·검수 사항 · 약관 제5조 ④항). */}
+          <div style={{ display:'inline-block', marginTop:14, background:BADGE, color:TRD, border:'1px solid '+LINE, borderRadius:100, padding:'6px 14px', fontSize:12.5 }}>
+            구독 결제 연동은 준비 중입니다 · 현재는 도입 문의로 진행합니다
           </div>
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:16, margin:'32px 0 12px', alignItems:'stretch' }}>
           {PLANS.map((p) => (
+            // 카드 규격은 AICC 라인 기준 원본(admin.html `.card`)과 같다 — 라운드 16 · 1px 경계선 ·
+            // 그림자 `--shadow`. 추천 카드만 브랜드색 2px 로 강조한다. 종전 그림자는
+            // rgba(189,90,64,.16) — 테라코타(이음 라인) 잔재여서 블루 카드 아래 갈색 번짐이 남아 있었다.
             <div key={p.id} style={{
               display:'flex', flexDirection:'column',
-              background: p.highlight ? '#fff' : CARD,
-              border: '2px solid ' + (p.highlight ? TR : LINE),
-              borderRadius:20, padding:'24px 22px',
-              boxShadow: p.highlight ? '0 18px 40px rgba(189,90,64,.16)' : 'none',
+              background: CARD,
+              border: (p.highlight ? '2px solid ' + TR : '1px solid ' + LINE),
+              borderRadius:16, padding:'24px 22px',
+              boxShadow: p.highlight
+                ? '0 20px 46px rgba(15,23,42,.13), 0 6px 18px rgba(15,23,42,.07)'
+                : '0 1px 2px rgba(15,23,42,.05), 0 4px 16px rgba(15,23,42,.06)',
             }}>
               {p.highlight && <div style={{ alignSelf:'flex-start', background:TR, color:'#fff', fontSize:11.5, fontWeight:800, borderRadius:999, padding:'4px 10px', marginBottom:8 }}>추천</div>}
               <div style={{ fontSize:18, fontWeight:800, color:INK }}>{p.name}</div>

@@ -1,4 +1,7 @@
 // D-ARS 랜딩 — TOBE 블루 디자인(통합 최상급). 원본 HTML을 손실 없이 렌더.
+import { PLANS, contactHref } from '@/lib/plans';
+import { LEGAL_META } from '@/lib/legalContent';
+
 export const dynamic = 'force-static';
 
 // 루트 metadata 는 운영 포털 기준('D-ARS · 보이는 ARS 관리자')이라 공개 랜딩에 그대로 쓰면
@@ -15,24 +18,60 @@ export const metadata = {
     description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
   },
 };
+// ── 요금 카드: 요금 페이지와 **같은 데이터**(`lib/plans.js`)로 그린다 ──────────────
+// 종전 이 자리에는 Starter·Business·Enterprise 세 장이 손으로 적혀 있었고 「월 1,000건
+// 통화」·「월 5,000건 통화」·「무제한 통화」·「24/7 전담 지원」을 약속했다. 제품의 요금
+// 페이지(/pricing)가 말하는 플랜은 파일럿·표준·기관이고 그 건수·지원 조건은 어디에도
+// 없다 — 고객이 먼저 보는 화면이 없는 상품을 팔고 있었다. 이제 두 화면이 한 벌을 읽는다.
+const CHECK = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>';
+const planHref = (p) => (p.href === 'contact' ? contactHref(LEGAL_META.contactEmail, p.name) : p.href);
+const planCard = (p) => `<div class="pcard${p.highlight ? ' hot' : ''}">${p.highlight ? '<span class="tag">추천</span>' : ''}<h3>${p.name}</h3>
+      <div class="amt">${p.price}<small> ${p.unit}</small></div><p style="color:var(--body);font-size:14px">${p.sub}</p>
+      <ul class="plist">${p.feats.map((f) => `<li>${CHECK}${f}</li>`).join('')}</ul>
+      <a class="btn ${p.highlight ? 'btn-primary' : 'btn-outline'}" style="justify-content:center" href="${planHref(p)}">${p.cta} →</a>
+      <a class="plink" href="/pricing">${p.name} 요금 자세히 보기</a></div>`;
+
 const LP = `<style>
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+/* ──────────────────────────────────────────────────────────────────────────
+   AICC 라인 토큰 — app/globals.css 와 **같은 값**이다(기준 원본
+   2. Callbot/v2/callbot-portal/public/admin.html 의 마지막 :root · index.html 랜딩).
+   종전 이 블록은 랜딩만의 한 벌이었다: 경계선 #e6ebf3(콘솔은 #e2e8f0) · 바탕
+   #f6f8fc(#f8fafc) · 보조색 #94a3b8(흰 바탕 2.56:1 — WCAG AA 미달) · 파란빛이 섞인
+   그림자. 「홈 → 로그인 → 콘솔」로 넘어가는 동안 선과 바탕이 미세하게 두 번 갈렸다.
+   글꼴 @import 는 두지 않는다 — globals.css 가 이미 같은 CDN 에서 Pretendard 를
+   받아 오므로 랜딩만 제3자 스타일시트를 한 번 더 기다릴 이유가 없다.
+   ────────────────────────────────────────────────────────────────────────── */
 :root{
-  --brand:#2563eb; --brand2:#3b82f6; --brand-d:#1d4ed8; --ink:#0f172a; --body:#475569; --mut:#94a3b8;
-  --line:#e6ebf3; --bg:#f6f8fc; --card:#fff; --navy1:#0b1220; --navy2:#132445; --navy3:#1e3a6e;
-  --ok:#16a34a; --radius:18px; --shadow:0 1px 2px rgba(15,23,42,.04),0 12px 28px -12px rgba(30,64,120,.18);
-  --shadow-lg:0 24px 60px -24px rgba(30,64,120,.35);
+  --brand:#2563eb; --brand-d:#1d4ed8; --brand-l:#bfdbfe; --brand-xl:#eef4ff;
+  --ink:#0f172a; --body:#475569; --mut:#64748b;
+  --line:#e2e8f0; --line2:#eef2f7; --bg:#f8fafc; --card:#fff;
+  /* 히어로·푸터 네이비와 그 위의 글자색은 랜딩만 쓰는 칸이다(콘솔에는 어두운 면이 없다).
+     쓰지 않는 칸은 두지 않는다 — --brand2·--navy3·--ok 는 아무 규칙도 읽지 않고 있었다. */
+  --navy1:#0b1220; --navy2:#132445; --on-navy:#9fb2d4;
+  --radius:16px;
+  --shadow:0 1px 2px rgba(15,23,42,.05),0 4px 16px rgba(15,23,42,.06);
+  --shadow-lg:0 20px 46px rgba(15,23,42,.13),0 6px 18px rgba(15,23,42,.07);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:Pretendard,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.015em}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px}
 a{color:inherit;text-decoration:none}
-.btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:15px;border-radius:12px;padding:12px 22px;cursor:pointer;border:0;transition:.18s;white-space:nowrap}
-.btn-primary{background:linear-gradient(135deg,var(--brand2),var(--brand-d));color:#fff;box-shadow:0 8px 20px -6px rgba(37,99,235,.5)}
-.btn-primary:hover{transform:translateY(-1px);box-shadow:0 12px 26px -6px rgba(37,99,235,.6)}
+/* 버튼 — 기준 원본 규격(globals.css 의 .btn.primary · index.html 의 .btn.ghost).
+   주된 버튼은 **단색 브랜드색**이다(종전 135° 그라데이션 + 알파 .5 그림자는 콘솔의 어느
+   버튼과도 다른 모양이었다). 호버 리프트는 아래 hover:hover 블록에서만 건다. */
+.btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:15px;border-radius:12px;padding:12px 22px;cursor:pointer;border:0;white-space:nowrap;
+  transition:background .15s ease,border-color .15s ease,color .15s ease,transform .13s ease,box-shadow .15s ease}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(37,99,235,.24)}
+.btn-primary:hover{background:var(--brand-d);box-shadow:0 8px 20px rgba(37,99,235,.32)}
 .btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25)}
+/* 히어로·CTA 띠의 투명 버튼은 **자기 호버를 반드시 적어 둔다.** globals.css 의
+   .btn:hover{background:var(--brand-xl)} 가 선택자 특이도에서 .btn-ghost 를 이기므로,
+   이 한 줄이 없으면 어두운 면 위에서 호버 시 바탕이 연한 하늘색(#eef4ff)으로 바뀌고 흰
+   글자가 그 위에 남아 **글씨가 사라진다**(1.1:1). */
+.btn-ghost:hover{background:rgba(255,255,255,.22);border-color:#fff;color:#fff}
 .btn-outline{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn-outline:hover{background:var(--brand-xl);border-color:var(--brand-l);color:var(--brand-d)}
 .eyebrow{font-size:13px;font-weight:800;letter-spacing:.12em;color:var(--brand);text-transform:uppercase}
 .h2{font-size:38px;font-weight:800;letter-spacing:-.03em;line-height:1.2}
 .sub{color:var(--body);font-size:17px;margin-top:12px}
@@ -80,10 +119,10 @@ nav{display:flex;align-items:center;justify-content:space-between;height:70px}
 /* logos */
 .logos{background:#0a1226;padding:26px 0}
 .logos .row{display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;opacity:.85}
-.logos span{color:#9fb2d4;font-weight:800;font-size:19px;letter-spacing:.02em}
+.logos span{color:var(--on-navy);font-weight:800;font-size:19px;letter-spacing:.02em}
 
 /* stats band */
-.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:34px;margin-top:-46px;position:relative;z-index:5}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;background:var(--card);border:1px solid var(--line2);border-radius:var(--radius);box-shadow:var(--shadow);padding:34px;margin-top:-46px;position:relative;z-index:5}
 .stat{text-align:center}
 .stat b{display:block;font-size:34px;font-weight:900;color:var(--brand);letter-spacing:-.03em}
 .stat span{color:var(--body);font-size:14px;font-weight:600}
@@ -91,9 +130,14 @@ nav{display:flex;align-items:center;justify-content:space-between;height:70px}
 /* cards */
 .cards4{grid-template-columns:repeat(4,1fr)}
 .cards3{grid-template-columns:repeat(3,1fr)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);transition:.2s}
-.card:hover{transform:translateY(-4px);box-shadow:var(--shadow-lg);border-color:#dbe6fb}
-.ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,#eef4ff,#dbe8ff);color:var(--brand);margin-bottom:16px}
+/* 카드 — 콘솔 .card 규격: 라운드 16 · 경계선 --line2 · 그림자 --shadow,
+   호버는 그림자/경계선만(들어 올리는 효과는 hover:hover 에서 건다). */
+.card{background:var(--card);border:1px solid var(--line2);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);
+  transition:box-shadow .22s ease,border-color .22s ease,transform .22s ease}
+.card:hover{box-shadow:var(--shadow-lg);border-color:var(--brand-l)}
+/* 아이콘 타일 — 콘솔 .kpi2 .ic 규격(브랜드 틴트 + 1px 내부 링). 종전 135° 그라데이션 둘은
+   같은 자리를 두 벌로 그리던 것이다. */
+.ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:var(--brand-xl);color:var(--brand);margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--brand-l)}
 .ic svg{width:26px;height:26px}
 .card h3{font-size:18px;font-weight:800;margin-bottom:8px}
 .card p{color:var(--body);font-size:14.5px}
@@ -104,17 +148,20 @@ nav{display:flex;align-items:center;justify-content:space-between;height:70px}
 .sollist{display:flex;flex-direction:column;gap:10px}
 .solitem{display:flex;gap:14px;align-items:flex-start;padding:16px;border-radius:14px;border:1px solid var(--line);background:#fff}
 .solitem.on{border-color:var(--brand);box-shadow:0 10px 24px -12px rgba(37,99,235,.4)}
-.solitem .k{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#eef4ff,#dbe8ff);color:var(--brand);display:grid;place-items:center;flex:none}
-.solvis{background:linear-gradient(160deg,#eaf1ff,#f4f8ff);border:1px solid var(--line);border-radius:22px;height:360px;display:grid;place-items:center;position:relative;overflow:hidden}
+.solitem .k{width:40px;height:40px;border-radius:11px;background:var(--brand-xl);color:var(--brand);display:grid;place-items:center;flex:none;box-shadow:inset 0 0 0 1px var(--brand-l)}
+.solvis{background:linear-gradient(160deg,#eaf1ff,#f4f8ff);border:1px solid var(--line);border-radius:18px;height:360px;display:grid;place-items:center;position:relative;overflow:hidden}
 
 /* pricing */
 .price{grid-template-columns:repeat(3,1fr);align-items:stretch}
-.pcard{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:32px 28px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.pcard{background:#fff;border:1px solid var(--line2);border-radius:var(--radius);padding:32px 28px;box-shadow:var(--shadow);display:flex;flex-direction:column}
 .pcard.hot{border:2px solid var(--brand);box-shadow:var(--shadow-lg);position:relative;transform:scale(1.03)}
 .tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font-size:12px;font-weight:800;padding:5px 14px;border-radius:999px}
 .pcard h3{font-size:19px;font-weight:800}
-.pcard .amt{font-size:34px;font-weight:900;margin:14px 0 4px;letter-spacing:-.03em}
+.pcard .amt{font-size:34px;font-weight:900;margin:14px 0 4px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+/* 금액 뒤 단위는 본문 보조색(--mut #64748b · 흰 바탕 4.76:1)으로 적는다 —
+   종전 #94a3b8 은 2.56:1 로 AA 미달이었고, 그 자리가 바로 「무엇당 얼마인가」다. */
 .pcard .amt small{font-size:15px;color:var(--mut);font-weight:700}
+.pcard .plink{display:block;text-align:center;font-size:13px;font-weight:700;color:var(--brand-d);margin-top:10px;text-decoration:underline}
 .plist{list-style:none;margin:18px 0;display:flex;flex-direction:column;gap:11px;flex:1}
 .plist li{font-size:14.5px;color:var(--body);display:flex;gap:9px;align-items:flex-start}
 .plist li svg{width:18px;height:18px;color:var(--brand);flex:none;margin-top:2px}
@@ -122,30 +169,38 @@ nav{display:flex;align-items:center;justify-content:space-between;height:70px}
 /* process */
 .proc{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
 .pstep{text-align:center;position:relative}
-.pnum{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,var(--brand2),var(--brand-d));color:#fff;font-weight:900;font-size:20px;display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 12px 24px -8px rgba(37,99,235,.5)}
+.pnum{width:56px;height:56px;border-radius:16px;background:var(--brand);color:#fff;font-weight:900;font-size:20px;display:grid;place-items:center;margin:0 auto 16px;box-shadow:0 6px 16px rgba(37,99,235,.24)}
 .pstep h4{font-size:16px;font-weight:800;margin-bottom:6px}
 .pstep p{font-size:13.5px;color:var(--body)}
 
 /* CTA */
-.cta{background:radial-gradient(800px 300px at 20% 0%,#1b3e7e,transparent),linear-gradient(135deg,var(--navy2),var(--navy1));color:#fff;border-radius:26px;padding:56px;display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap;box-shadow:var(--shadow-lg)}
+.cta{background:radial-gradient(800px 300px at 20% 0%,#1b3e7e,transparent),linear-gradient(135deg,var(--navy2),var(--navy1));color:#fff;border-radius:18px;padding:56px;display:flex;align-items:center;justify-content:space-between;gap:30px;flex-wrap:wrap;box-shadow:var(--shadow-lg)}
 .cta h2{font-size:32px;font-weight:900;letter-spacing:-.03em}
 .cta p{color:#c3d0e6;margin-top:10px}
 
 /* footer */
-footer{background:#0a1226;color:#9fb2d4;padding:56px 0 30px;margin-top:0}
+footer{background:#0a1226;color:var(--on-navy);padding:56px 0 30px;margin-top:0}
 .fgrid{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:30px}
 footer h5{color:#fff;font-size:14px;font-weight:800;margin-bottom:14px}
-footer a{display:block;color:#9fb2d4;font-size:14px;margin-bottom:9px}
+footer a{display:block;color:var(--on-navy);font-size:14px;margin-bottom:9px}
 footer a:hover{color:#fff}
-.fbottom{border-top:1px solid rgba(255,255,255,.08);margin-top:34px;padding-top:20px;font-size:13px;color:#6b7f9e;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
-.badge-ai{display:inline-flex;gap:6px;font-size:12px;color:var(--mut);flex-wrap:wrap}
-.badge-ai .flink{display:inline;margin:0;font-size:12px;color:#9fb2d4;text-decoration:underline}
+/* 종전 바닥 줄 #6b7f9e 은 4.57:1 로 간신히 지났고, 같은 줄의 고지 문구와 두 가지 회색이
+   섞여 있었다 — 어두운 면의 보조색 한 가지로 모은다. */
+.fbottom{border-top:1px solid rgba(255,255,255,.08);margin-top:34px;padding-top:20px;font-size:13px;color:var(--on-navy);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+/* 푸터 바닥 줄은 어두운 면이다 — 여기서 --mut(#64748b)을 쓰면 #0a1226 위 3.9:1 로 AA 미달이
+   된다. 같은 면의 링크색(--on-navy #9fb2d4 · 7.3:1)으로 적는다. 색 한 벌이라도 **면에 따라
+   고르는 값이 다르다**: 흰 바탕의 보조색을 어두운 바탕에 그대로 옮기지 않는다. */
+.badge-ai{display:inline-flex;gap:6px;font-size:12px;color:var(--on-navy);flex-wrap:wrap}
+.badge-ai .flink{display:inline;margin:0;font-size:12px;color:var(--on-navy);text-decoration:underline}
 .badge-ai .flink:hover{color:#fff}
 @media(max-width:900px){.hero-in,.sol{grid-template-columns:1fr}.stats,.cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr 1fr}.hero h1{font-size:38px}.h2{font-size:30px}.viz{height:360px}}
 /* 121회차 모바일 실측 QA: 900px 아래 단계가 없어 720px 미만에서 헤더 가로 넘침·2열 카드 압착이 발생 → 단계 보강(무붕괴·무오버랩) */
 @media(max-width:720px){
   .wrap{padding:0 18px}
-  .navmenu{display:none}          /* 링크 5종 가로 넘침 방지(동일 항목은 푸터에서 접근) */
+  /* 링크 5종 가로 넘침 방지. 숨겨도 잃는 것이 없다 — 다섯 항목 모두 **이 페이지 안의 섹션**을
+     가리키므로 좁은 화면에서는 그대로 내려가며 읽힌다(종전 주석은 「동일 항목은 푸터에서
+     접근」이라 적었는데, 푸터의 그 줄들은 아직 목적지가 없는 글이다). */
+  .navmenu{display:none}
   section{padding:64px 0}
   .cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr}
   .pcard.hot{transform:none}      /* 1열에서 scale(1.03) 은 인접 카드와 겹침 */
@@ -184,13 +239,36 @@ footer a:hover{color:#fff}
   .cta>div .btn{flex:1 1 auto;justify-content:center}
   .fbottom{font-size:12px}
 }
+
+/* ── 호버 리프트는 마우스가 있는 기기에서만(globals.css 와 같은 가드) ──
+   터치 기기의 :hover 는 누른 뒤 그대로 남아 「떠 있는 카드」가 지워지지 않는다. */
+@media(hover:hover){
+  .btn:hover{transform:translateY(-1px)}
+  .card:hover{transform:translateY(-4px)}
+}
+.btn:active{transform:translateY(0) scale(.98);box-shadow:none}
+
+/* ── 모션 민감 사용자 — 전환·리프트·무한 애니메이션 전부 생략(디자인 원칙 7) ──
+   랜딩에는 이 질의가 **한 번도 없었다**: 히어로의 음성 파형(.wave i)은 1.1초마다 영영
+   높이가 변했고, 카드·버튼은 호버마다 떠올랐고, 내비는 부드럽게 스크롤했다. 콘솔
+   (globals.css)은 같은 효과를 모두 끄고 있었으니 한 제품이 두 가지 약속을 한 셈이다.
+   파형은 애니메이션만 끄면 높이가 0이 되어 사라지므로 **정지한 막대**로 남긴다. */
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .btn,.card{transition:none}
+  .btn:hover,.btn-primary:hover,.card:hover,.btn:active{transform:none}
+  .wave i{animation:none;height:20px}
+}
+
+/* 상단 바가 고정(70px)이라, 내비의 페이지 내 이동이 섹션 제목을 바 아래로 밀어 넣지 않게. */
+[id^="lp-"]{scroll-margin-top:92px}
 </style>
 
 
 <header><div class="wrap"><nav>
   <div class="logo"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#2563eb"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#3b82f6"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#2563eb"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div>
-  <div class="navmenu"><a>서비스 소개</a><a>주요 기능</a><a>도입 효과</a><a>기술 표준</a><a>요금안내</a></div>
-  <div class="navright"><a class="login">로그인</a><button type="button" class="btn btn-primary">무료 체험하기</button></div>
+  <div class="navmenu"><a href="#lp-solution">서비스 소개</a><a href="#lp-product">주요 기능</a><a href="#lp-cases">도입 효과</a><a href="#lp-tech">기술 표준</a><a href="#lp-pricing">요금안내</a></div>
+  <div class="navright"><a class="login" href="/login">로그인</a><a class="btn btn-primary" href="/pricing">무료 체험하기</a></div>
 </nav></div></header>
 
 <!-- HERO -->
@@ -199,7 +277,7 @@ footer a:hover{color:#fff}
     <div class="hero-badge">◆ AI 기반 차세대 디지털 ARS 솔루션</div>
     <h1>더 스마트한 고객 경험,<br><span class="accent">D-ARS</span>로 완성하세요</h1>
     <p>AI 음성봇이 전화를 받고 이해하고 해결합니다. 24시간 쉬지 않는 스마트한 응대와 실시간 화면 안내로 고객 응대 프로세스를 혁신합니다.</p>
-    <div class="hero-cta"><button type="button" class="btn btn-primary">무료 체험 신청 →</button><button type="button" class="btn btn-ghost">솔루션 알아보기</button></div>
+    <div class="hero-cta"><a class="btn btn-primary" href="/pricing">무료 체험 알아보기 →</a><a class="btn btn-ghost" href="#lp-solution">솔루션 알아보기</a></div>
   </div>
   <div class="viz">
     <div class="glow"></div><div class="ring r1"></div><div class="ring r2"></div>
@@ -216,7 +294,7 @@ footer a:hover{color:#fff}
 </div></div></div>
 
 <div class="wrap" style="margin-top:8px">
-  <div style="display:flex;align-items:center;gap:8px;justify-content:center;background:#eef4ff;border:1px solid #d6e4fb;color:#1a4fa0;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;max-width:640px;margin:0 auto">
+  <div style="display:flex;align-items:center;gap:8px;justify-content:center;background:var(--brand-xl);border:1px solid rgba(37,99,235,.18);color:var(--brand-d);border-radius:100px;padding:9px 16px;font-size:13px;font-weight:700;max-width:640px;margin:0 auto">
     <span aria-hidden="true">🤖</span><span>본 서비스는 인공지능(AI)이 응대합니다. AI가 생성한 안내가 포함될 수 있습니다.</span>
   </div>
 </div>
@@ -236,7 +314,7 @@ footer a:hover{color:#fff}
 </div>
 
 <!-- WHY -->
-<section><div class="wrap">
+<section id="lp-why"><div class="wrap">
   <div class="center"><div class="eyebrow">Why D-ARS?</div><h2 class="h2" style="margin-top:10px">비즈니스 성장을 이끄는 차별화된 가치</h2><p class="sub">D-ARS는 최적의 AI 음성 기술로 고객 경험을 혁신하고, 운영 효율을 높여 비즈니스 성과를 극대화합니다.</p></div>
   <div class="grid cards4" style="margin-top:44px">
     <div class="card"><div class="ic"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a4 4 0 0 1 4 4v3a4 4 0 0 1-8 0V7a4 4 0 0 1 4-4z"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>AI 기반 자연어 이해</h3><p>정확한 음성 인식과 자연어 처리로 고객 의도를 파악하고 최적의 답변을 제공합니다.</p></div>
@@ -247,7 +325,7 @@ footer a:hover{color:#fff}
 </div></section>
 
 <!-- SOLUTION -->
-<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+<section id="lp-solution" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
   <div class="sol">
     <div>
       <div class="eyebrow">Solution</div><h2 class="h2" style="margin-top:10px">하나의 플랫폼,<br>완결형 AI 콜 솔루션</h2>
@@ -273,7 +351,7 @@ footer a:hover{color:#fff}
 </div></section>
 
 <!-- PRODUCT -->
-<section><div class="wrap">
+<section id="lp-product"><div class="wrap">
   <div class="center"><div class="eyebrow">Product</div><h2 class="h2" style="margin-top:10px">기능별로 나눈 제품 라인업</h2></div>
   <div class="grid cards3" style="margin-top:44px">
     <div class="card"><div class="ic">AI</div><h3>D-ARS AI</h3><p>고도화된 AI 기술로 자연스러운 대화와 정확한 응답을 제공하는 음성봇 솔루션.</p><span class="more">자세히 보기 →</span></div>
@@ -283,46 +361,44 @@ footer a:hover{color:#fff}
 </div></section>
 
 <!-- TECHNOLOGY -->
-<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+<section id="lp-tech" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
   <div class="center"><div class="eyebrow">Technology</div><h2 class="h2" style="margin-top:10px">핵심 기술</h2><p class="sub">D-ARS의 핵심 기술로 더 정확하고 자연스러운 대화를 구현합니다.</p></div>
   <div class="grid cards4" style="margin-top:44px">
     <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v16M8 8v8M4 11v2M16 8v8M20 11v2"/></svg></div><h3>음성 인식 (ASR)</h3><p>고객 음성을 정확한 텍스트로 변환합니다.</p></div>
     <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2"/></svg></div><h3>자연어 처리 (NLP)</h3><p>고객 의도와 맥락을 정확히 이해합니다.</p></div>
     <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M11 5 6 9H3v6h3l5 4V5zM16 9a4 4 0 0 1 0 6M19 7a7 7 0 0 1 0 10"/></svg></div><h3>음성 합성 (TTS)</h3><p>자연스럽고 명료한 음성으로 응답합니다.</p></div>
-    <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9zM4 10h-1M21 10h-1M4 14h-1M21 14h-1M10 4V3M14 4V3M10 21v-1M14 21v-1"/></svg></div><h3>머신 러닝 (ML)</h3><p>지속적인 학습으로 성능을 향상합니다.</p></div>
+    <!-- 종전 이 자리는 「머신 러닝 (ML) · 지속적인 학습으로 성능을 향상합니다」였다. 상담 자료로
+         모델을 학습시킨다는 뜻으로 읽히는데 그 일은 하지 않으며 약관·방침 어디에도 근거가 없다
+         (AI 학습 표현 금지 규칙). 대신 보이는 ARS 가 실제로 하는 일을 적는다 — 안내 노드를 고객
+         화면에 맞춰 띄우고, 화면이 끊기면 음성 안내로 넘기는 폴백(lib/ivrFallback). -->
+    <div class="card center"><div class="ic" style="margin:0 auto 16px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="2" width="16" height="20" rx="3"/><path d="M9 18h6M8 7h8M8 11h5"/></svg></div><h3>화면 동기화</h3><p>음성 안내에 맞춰 화면을 띄우고, 끊기면 음성으로 이어 갑니다.</p></div>
   </div>
 </div></section>
 
 <!-- USE CASES -->
-<section><div class="wrap">
+<section id="lp-cases"><div class="wrap">
   <div class="center"><div class="eyebrow">Use Cases</div><h2 class="h2" style="margin-top:10px">적용 시나리오</h2><p class="sub">보이는 ARS가 효과를 내는 대표 업무 유형입니다. 실제 효과는 고객사 환경에서 실측해 산출합니다.</p></div>
   <div class="grid cards3" style="margin-top:44px">
-    <div class="card"><div style="font-weight:900;font-size:18px;color:#1a4fa0">본인확인 · 인증</div><p style="margin:12px 0 16px">음성으로 불러주기 어려운 <b style="color:var(--brand)">계좌·인증번호</b>를 화면 입력으로 전환해 오입력과 재문의를 줄입니다.</p></div>
-    <div class="card"><div style="font-weight:900;font-size:18px;color:#111">복잡한 메뉴 안내</div><p style="margin:12px 0 16px">선택지가 많은 ARS 트리를 <b style="color:var(--brand)">화면 버튼</b>으로 제시해 안내 시간을 단축합니다.</p></div>
-    <div class="card"><div style="font-weight:900;font-size:18px;color:#1a4fa0">서류 · 접수</div><p style="margin:12px 0 16px">상담 중 <b style="color:var(--brand)">폼 입력·전자서명</b>을 화면에서 처리해 후속 콜을 없앱니다.</p></div>
+    <!-- 카드 제목 색: 종전 #1a4fa0·#111·#1a4fa0 세 장이 두 가지 색으로 갈려 있었다(같은 위계인데
+         가운데 한 장만 검정). 콘솔과 같은 --ink 한 색으로 모은다 — 브랜드색은 강조 어구에만 쓴다. -->
+    <div class="card"><div style="font-weight:900;font-size:18px;color:var(--ink)">본인확인 · 인증</div><p style="margin:12px 0 16px">음성으로 불러주기 어려운 <b style="color:var(--brand)">계좌·인증번호</b>를 화면 입력으로 전환해 오입력과 재문의를 줄입니다.</p></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:var(--ink)">복잡한 메뉴 안내</div><p style="margin:12px 0 16px">선택지가 많은 ARS 트리를 <b style="color:var(--brand)">화면 버튼</b>으로 제시해 안내 시간을 단축합니다.</p></div>
+    <div class="card"><div style="font-weight:900;font-size:18px;color:var(--ink)">서류 · 접수</div><p style="margin:12px 0 16px">상담 중 <b style="color:var(--brand)">폼 입력·전자서명</b>을 화면에서 처리해 후속 콜을 없앱니다.</p></div>
   </div>
   <p class="sub" style="margin-top:18px;text-align:center;font-size:13px">※ 본 페이지의 수치·화면은 데모 기준이며, 특정 고객사의 실적을 나타내지 않습니다.</p>
 </div></section>
 
 <!-- PRICING -->
-<section style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
-  <div class="center"><div class="eyebrow">Pricing</div><h2 class="h2" style="margin-top:10px">요금 안내</h2><p class="sub">비즈니스 규모와 필요에 맞는 최적의 플랜을 선택하세요.</p></div>
+<section id="lp-pricing" style="background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)"><div class="wrap">
+  <div class="center"><div class="eyebrow">Pricing</div><h2 class="h2" style="margin-top:10px">요금 안내</h2><p class="sub">파일럿으로 먼저 검증하고, 표준·기관 요금제로 확장하세요.</p></div>
   <div class="grid price" style="margin-top:48px">
-    <div class="pcard"><h3>Starter</h3><div class="amt">견적<small> 문의</small></div><p style="color:var(--body);font-size:14px">소규모 비즈니스를 위한 기본 플랜</p>
-      <ul class="plist"><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>기본 AI 음성봇</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>월 1,000건 통화</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>기본 리포트</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>이메일 지원</li></ul>
-      <button type="button" class="btn btn-outline" style="justify-content:center">시작하기</button></div>
-    <div class="pcard hot"><span class="tag">추천</span><h3>Business</h3><div class="amt">견적<small> 문의</small></div><p style="color:var(--body);font-size:14px">성장 기업을 위한 인기 플랜</p>
-      <ul class="plist"><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>고급 AI 음성봇</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>월 5,000건 통화</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>통화 분석 리포트</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>보이는 ARS · 우선 지원</li></ul>
-      <button type="button" class="btn btn-primary" style="justify-content:center">시작하기</button></div>
-    <div class="pcard"><h3>Enterprise</h3><div class="amt">맞춤 견적</div><p style="color:var(--body);font-size:14px">대규모 기업을 위한 맞춤 플랜</p>
-      <ul class="plist"><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>무제한 통화</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>전용 AI 모델</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>실시간 모니터링</li><li><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12l5 5 9-11"/></svg>24/7 전담 지원</li></ul>
-      <button type="button" class="btn btn-outline" style="justify-content:center">문의하기</button></div>
+    ${PLANS.map(planCard).join('\n    ')}
   </div>
-  <p class="center" style="color:var(--mut);font-size:13px;margin-top:20px">* 모든 요금은 부가세 별도이며, 통화량·옵션에 따라 변동될 수 있습니다.</p>
+  <p class="center" style="color:var(--mut);font-size:13px;margin-top:20px">* 모든 요금은 부가가치세 별도이며, 실제 계약·과금 조건은 개별 계약에 따릅니다.<br/>구독 결제 연동은 준비 중이며, 현재는 도입 문의로 진행합니다.</p>
 </div></section>
 
 <!-- PROCESS -->
-<section><div class="wrap">
+<section id="lp-process"><div class="wrap">
   <div class="center"><div class="eyebrow">Process</div><h2 class="h2" style="margin-top:10px">도입 프로세스</h2><p class="sub">체계적인 프로세스로 성공적인 도입을 지원합니다.</p></div>
   <div class="proc" style="margin-top:48px">
     <div class="pstep"><div class="pnum">01</div><h4>상담 및 분석</h4><p>고객 요구사항 분석 및 맞춤 솔루션 제안</p></div>
@@ -335,7 +411,7 @@ footer a:hover{color:#fff}
 <!-- CTA -->
 <div class="wrap" style="padding-bottom:80px"><div class="cta">
   <div><h2>D-ARS로 고객 경험을 혁신해보세요</h2><p>지금 바로 문의하시고 맞춤형 솔루션을 확인해보세요.</p></div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap"><button type="button" class="btn btn-primary">문의하기</button><button type="button" class="btn btn-ghost">데모 체험하기</button></div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap"><a class="btn btn-primary" href="${contactHref(LEGAL_META.contactEmail, '')}">문의하기</a><a class="btn btn-ghost" href="/visual">데모 체험하기</a></div>
 </div></div>
 
 <!-- FOOTER -->
