@@ -15,13 +15,17 @@ import { dirname, resolve } from 'node:path';
 
 import {
   EUM_SOON_MS,
+  EUM_TICK_MONO,
+  EUM_TICK_WALL,
   nowTick,
+  tickNow,
   initialLeftMs,
   elapsedSince,
   leftAfter,
   leftNow,
   countingDown,
   isExpired,
+  selfExpired,
   isSoon,
   secondsLeft,
   EUM_CLOCK_FLAG,
@@ -114,6 +118,48 @@ test('nowTick: 단조 눈금을 돌려주고 두 번 불러도 뒤로 가지 않
   assert.equal(elapsedSince(a, b) >= 0, true);
 });
 
+// ── 고친 결함: 「단조 눈금이다」가 **폴백에서 참이 아니었다** ─────────────────
+//
+// `performance.now()` 가 없으면 눈금은 `Date.now()`(기기 시계)로 물러선다. 기기 시계는
+// NTP 보정·사용자 조작으로 **앞으로도** 점프하고, `elapsedSince` 는 뒤로 간 쪽만 흡수하므로
+// 앞으로 뛴 만큼은 경과로 **과장된다** — 그 과장이 남은 시간을 0 으로 떨어뜨리면 화면은
+// 서버가 유효하다고 판정해 내려보낸 링크 위에 만료 패널을 덮는다(그 패널에는 어르신이
+// 누를 단추가 없다). 이 모듈이 애초에 고치려고 생긴 결함이 폴백 경로로 돌아온 셈이다.
+// 그래서 값과 **출처**를 함께 들고, 되돌릴 수 없는 선언만 출처를 가린다.
+test('눈금은 값과 출처를 함께 들고, 값·판정이 같은 시계를 본다', () => {
+  const p = tickNow();
+  assert.equal(Number.isFinite(p.t), true, '눈금 값이 없다');
+  assert.ok(p.src === EUM_TICK_MONO || p.src === EUM_TICK_WALL, `모르는 출처: ${String(p.src)}`);
+  // 값만 쓰는 옛 이름은 **같은 시계**를 봐야 한다 — 두 자리가 각자 재면 한쪽이 단조,
+  // 한쪽이 기기 시계일 수 있고 그 두 값을 빼면 차이가 수백억이 된다.
+  const v = nowTick();
+  assert.equal(Number.isFinite(v), true);
+  assert.ok(Math.abs(v - p.t) < 60000, `nowTick 과 tickNow 가 다른 시계를 본다: ${p.t} vs ${v}`);
+  // 이 런타임에는 performance.now() 가 있다 — 폴백은 그것이 없는 환경의 길이다.
+  assert.equal(p.src, EUM_TICK_MONO, 'node 에서 단조 눈금을 못 잡았다(폴백 판정이 늘 참이 된다)');
+});
+
+test('화면이 스스로 만료를 선언하는 것은 **단조 눈금으로 쟀을 때만**이다', () => {
+  const mono = { t: 1000, src: EUM_TICK_MONO };
+  const wall = { t: 1.7e12, src: EUM_TICK_WALL };
+  assert.equal(selfExpired(0, mono), true, '단조 눈금에서 0 이면 종전처럼 선언한다');
+  assert.equal(selfExpired(-5, mono), true);
+  assert.equal(selfExpired(1, mono), false);
+  // 기기 시계 폴백 — 0 이어도 선언하지 않는다. 그 0 은 시계가 앞으로 뛴 결과일 수 있고,
+  // 그때 덮이는 것은 **멀쩡한 링크**다(되돌릴 단추가 없는 패널이다).
+  assert.equal(selfExpired(0, wall), false, '기기 시계의 0 을 근거로 만료를 선언했다');
+  assert.equal(selfExpired(-999999, wall), false);
+  // 남은 기간을 모르는 경우(null)는 종전 그대로 — 같은 한 가지를 말하는 두 규칙이다.
+  assert.equal(selfExpired(null, mono), false, '모를 때 만료를 선언하면 멀쩡한 링크가 막힌다');
+  assert.equal(selfExpired('0', mono), false, '문자열을 숫자로 삼아 만료를 선언하면 안 된다');
+  // 출처를 모르는 눈금도 선언하지 않는다(모르는 것을 근거로 삼지 않는다).
+  for (const bad of [undefined, null, 0, 1000, '', 'x', [], {}, { t: 1 }, { t: 1, src: 'z' },
+    () => {}, Symbol.iterator]) {
+    assert.doesNotThrow(() => selfExpired(0, bad), `입력에 던졌다: ${String(bad)}`);
+    assert.equal(selfExpired(0, bad), false, `모르는 눈금으로 만료를 선언했다: ${String(bad)}`);
+  }
+});
+
 // ── 만료 임박 안내 ───────────────────────────────────────────────────────────
 
 test('만료 임박 구간 판정(경계 포함)', () => {
@@ -178,59 +224,86 @@ function fakeRoot(initial = {}) {
   };
 }
 
-test('눈금 왕복: 적어 둔 남은 기간·눈금이 그대로 돌아온다', () => {
+const MONO = (t) => ({ t, src: EUM_TICK_MONO });
+const WALL = (t) => ({ t, src: EUM_TICK_WALL });
+
+test('눈금 왕복: 적어 둔 남은 기간·눈금·출처가 그대로 돌아온다', () => {
   const root = fakeRoot();
   assert.equal(readClock(root), null, '적기 전에는 모른다고 답해야 한다');
-  assert.equal(markClock(root, 270000, 12345.5), true);
-  assert.equal(root.attrs[EUM_CLOCK_FLAG], '270000/12345.5');
-  assert.deepEqual(readClock(root), { left: 270000, tick: 12345.5 });
+  assert.equal(markClock(root, 270000, MONO(12345.5)), true);
+  assert.equal(root.attrs[EUM_CLOCK_FLAG], '270000/12345.5/m');
+  assert.deepEqual(readClock(root), { left: 270000, base: MONO(12345.5) });
   // 이어받으면 **경과만큼 줄어든 값**이 나온다 — 출발점이 지금으로 다시 맞춰지지 않는다.
-  const got = resumeClock(readClock(root), 300000, 99999);
-  assert.deepEqual(got, { left: 270000, tick: 12345.5, resumed: true });
-  assert.equal(leftAfter(got.left, elapsedSince(got.tick, got.tick + 42000)), 228000);
+  const got = resumeClock(readClock(root), 300000, MONO(99999));
+  assert.deepEqual(got, { left: 270000, base: MONO(12345.5), resumed: true });
+  assert.equal(leftNow(got.left, got.base, MONO(got.base.t + 42000)), 228000);
+});
+
+// 고친 결함: 적어 두는 칸에 **출처가 없었다.** 값만 적혀 있으면 읽는 쪽은 그것이 어느
+// 시계의 값인지 알 수 없고, 같은 문서에서 `performance.now()` 가 되다 말다 하는 환경에서는
+// 한 시계가 적은 값에서 **다른 시계의 값을 뺀다** — 차이가 수백억이거나 음수일 뿐 경과가
+// 아니고, 그 값이 들어가면 멀쩡한 링크가 그 자리에서 0 이 된다.
+test('출처가 다른 기록은 이어받지 않는다(두 시계를 섞어 빼지 않는다)', () => {
+  const stored = { left: 270000, base: WALL(1.7e12) };
+  const got = resumeClock(stored, 300000, MONO(500));
+  assert.deepEqual(got, { left: 300000, base: MONO(500), resumed: false },
+    '기기 시계가 적은 눈금을 단조 눈금에서 이어받았다');
+  // 같은 출처면 종전처럼 이어받는다.
+  assert.equal(resumeClock(stored, 300000, WALL(1.7e12 + 1000)).resumed, true);
 });
 
 test('적힌 눈금이 없으면 서버가 준 기간으로 새로 시작한다(첫 마운트)', () => {
-  const got = resumeClock(null, 300000, 500);
-  assert.deepEqual(got, { left: 300000, tick: 500, resumed: false });
+  const got = resumeClock(null, 300000, MONO(500));
+  assert.deepEqual(got, { left: 300000, base: MONO(500), resumed: false });
   // resumed 가 false 인 동안에는 경과를 첫 값에 반영하지 않는다 — 서버가 그린 첫 그림과
   // 어긋나지 않게 하기 위한 구분이고, 이어받는 경우에는 하이드레이션이 애초에 없다.
-  assert.equal(resumeClock(null, 'x', 500).left, null, '모르면 0 이 아니라 null 이다');
+  assert.equal(resumeClock(null, 'x', MONO(500)).left, null, '모르면 0 이 아니라 null 이다');
+  // 지금 눈금을 모르면 **직접 잰다** — 출처 없는 눈금을 만들어 두면 그 뒤 전부가 모른다로
+  // 떨어져 남은 시간이 아예 사라진다.
+  const guessed = resumeClock(null, 300000, 'x');
+  assert.equal(guessed.base.src, EUM_TICK_MONO, '지금 눈금을 재지 않고 반쪽을 돌려줬다');
 });
 
 test('반쪽·파손된 눈금은 **모른다**로 떨어진다(지어내지 않는다)', () => {
-  for (const bad of ['', '0/1', '-5/1', 'abc', '300000', '300000/', '/1', '300000/x',
-    '300000/1/2', ' 300000/1', '3e5/1']) {
+  for (const bad of ['', '0/1/m', '-5/1/m', 'abc', '300000', '300000/', '/1/m', '300000/x/m',
+    '300000/1/2', ' 300000/1/m', '3e5/1/m',
+    // 출처가 없는 **옛 형식**도 모른다로 떨어진다 — 같은 문서 안에서만 사는 칸이라
+    // 옮겨야 할 옛 값이 애초에 없다(새로 시작하는 폴백이 받는다).
+    '300000/12345.5', '300000/1/x', '300000/1/mm']) {
     assert.equal(parseClock(bad), null, `파손된 값을 믿었다: ${bad}`);
   }
   // 그때는 서버가 준 기간으로 새로 시작한다(판정 실패가 멀쩡한 링크를 막지 않는다).
-  assert.deepEqual(resumeClock(parseClock('0/1'), 60000, 7), { left: 60000, tick: 7, resumed: false });
-  assert.deepEqual(resumeClock({ left: 1000 }, 60000, 7), { left: 60000, tick: 7, resumed: false });
-  assert.deepEqual(resumeClock({ tick: 1000 }, 60000, 7), { left: 60000, tick: 7, resumed: false });
+  const fresh = { left: 60000, base: MONO(7), resumed: false };
+  assert.deepEqual(resumeClock(parseClock('0/1/m'), 60000, MONO(7)), fresh);
+  assert.deepEqual(resumeClock({ left: 1000 }, 60000, MONO(7)), fresh);
+  assert.deepEqual(resumeClock({ base: MONO(1000) }, 60000, MONO(7)), fresh);
+  assert.deepEqual(resumeClock({ left: 1000, base: 1000 }, 60000, MONO(7)), fresh);
 });
 
 test('적지 못하거나 읽지 못해도 던지지 않는다(남은 시간 때문에 화면이 죽지 않는다)', () => {
   const junk = [undefined, null, 0, '', 'x', [], () => {}, {}, Symbol.iterator];
   for (const v of junk) {
-    assert.doesNotThrow(() => markClock(v, 1000, 1));
+    assert.doesNotThrow(() => markClock(v, 1000, v));
     assert.doesNotThrow(() => readClock(v));
-    assert.doesNotThrow(() => resumeClock(v, 1000, 1));
+    assert.doesNotThrow(() => resumeClock(v, 1000, v));
     assert.doesNotThrow(() => serializeClock(v, v));
     assert.doesNotThrow(() => parseClock(v));
   }
-  assert.equal(markClock(null, 1000, 1), false);
-  assert.equal(serializeClock(0, 1), '', '남은 기간이 0 이면 적지 않는다(만료와 구별되지 않는다)');
-  assert.equal(serializeClock(1000, NaN), '', '눈금이 없으면 반쪽으로 적지 않는다');
+  assert.equal(markClock(null, 1000, MONO(1)), false);
+  assert.equal(serializeClock(0, MONO(1)), '', '남은 기간이 0 이면 적지 않는다(만료와 구별되지 않는다)');
+  assert.equal(serializeClock(1000, MONO(NaN)), '', '눈금이 없으면 반쪽으로 적지 않는다');
+  assert.equal(serializeClock(1000, 1), '', '출처를 모르면 반쪽으로 적지 않는다');
+  assert.equal(serializeClock(1000, { t: 1, src: 'z' }), '', '모르는 출처를 적었다');
   const broken = { setAttribute() { throw new Error('막힘'); }, getAttribute() { throw new Error('막힘'); } };
-  assert.equal(markClock(broken, 1000, 1), false);
+  assert.equal(markClock(broken, 1000, MONO(1)), false);
   assert.equal(readClock(broken), null);
 });
 
 test('읽는 것은 **지우지 않는다** — 다시 마운트될 때마다 필요한 사실이다', () => {
   const root = fakeRoot();
-  markClock(root, 1000, 1);
-  assert.deepEqual(readClock(root), { left: 1000, tick: 1 });
-  assert.deepEqual(readClock(root), { left: 1000, tick: 1 }, '한 번 읽고 사라지면 세 번째 마운트가 처음으로 돌아간다');
+  markClock(root, 1000, MONO(1));
+  assert.deepEqual(readClock(root), { left: 1000, base: MONO(1) });
+  assert.deepEqual(readClock(root), { left: 1000, base: MONO(1) }, '한 번 읽고 사라지면 세 번째 마운트가 처음으로 돌아간다');
 });
 
 // ── 화면 배선(소스 계약) ─────────────────────────────────────────────────────
@@ -249,10 +322,13 @@ test('화면에 절대 만료시각을 넘기지 않는다 — 기기 시계와 
 
 test('화면은 문서에 적힌 눈금을 이어받는다(「다시 시도」가 5분을 되살리지 않게)', () => {
   const flow = read('app/eum/senior/[token]/SeniorFlow.jsx');
-  assert.match(flow, /resumeClock\(readClock\(docRoot\(\)\), remainingMs, nowTick\(\)\)/,
+  assert.match(flow, /resumeClock\(readClock\(docRoot\(\)\), remainingMs, tickNow\(\)\)/,
     '적힌 눈금을 보지 않는다 — 다시 마운트될 때마다 남은 시간이 처음으로 되살아난다');
   assert.match(flow, /const \[initialLeft\] = useState\(clock\.left\);/, '이어받은 기간을 쓰지 않는다');
-  assert.match(flow, /const \[baseTick\] = useState\(clock\.tick\);/, '이어받은 눈금을 쓰지 않는다');
+  // 눈금은 값과 **출처**를 함께 든다 — 출처를 떼면 두 시계를 섞어 빼는 길이 되살아나고,
+  // 되돌릴 수 없는 선언(만료 패널)을 가릴 근거도 사라진다.
+  assert.match(flow, /const \[baseTick\] = useState\(clock\.base\);/, '이어받은 눈금을 쓰지 않는다');
+  assert.equal(/clock\.tick/.test(flow), false, '눈금에서 출처를 떼어 값만 쓰고 있다');
   // 이미 적혀 있으면 **덮지 않는다** — 덮으면 되살아날 때마다 5분이 처음부터 다시 시작한다.
   assert.match(flow, /if \(clock\.resumed \|\| clock\.left === null\) return;/, '적힌 눈금을 덮어쓸 수 있다');
   // 쓰기는 효과의 몫이다(그리는 동안 문서를 고치지 않는다).
@@ -307,15 +383,22 @@ test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 
 // 였고 이번에 좁았던 축은 「다시 보임」이다.
 
 test('지금 남은 시간: 출발점과 눈금만으로 다시 잰다(계기가 둘이어도 같은 값)', () => {
-  assert.equal(leftNow(300000, 100, 100), 300000);
-  assert.equal(leftNow(300000, 100, 1100), 299000);
-  assert.equal(leftNow(300000, 100, 400000), 0, '남은 시간은 음수가 되지 않는다');
-  assert.equal(leftNow(null, 100, 1100), null, '모르면 0 이 아니라 null 이다(만료로 뭉개지 않는다)');
+  assert.equal(leftNow(300000, MONO(100), MONO(100)), 300000);
+  assert.equal(leftNow(300000, MONO(100), MONO(1100)), 299000);
+  assert.equal(leftNow(300000, MONO(100), MONO(400000)), 0, '남은 시간은 음수가 되지 않는다');
+  assert.equal(leftNow(null, MONO(100), MONO(1100)), null, '모르면 0 이 아니라 null 이다(만료로 뭉개지 않는다)');
   // 1초 틱과 「다시 보임」이 같은 눈금에서 부르면 **같은 값**을 말해야 한다(두 벌 금지).
-  assert.equal(leftNow(60000, 7, 7 + 12345), leftAfter(60000, elapsedSince(7, 7 + 12345)));
+  assert.equal(leftNow(60000, MONO(7), MONO(7 + 12345)), leftAfter(60000, elapsedSince(7, 7 + 12345)));
+  // 출처가 다른 두 점은 **빼지 않는다** — 단조 눈금은 문서가 열린 뒤 흐른 ms 이고 기기
+  // 시계는 1970년부터의 ms 라, 섞어 뺀 차이는 수백억이거나 음수일 뿐 경과가 아니다.
+  assert.equal(leftNow(300000, MONO(100), WALL(1.7e12)), null, '두 시계를 섞어 뺀 값을 숫자로 내놨다');
+  assert.equal(leftNow(300000, WALL(1.7e12), MONO(100)), null);
+  // 출처를 모르는 점도 모른다로 떨어진다(옛 쓰임처럼 맨 숫자를 넘겨도 지어내지 않는다).
+  assert.equal(leftNow(300000, 100, 1100), null, '출처 없는 눈금을 믿었다');
   // 이상 입력에 던지지 않는다 — 남은 시간 하나 때문에 신청 화면이 빈 화면이 되면 안 된다.
-  for (const v of [undefined, '', 'x', [], {}, () => {}, Symbol.iterator]) {
+  for (const v of [undefined, null, '', 'x', [], {}, () => {}, Symbol.iterator, { t: 1 }, { t: 1, src: 'z' }]) {
     assert.doesNotThrow(() => leftNow(v, v, v), `입력에 던졌다: ${String(v)}`);
+    assert.equal(leftNow(300000, v, v), null, `모르는 눈금으로 셌다: ${String(v)}`);
   }
 });
 
@@ -361,7 +444,7 @@ test('눈금은 서버보다 너그러운 쪽으로만 틀린다(화면이 만�
   const serverLeft = 300000; // 서버가 렌더 시점에 잰 남은 기간
   for (const delay of [0, 1, 250, 4000, 60000]) { // 렌더 → 세기 시작(전송·하이드레이션)
     for (const since of [0, 1, 1000, 299000, 300000, 450000]) { // 세기 시작 → 지금
-      const shown = leftNow(serverLeft, 0, since);
+      const shown = leftNow(serverLeft, MONO(0), MONO(since));
       const truth = serverLeft - (delay + since); // 서버 기준 남은 시간
       assert.ok(shown >= Math.max(0, truth),
         `화면이 서버보다 엄하게 셌다: 화면 ${shown} < 서버 ${truth}`);
@@ -372,7 +455,18 @@ test('눈금은 서버보다 너그러운 쪽으로만 틀린다(화면이 만�
   }
   // 반대 방향도 막혀 있다 — 눈금이 뒤로 가도(시계 수정·눈금 교체) 남은 시간이 **늘어나지
   // 않는다**. 늘어나면 만료가 영영 오지 않고, 어르신은 고를 것을 다 고른 뒤 410 을 만난다.
-  assert.equal(leftNow(serverLeft, 1000, 0), serverLeft);
+  assert.equal(leftNow(serverLeft, MONO(1000), MONO(0)), serverLeft);
+
+  // ── 이 불변식이 **한 환경에서만** 깨졌다(27회차가 「다음에 볼 자리」로 남긴 그 자리) ──
+  // 기기 시계 폴백에서는 시계가 앞으로 점프하면 경과가 과장돼 화면이 0 을 본다. 위 증명은
+  // 「경과는 뒤로 가지 않는다」에 기대므로 그 환경에서는 성립하지 않고, 그때 선언되는 만료는
+  // **서버 기준으로 참이 아닐 수 있다.** 그래서 그 환경에서는 선언하지 않는다 —
+  // 숫자가 틀리는 것은 막지 못하지만(얼마가 진짜 경과인지 알 수 없다) 되돌릴 수 없는 화면은
+  // 막는다. 아래 두 줄이 그 결론을 못박는다.
+  const jumped = leftNow(serverLeft, WALL(1.7e12), WALL(1.7e12 + serverLeft + 60000));
+  assert.equal(isExpired(jumped), true, '시계가 앞으로 뛰면 화면의 숫자는 0 에 닿는다(사실)');
+  assert.equal(selfExpired(jumped, WALL(1.7e12)), false,
+    '기기 시계의 0 을 근거로 만료를 선언했다 — 서버가 유효하다고 한 링크가 덮인다');
 });
 
 test('만료를 선언한 뒤에는 눈금을 멈춘다(만료 판정 자리는 늘리지 않는다)', () => {
@@ -383,8 +477,13 @@ test('만료를 선언한 뒤에는 눈금을 멈춘다(만료 판정 자리는 
     '눈금을 멈추는 조건이 단일 출처(lib/eumCountdown.countingDown)를 쓰지 않는다');
   // 만료 판정은 여전히 **한 곳**이다. 둘이 되면 「만료됐다」를 서로 다른 두 식이 정하고,
   // 그 둘이 갈리는 날 화면과 타이머가 서로 다른 사실을 믿는다.
-  assert.equal((code.match(/isExpired\(/g) || []).length, 1,
+  assert.equal((code.match(/selfExpired\(/g) || []).length, 1,
     '화면의 만료 판정 자리가 둘이 됐다 — expiredNow 한 줄이어야 한다');
+  // 그 한 줄은 **눈금을 함께 넘겨야** 한다. `isExpired` 를 직접 부르면 기기 시계가 앞으로
+  // 뛴 결과를 근거로 만료 패널이 떠, 서버가 유효하다고 판정한 링크가 덮인다.
+  assert.equal(/\bisExpired\(/.test(code), false,
+    '화면이 눈금 출처를 보지 않는 만료 판정으로 돌아갔다');
+  assert.match(code, /selfExpired\(left, baseTick\)/, '만료 판정에 눈금을 넘기지 않는다');
   // 의존성에 만료가 들어 있어야 **선언되는 순간** 실제로 멈춘다.
   const start = code.indexOf('if (!countingDown(');
   const end = code.indexOf('}, [initialLeft, baseTick, done, expiredNow]);', start);

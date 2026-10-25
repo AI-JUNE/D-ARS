@@ -52,19 +52,64 @@ function num(v) {
   return NaN;
 }
 
-// 단조 증가 눈금. performance.now() 는 시스템 시계를 고쳐도 뒤로 가지 않아 경과 측정에 맞다.
-// 없는 환경(구형 브라우저·일부 런타임)에서는 Date.now() 로 물러서되, 아래 elapsedSince 가
-// 뒤로 간 경우를 흡수한다. 절대 throw 하지 않는다 — 화면이 남은 시간 때문에 죽으면 안 된다.
-export function nowTick() {
+// ── 눈금은 **두 벌의 시계**에서 오고, 그 둘은 성질이 다르다 ─────────────────
+//
+// 고친 결함: 이 자리의 주석은 「단조 증가 눈금」이라고만 적고 있었고, 그 서술 위에
+// **되돌릴 수 없는 판정**이 얹혀 있었다 — 화면이 스스로 선언하는 만료다(단추가 없는 패널).
+//   · `performance.now()` 는 단조다. 시스템 시계를 고쳐도 뒤로 가지 않는다.
+//   · 없는 환경에서는 `Date.now()`(기기 시계)로 물러선다. 그런데 기기 시계는 NTP 보정·
+//     사용자 조작·전원 복귀로 **앞으로도** 점프하고, 아래 `elapsedSince` 는 **뒤로 간
+//     쪽만** 흡수한다. 즉 앞으로 뛴 만큼은 **경과로 과장되고**, 그 과장은 남은 시간을
+//     0 으로 떨어뜨려 **서버가 유효하다고 판정해 내려보낸 링크를 화면이 혼자 만료시킨다.**
+//     그 패널에는 어르신이 누를 단추를 일부러 두지 않았으므로(되돌릴 방법이 없는 상태라고
+//     보고 그렇게 지었다) 거기서 할 수 있는 일은 담당자에게 새 링크를 청하는 것뿐이고,
+//     새 링크도 같은 기기에서 같은 일을 당한다 — 이 모듈이 애초에 고치려고 생긴 결함
+//     (「절대 만료시각을 기기 시계와 비교하던 것」)이 **폴백 경로로 그대로 돌아온** 셈이다.
+//
+// 27회차는 이 자리를 「다음에 볼 자리」로 남기며 "막는 길은 경과에 상한을 두는 것인데 그
+// 상한값이 또 하나의 운영 기준값이 된다" 고 적었다. 그 사실은 맞지만 결론이 넓었다 —
+// **상한을 둘 필요가 없다.** 막아야 하는 것은 숫자가 틀리는 것이 아니라 **선언**이고,
+// 선언해도 되는지는 「경과를 어느 시계로 쟀는가」만 보면 갈린다(15·16·18·22~27회차의
+// 「사실은 맞고 결론만 넓었다」의 다음 자리다).
+//
+// 그래서 **출처를 값과 함께** 들고 다닌다. 두 자리(값·판정)가 각자 재면 서로 다른 시계를
+// 볼 수 있으므로, 재는 것은 아래 `sample` **한 함수**다.
+export const EUM_TICK_MONO = 'm'; // performance.now() — 단조
+export const EUM_TICK_WALL = 'w'; // Date.now() — 기기 시계(앞으로도 점프한다)
+
+// 절대 throw 하지 않는다 — 화면이 남은 시간 때문에 죽으면 안 된다.
+function sample() {
   try {
     const p = typeof performance !== 'undefined' ? performance : null;
     const v = p && typeof p.now === 'function' ? p.now() : NaN;
-    if (Number.isFinite(v)) return v;
+    if (Number.isFinite(v)) return { t: v, src: EUM_TICK_MONO };
   } catch {
     /* performance 접근 불가 — 아래로 물러선다 */
   }
   const t = Date.now();
-  return Number.isFinite(t) ? t : 0;
+  return { t: Number.isFinite(t) ? t : 0, src: EUM_TICK_WALL };
+}
+
+// 눈금 한 점 — 값과 출처를 **함께** 돌려준다. 경과를 재는 쪽은 전부 이것을 쓴다.
+export function tickNow() {
+  return sample();
+}
+
+// 값만 필요한 자리(= 그 자리에서 곧 뺄 값이 아닌 쓰임 · lib/eumSenior 의 `tapSettled` 가
+// 쓰는 「겨눔 눈금」). 그쪽 판정은 「모를 때는 통과」라 출처를 가릴 필요가 없다 —
+// 그 사실은 그 파일의 주석이 들고 있다(그 주석이 한동안 「단조 눈금이다」라고 단언했다).
+export function nowTick() {
+  return sample().t;
+}
+
+// 점(값+출처)으로 좁힌다. 모르는 모양은 null — 지어내지 않는다.
+function pointOf(v) {
+  const p = v && typeof v === 'object' && !Array.isArray(v) ? v : null;
+  if (!p) return null;
+  const t = num(p.t);
+  if (!Number.isFinite(t)) return null;
+  if (p.src !== EUM_TICK_MONO && p.src !== EUM_TICK_WALL) return null;
+  return { t, src: p.src };
 }
 
 // 서버가 준 남은 기간을 화면이 쓸 값으로 정규화. 이상한 값이면 0 이 아니라 **null**(=시간 표시
@@ -77,6 +122,9 @@ export function initialLeftMs(remainingMs) {
 
 // 두 눈금 사이의 경과(ms). 뒤로 간 값(시계 수정·눈금 교체)은 0 으로 흡수한다 —
 // 음수 경과는 남은 시간을 늘려 만료를 영영 오지 않게 만든다.
+// **앞으로 뛴 값은 흡수하지 않는다**(얼마가 진짜 경과인지 알 수 없고, 깎으면 그 상한이
+// 또 하나의 운영 기준값이 된다). 단조 눈금에서는 앞으로 뛸 일이 없으므로 이 비대칭이
+// 문제가 되는 환경은 하나뿐이고, 거기서 막는 것은 **선언**이다(아래 selfExpired).
 export function elapsedSince(startTick, tick = nowTick()) {
   const a = num(startTick);
   const b = num(tick);
@@ -98,6 +146,25 @@ export function leftAfter(initialMs, elapsedMs) {
 // 판정 실패를 만료로 넘기면 유효한 링크를 화면이 막는다. 확정 판정은 서버가 한다.
 export function isExpired(leftMs) {
   return typeof leftMs === 'number' && Number.isFinite(leftMs) && leftMs <= 0;
+}
+
+// 화면이 **스스로** 만료를 선언해도 되는가. 위 규칙에 한 가지를 더한다 —
+// 그 남은 시간을 **단조 눈금으로 쟀을 때만**.
+//
+// 왜 두 규칙이 한 함수인가: 둘은 같은 한 가지를 말한다 — 「모르는 것을 근거로 되돌릴 수
+// 없는 화면을 띄우지 않는다」. 남은 기간을 모르는 경우(null)와 경과를 믿을 수 없는 경우
+// (기기 시계 폴백 · 위 EUM_TICK_WALL 주석)는 성질이 같고, 어느 쪽이든 만료의 최종 판정자는
+// 서버다(제출이 410 으로 돌아오면 `expiredByServer` 가 같은 패널을 띄운다 — 그 길은 그대로다).
+//
+// 그 환경에서 잃는 것과 남는 것을 분명히 적는다.
+//   · 잃는 것: 링크가 죽은 뒤에도 화면이 먼저 알려 주지 못한다 — 어르신은 고를 것을 다 고르고
+//     **제출에서** 만료를 만난다. 이것은 「남은 기간을 모를 때」 이미 고른 쪽과 **같은 선택**이다
+//     (화면 주석의 "값이 없으면 계속 쓰게 두고 판정은 제출 시점의 서버에 맡긴다").
+//   · 남는 것: 눈금 표시와 만료 임박 경고는 그대로 돈다. 들리지 않는 것이 그 경고에서 가장
+//     비싼 결과이므로(15회차) 세는 것을 멈추지는 않는다.
+export function selfExpired(leftMs, base) {
+  const b = pointOf(base);
+  return !!b && b.src === EUM_TICK_MONO && isExpired(leftMs);
 }
 
 // 만료 임박 안내를 띄울 구간인가(남은 시간이 있고, 기준 이하일 때만).
@@ -136,8 +203,17 @@ export function secondsLeft(leftMs) {
 //
 // 그래서 「지금 남은 시간」을 함수 하나로 모은다. 계기가 둘이 되는 순간 계산이 두 벌로
 // 갈라지는 것이 이 자리의 다음 위험이고, 그 둘은 반드시 같은 값을 말해야 한다.
-export function leftNow(initialMs, baseTick, tick = nowTick()) {
-  return leftAfter(initialMs, elapsedSince(baseTick, tick));
+//
+// 두 인자는 **점**(값+출처)이다. 출처가 다르면 **빼지 않는다** — `performance.now()` 는
+// 문서가 열린 뒤 흐른 ms 이고 `Date.now()` 는 1970년부터의 ms 라, 두 벌을 섞어 뺀 차이는
+// 수백억이거나 음수일 뿐 「경과」가 아니다. 그 값이 그대로 들어가면 멀쩡한 링크가 그 자리에서
+// 0 이 된다. 모를 때는 null(= 시간 표시 없음)이고, 그 아래 판정들은 전부 null 을 「모른다」로
+// 받는다(`isExpired`·`isSoon`·`secondsLeft`) — 지어내지 않는다.
+export function leftNow(initialMs, base, now = tickNow()) {
+  const b = pointOf(base);
+  const n = pointOf(now);
+  if (!b || !n || b.src !== n.src) return null;
+  return leftAfter(initialMs, elapsedSince(b.t, n.t));
 }
 
 // ── 더 셀 이유가 없으면 센 것도 멈춘다 ─────────────────────────────────────
@@ -182,33 +258,39 @@ export function countingDown(state) {
 //   · `performance.now()` 는 문서의 시간원점을 기준으로 하므로, 같은 문서 안에서 적어 둔
 //     눈금과 나중에 읽은 눈금은 **그대로 뺄 수 있다**(기기 시계와 무관하다는 성질도 그대로다).
 //   · 이 모듈은 DOM 을 import 하지 않는다 — 화면이 `document.documentElement` 만 넘긴다.
+//   · 적어 두는 칸에는 눈금 값뿐 아니라 **출처**도 함께 적는다. 고친 결함이다 — 값만
+//     적혀 있으면 읽는 쪽은 그것이 어느 시계의 값인지 알 수 없고, 같은 문서 안에서
+//     `performance.now()` 가 되다 말다 하는 환경에서는 한 시계가 적은 값에서 **다른 시계의
+//     값을 뺀다**(위 leftNow 주석의 그 차이다). 출처가 다르면 이어받지 않고 서버가 준
+//     기간으로 새로 시작한다 — 이미 있는 폴백이라 새 길을 내지 않는다.
 export const EUM_CLOCK_FLAG = 'data-eum-clock';
 
-// 「남은 기간/눈금」 한 칸. 규격 밖이면 ''(적지 않는다 — 반쪽 값을 적으면 읽는 쪽이 그것을
-// 믿을지 말지를 다시 정해야 한다).
-export function serializeClock(left, tick) {
+// 「남은 기간/눈금/출처」 한 칸. 규격 밖이면 ''(적지 않는다 — 반쪽 값을 적으면 읽는 쪽이
+// 그것을 믿을지 말지를 다시 정해야 한다). 출처를 모르면 그것도 반쪽이다.
+export function serializeClock(left, base) {
   const l = num(left);
-  const t = num(tick);
-  if (!Number.isFinite(l) || l <= 0 || !Number.isFinite(t)) return '';
-  return `${Math.floor(l)}/${t}`;
+  const b = pointOf(base);
+  if (!Number.isFinite(l) || l <= 0 || !b) return '';
+  return `${Math.floor(l)}/${b.t}/${b.src}`;
 }
 
-// 적어 둔 칸 → { left, tick }. 모르는 글자·반쪽·0 이하는 전부 null(모른다) — 지어내지 않는다.
+// 적어 둔 칸 → { left, base: { t, src } }. 모르는 글자·반쪽·0 이하·출처 없는 옛 형식은
+// 전부 null(모른다) — 지어내지 않는다.
 export function parseClock(text) {
   if (typeof text !== 'string' || !text) return null;
-  const m = /^(\d+)\/(-?\d+(?:\.\d+)?)$/.exec(text);
+  const m = new RegExp(`^(\\d+)\\/(-?\\d+(?:\\.\\d+)?)\\/(${EUM_TICK_MONO}|${EUM_TICK_WALL})$`).exec(text);
   if (!m) return null;
   const left = Number(m[1]);
   const tick = Number(m[2]);
   if (!Number.isFinite(left) || left <= 0 || !Number.isFinite(tick)) return null;
-  return { left, tick };
+  return { left, base: { t: tick, src: m[3] } };
 }
 
 // 적는다. 적지 못해도 **던지지 않는다** — 잃는 것은 되살아났을 때의 정확한 남은 시간이고,
 // 그때도 서버가 만료의 최종 판정자로 남는다(markRetried 와 같은 계약).
-export function markClock(root, left, tick) {
+export function markClock(root, left, base) {
   try {
-    const text = serializeClock(left, tick);
+    const text = serializeClock(left, base);
     if (!text || !root || typeof root.setAttribute !== 'function') return false;
     root.setAttribute(EUM_CLOCK_FLAG, text);
     return true;
@@ -232,17 +314,22 @@ export function readClock(root) {
 // `resumed` 는 「이어받았는가」다 — 화면은 그때만 경과를 선반영한다(첫 마운트에서 그러면
 // 서버가 그린 첫 그림과 어긋날 수 있고, 이어받는 경우에는 하이드레이션이 애초에 없다).
 // 여기서 **적지는 않는다**: 쓰기는 효과의 몫이다(렌더 중에 문서를 고치지 않는다).
-export function resumeClock(stored, remainingMs, tick) {
+//
+// 이어받는 조건에 하나가 늘었다 — 적힌 눈금의 **출처가 지금 눈금과 같아야 한다**.
+// 다르면 그 값에서 지금 값을 뺄 수 없으므로(위 leftNow) 이어받지 않고 서버가 준 기간으로
+// 새로 시작한다. 그 폴백은 「적힌 것이 없을 때」와 같은 길이고, 잃는 것도 같다 —
+// 되살아났을 때의 정확한 남은 시간 하나다.
+export function resumeClock(stored, remainingMs, now) {
+  const here = pointOf(now) || tickNow();
   const s = stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : null;
   const l = s ? num(s.left) : NaN;
-  const t = s ? num(s.tick) : NaN;
-  if (Number.isFinite(l) && l > 0 && Number.isFinite(t)) {
-    return { left: Math.floor(l), tick: t, resumed: true };
+  const b = s ? pointOf(s.base) : null;
+  if (b && b.src === here.src && Number.isFinite(l) && l > 0) {
+    return { left: Math.floor(l), base: b, resumed: true };
   }
-  const now = num(tick);
   return {
     left: initialLeftMs(remainingMs),
-    tick: Number.isFinite(now) ? now : nowTick(),
+    base: here,
     resumed: false,
   };
 }

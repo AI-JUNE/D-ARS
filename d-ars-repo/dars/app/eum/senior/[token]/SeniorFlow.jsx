@@ -55,7 +55,6 @@ import {
 } from '@/lib/eumSenior';
 import {
   countingDown,
-  isExpired,
   isSoon,
   leftNow,
   markClock,
@@ -63,6 +62,8 @@ import {
   readClock,
   resumeClock,
   secondsLeft,
+  selfExpired,
+  tickNow,
 } from '@/lib/eumCountdown';
 // 문구는 `lib/eumMessage` 에서 가져온다. 예전에는 이 파일이 만료·401 안내를 **손으로 적고**
 // 있었다(401 쪽은 마침표가 하나 더 붙은 두 번째 판본이었다) — `lib/eumToken` 을 import 할 수
@@ -154,19 +155,23 @@ export default function SeniorFlow({
   // 고르는 화면까지 따라다녔다 — 그 화면에서 「아래 단추」는 선택지 버튼이다. 단계만 적었을
   // 때는 되돌아갔다 돌아온 **같은 화면**에 조금 전의 실패가 되살아났다.
   const [error, setError] = useState(null);
-  // 서버가 판정한 남은 기간과, 그것을 받은 시점의 단조 눈금. 둘의 차이로만 남은 시간을 센다.
+  // 서버가 판정한 남은 기간과, 그것을 받은 시점의 눈금. 둘의 차이로만 남은 시간을 센다.
   // 그 한 쌍은 **문서에 적혀 있으면 그것을 이어받는다** — 「다시 시도」로 다시 마운트될 때
   // 출발점을 지금으로 맞추면 4분 30초가 지난 링크가 5분 남은 링크로 되살아나고, 하필 시간이
   // 가장 급한 그 순간에 만료 임박 경고가 침묵한다(lib/eumCountdown 의 resumeClock 참조).
-  const [clock] = useState(() => resumeClock(readClock(docRoot()), remainingMs, nowTick()));
+  // 눈금은 **값과 출처를 함께** 든다(lib/eumCountdown 의 tickNow). 출처가 필요한 이유는
+  // 하나다 — 기기 시계 폴백(`Date.now()`)은 앞으로도 점프하고, 그 점프는 경과로 과장돼
+  // **멀쩡한 링크를 화면이 혼자 만료시킨다**(단추 없는 패널이다). 그 환경에서는 화면이
+  // 만료를 선언하지 않고 판정을 서버에 맡긴다(아래 selfExpired).
+  const [clock] = useState(() => resumeClock(readClock(docRoot()), remainingMs, tickNow()));
   const [initialLeft] = useState(clock.left);
-  const [baseTick] = useState(clock.tick);
+  const [baseTick] = useState(clock.base);
   // 이어받은 경우에만 경과를 **첫 값에 반영**한다. 첫 마운트에서 그러면 서버가 그린 첫 그림과
   // 어긋날 수 있고(하이드레이션), 이어받는 경우에는 하이드레이션이 애초에 없다.
   // 계산은 눈금 효과와 **같은 한 함수**를 쓴다(lib/eumCountdown.leftNow) — 「지금 남은
   // 시간」을 구하는 자리가 셋이 되는 순간(첫 값·1초 틱·다시 보임) 두 벌로 갈라진다.
   const [left, setLeft] = useState(() => (
-    clock.resumed ? leftNow(clock.left, clock.tick) : clock.left
+    clock.resumed ? leftNow(clock.left, clock.base) : clock.left
   ));
   // 서버가 만료라고 판정한 경우 — 화면은 전송 지연만큼 너그럽게 세므로 아직 유효해 보일 수 있다.
   // 어긋나면 **서버 쪽이 맞다**(최종 판정자).
@@ -248,7 +253,7 @@ export default function SeniorFlow({
   // 렌더가 아니라 효과에서 적는다 — 그리는 동안 문서를 고치지 않는다.
   useEffect(() => {
     if (clock.resumed || clock.left === null) return;
-    markClock(docRoot(), clock.left, clock.tick);
+    markClock(docRoot(), clock.left, clock.base);
   }, [clock]);
 
   // 주소를 실제 도달 가능한 단계로 맞춘다(?step=3 직접 입력·탭 복원·「다시 시도」 대비).
@@ -305,7 +310,13 @@ export default function SeniorFlow({
   // 않고 여기 둔 이유는, 이 값을 읽는 효과 둘이 **훅이라 조건 뒤에 둘 수 없기** 때문이다
   // (그 전환에서 포커스를 옮기는 효과 · 눈금을 멈추는 효과). 만료를 판정하는 자리는
   // 이 한 줄뿐이다 — 아래 효과는 판정하지 않고 **이 결과를 받는다**.
-  const expiredNow = !done && !busy && (expiredByServer || isExpired(left));
+  //
+  // `selfExpired` 에 눈금을 함께 넘기는 이유: 「남은 시간이 0 이다」만으로는 선언할 수
+  // 없다 — 그 0 이 **기기 시계가 앞으로 뛴 결과**일 수 있고, 그때 이 패널은 서버가
+  // 유효하다고 판정한 링크 위에 덮인다(되돌릴 단추가 없는 화면이다).
+  // 서버가 말한 만료(410 → expiredByServer)는 그 조건 **밖**이다: 그것은 화면의 추측이
+  // 아니라 최종 판정자의 답이다.
+  const expiredNow = !done && !busy && (expiredByServer || selfExpired(left, baseTick));
 
   // 남은 시간. 다시 재는 계기는 **둘**이고 둘 다 `recount` 한 곳을 부른다.
   //  ① 1초 간격 — 보이는 동안의 평소 눈금.
@@ -321,6 +332,10 @@ export default function SeniorFlow({
   // 화면이 만료로 덮이지 않게) 그리고 **이미 만료를 선언했으면** 더 세지 않는다. 뒤의 것이
   // 고친 결함이다: 종전에는 `done` 만 보아, 만료 패널로 뒤집힌 뒤에도 1초 타이머가 그 문서가
   // 사는 동안 영영 돌았다(그 패널에는 닫을 단추가 없다).
+  // (남는 범위: 기기 시계 폴백 환경에서는 화면이 만료를 **선언하지 않으므로** 멈출 계기도
+  //  없다 — 그쪽에서는 눈금이 문서가 사는 동안 돈다. 보이는 해는 없고 남는 것은 배터리이며,
+  //  멈추려면 「선언 없이 바닥에 닿았다」는 또 하나의 상태가 필요하다. 그 환경에서는 시계가
+  //  뒤로 뛰면 눈금이 되살아날 수 있으므로 바닥을 멈춤 근거로 쓰는 것도 맞지 않는다.)
   useEffect(() => {
     if (!countingDown({ initialLeft, done, expired: expiredNow })) return undefined;
     const recount = () => setLeft(leftNow(initialLeft, baseTick));
@@ -611,8 +626,9 @@ export default function SeniorFlow({
     setError(stepError(at, submitMessage('rejected'), atVisit));
   }
 
-  // 화면이 스스로 만료를 선언하는 것은 **남은 시간을 실제로 알 때뿐**이다(isExpired 는 null 에
-  // 대해 false). 값이 없으면 계속 쓰게 두고 판정은 제출 시점의 서버(410)에 맡긴다.
+  // 화면이 스스로 만료를 선언하는 것은 **남은 시간을 실제로 알 때뿐**이다(selfExpired 는
+  // null 에 대해 false). 값이 없으면 계속 쓰게 두고 판정은 제출 시점의 서버(410)에 맡긴다.
+  // **경과를 믿을 수 없을 때도 선언하지 않는다**(기기 시계 폴백 — 같은 함수가 함께 가른다).
   //
   // 제출이 **진행 중일 때도 선언하지 않는다**(!busy). 화면의 눈금은 전송 지연만큼 너그럽게
   // 세도록 만들어져 있지만, 남은 시간이 얼마 없을 때 누른 제출은 응답을 기다리는 동안 0 에

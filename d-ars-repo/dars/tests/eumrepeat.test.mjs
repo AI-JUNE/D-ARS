@@ -378,7 +378,9 @@ test('완료 화면: 내용을 모르면 보조 사본도 쓰지 않는다(단�
 test('제출 중에는 화면이 스스로 만료를 선언하지 않는다(서버 응답을 기다린다)', () => {
   // 판정은 이제 이름을 가진다(expiredNow) — 그 전환에서 제목으로 포커스를 옮기는 효과가
   // 훅이라, 이른 return 뒤에 둘 수 없어 조건을 먼저 구해야 했다. `!busy` 는 그대로다.
-  assert.match(FLOW, /const expiredNow = !done && !busy && \(expiredByServer \|\| isExpired\(left\)\);/,
+  // (눈금 판정이 `selfExpired(left, baseTick)` 로 바뀐 이유는 tests/eumcountdown 참조 —
+  //  기기 시계 폴백에서 앞으로 뛴 시계가 멀쩡한 링크를 만료시키던 자리다. `!busy` 는 그대로다.)
+  assert.match(FLOW, /const expiredNow = !done && !busy && \(expiredByServer \|\| selfExpired\(left, baseTick\)\);/,
     '응답을 기다리는 동안 만료 화면으로 덮으면 방금 접수된 신청이 실패로 보인다');
   assert.match(FLOW, /if \(expiredNow\) \{/, '만료 화면으로 가는 갈림이 그 판정을 쓰지 않는다');
 });
