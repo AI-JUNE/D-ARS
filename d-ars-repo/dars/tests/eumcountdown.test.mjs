@@ -27,6 +27,10 @@ import {
   isExpired,
   selfExpired,
   isSoon,
+  EUM_WARN_NONE,
+  EUM_WARN_SOON,
+  EUM_WARN_FLOOR,
+  warnPhase,
   secondsLeft,
   EUM_CLOCK_FLAG,
   serializeClock,
@@ -166,9 +170,64 @@ test('만료 임박 구간 판정(경계 포함)', () => {
   assert.equal(isSoon(EUM_SOON_MS), true, '경계값은 임박에 포함한다');
   assert.equal(isSoon(EUM_SOON_MS + 1), false);
   assert.equal(isSoon(1), true);
-  assert.equal(isSoon(0), false, '만료된 뒤에는 임박 안내가 아니라 만료 화면이다');
+  // 정정: 이 줄의 사유는 한동안 「만료된 뒤에는 임박 안내가 아니라 **만료 화면**이다」였다.
+  // 그 사실이 참이 아닌 상태가 둘 있었다(제출 중 · 기기 시계 폴백) — 아래 warnPhase 참조.
+  // 이 판정 자체는 그대로 둔다(「임박」은 남아 있을 때의 말이다). 갈림이 늘어난 자리는
+  // 「경고를 띄우는가」이고, 그것이 warnPhase 다.
+  assert.equal(isSoon(0), false, '0 이하는 임박이 아니다(남아 있을 때의 말이다)');
   assert.equal(isSoon(-5), false);
   assert.equal(isSoon(30000, 0), false, '기준이 이상하면 안내하지 않는다');
+});
+
+// ── 고친 결함: 경고가 사라지는 자리에 **만료 패널이 오지 않는다** ──────────────
+//
+// `isSoon` 이 0 이하를 띄우지 않는 사유는 「그 자리를 만료 패널이 가져간다」였는데, 이 화면은
+// 패널을 **일부러 띄우지 않는 상태**를 둘 만들어 두었다.
+//   · 제출 중(22회차의 `!busy`) — 남은 시간이 1분을 막 넘긴 상태에서 누른 제출은 응답을
+//     기다리는 사이 0 에 닿는다(드문 경로가 아니다).
+//   · 기기 시계 폴백(28회차의 `selfExpired`) — 그 환경에서는 0 을 근거로 선언하지 않고,
+//     28회차는 그 대가를 「경고가 사라지고 초 숫자가 0 이 된다」로 **한계에 적어 두었다**.
+// 둘 다 결과는 같다: 가장 급한 순간에 화면이 **아무 말도 하지 않는다.**
+test('바닥에 닿아도 경고 자리는 비지 않는다(패널이 오지 않는 상태)', () => {
+  assert.equal(warnPhase(EUM_SOON_MS), EUM_WARN_SOON, '임박 구간이 다른 이름으로 바뀌었다');
+  assert.equal(warnPhase(EUM_SOON_MS + 1), EUM_WARN_NONE, '아직 임박이 아닌데 말하고 있다');
+  assert.equal(warnPhase(1), EUM_WARN_SOON);
+  assert.equal(warnPhase(0), EUM_WARN_FLOOR, '바닥에 닿은 순간 경고 자리가 비었다');
+  assert.equal(warnPhase(-5), EUM_WARN_FLOOR);
+  // 남은 기간을 **모르면** 종전 그대로 아무 말도 하지 않는다(지어내지 않는다 ·
+  // 그 상태에서는 화면이 애초에 시간을 보여 주지 않고 판정을 서버에 맡긴다).
+  assert.equal(warnPhase(null), EUM_WARN_NONE, '모르는 남은 시간으로 경고를 띄웠다');
+  assert.equal(warnPhase(undefined), EUM_WARN_NONE);
+  assert.equal(warnPhase('0'), EUM_WARN_NONE, '문자열을 숫자로 삼아 바닥이라고 말했다');
+  // 세 이름은 서로 달라야 한다(같으면 화면의 갈림이 조용히 사라진다).
+  assert.equal(new Set([EUM_WARN_NONE, EUM_WARN_SOON, EUM_WARN_FLOOR]).size, 3);
+  assert.equal(EUM_WARN_NONE, '', '「없음」이 참으로 읽히면 빈 경고 상자가 그려진다');
+  for (const bad of [[], {}, () => {}, Symbol.iterator, NaN, Infinity]) {
+    assert.doesNotThrow(() => warnPhase(bad), `입력에 던졌다: ${String(bad)}`);
+    assert.equal(warnPhase(bad), EUM_WARN_NONE, `모르는 값으로 경고를 띄웠다: ${String(bad)}`);
+  }
+});
+
+// 바닥에서 할 말은 **앞 토막을 뗀 뒤 토막**이다 — 「잠시 후 만료됩니다」는 그 시점에 이미
+// 참이 아니고(단조 눈금이면 서버 기준으로도 만료다), 새 문장을 지어내지 않는다.
+test('바닥에서는 참이 아닌 앞 토막을 떼고 할 일만 말한다', () => {
+  for (const step of [1, 2, 3]) {
+    const soonMsg = soonMessage(step, false, false);
+    const floorMsg = soonMessage(step, false, true);
+    assert.ok(soonMsg.startsWith(`${EUM_SOON_LEAD}. `), `${step}단계: 임박 문장이 바뀌었다`);
+    assert.equal(floorMsg.includes(EUM_SOON_LEAD), false, `${step}단계: 바닥에서 「잠시 후」를 말한다`);
+    assert.equal(floorMsg, `${soonMsg.slice(`${EUM_SOON_LEAD}. `.length)}`,
+      `${step}단계: 바닥 문장이 뒤 토막과 다른 문장이다(지어낸 문장)`);
+    assert.match(floorMsg, /주세요\.$/, `${step}단계: 할 일로 끝나지 않는다`);
+  }
+  // 제출 중에 바닥에 닿은 경우 — 그 화면에서 할 일은 기다리는 것 하나다.
+  const busyFloor = soonMessage(3, true, true);
+  assert.equal(busyFloor.includes(EUM_SOON_LEAD), false, '제출 중 바닥에서 「잠시 후」를 말한다');
+  assert.match(busyFloor, /기다려 주세요\.$/);
+  assert.equal(soonMessage(1, true, true), busyFloor, '제출 중에는 단계를 보지 않는다');
+  // 바닥에서 할 말까지 모르면 **아무 말도 하지 않는다**(남는 것이 참이 아닌 토막뿐이다).
+  assert.equal(soonMessage('x', false, true), '', '모르는 단계에서 바닥 문장을 지어냈다');
+  assert.equal(soonMessage('x', false, false), `${EUM_SOON_LEAD}.`, '임박 쪽 폴백이 바뀌었다');
 });
 
 test('남은 초는 올림이라 "0초" 로 머무르지 않는다', () => {
@@ -346,14 +405,23 @@ test('화면은 문서에 적힌 눈금을 이어받는다(「다시 시도」�
 // 그래서 사본이 아니라 **배치**를 본다: 낭독 영역은 조건 **밖**에 늘 있고, 조건은 그 안에 있다.
 test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 낭독에서 빠진다', () => {
   const flow = read('app/eum/senior/[token]/SeniorFlow.jsx');
-  const warn = flow.match(/\{soon \? \([\s\S]*?\) : null\}/);
+  const warn = flow.match(/\{warnText \? \([\s\S]*?\) : null\}/);
   assert.ok(warn, '만료 임박 안내 블록을 찾지 못했다');
   const block = warn[0];
   // 문구는 단일 출처에서 가져오고, **지금 단계와 지금 상태**를 넘긴다 — 한 벌로 가져오면
   // 1·2단계에서 화면에 없는 것을 가리키는 문장이 되살아나고, `busy` 를 빠뜨리면 제출이 떠
   // 있는 동안 3단계 토막이 **없는 이름**으로 단추를 가리킨다(그 자리의 글자는 「신청하는 중…」
   // 이고, 눌러도 아무 일도 일어나지 않는다 · 단계·상태별 문장 대조는 tests/eummessage).
-  assert.match(block, /soonMessage\(step, busy\)/, '안내 문구를 단계·상태와 함께 가져오지 않는다');
+  // 문구를 고르는 자리는 블록 **밖**이다(`warnText`) — 할 말이 없으면 글자를 그리지 않기
+  // 위해서다. 거기서 **지금 단계·지금 상태·바닥인가**를 함께 넘긴다.
+  const pick = flow.match(/const warnText = [^\n]*\n/);
+  assert.ok(pick, '경고 문구를 고르는 자리를 찾지 못했다');
+  assert.match(pick[0], /soonMessage\(step, busy, warn === EUM_WARN_FLOOR\)/,
+    '안내 문구를 단계·상태·바닥 여부와 함께 가져오지 않는다');
+  // 초 숫자는 **임박 구간에서만** 그린다. 바닥(0)에서 「남은 시간 0초」는 단조 눈금에서는
+  // 이미 지난 일을 0 으로 말하고, 기기 시계 폴백에서는 우리가 믿지 않기로 한 수다
+  // (그 0 으로는 만료조차 선언하지 않는다 · selfExpired).
+  assert.match(block, /warn === EUM_WARN_SOON \? \(/, '바닥에서도 초 숫자를 그리고 있다');
   assert.match(block, /aria-hidden="true"[^>]*>[^<]*\{secondsLeft\(left\)\}/,
     '매초 바뀌는 초 숫자가 낭독 영역 안에 있으면 문장이 1초마다 끊긴다');
 
@@ -365,7 +433,7 @@ test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 
   // 그런데 같은 모양이 둘 더 있었고(제출 실패 안내 · 보조 사본 안내), 셋을 각자 적으면
   // 한 곳만 고쳐지는 날 다시 갈라진다 — 지금은 영역을 만드는 길이 ui.jsx 의 `Live` 하나다
   // (등록부 대조는 tests/eumseniorui 의 「낭독 영역을 만드는 길은 …」).
-  const region = flow.match(/<Live>\s*\{soon \?/);
+  const region = flow.match(/<Live>\s*\{warnText \?/);
   assert.ok(region, '늘 문서에 있는 낭독 영역이 조건을 감싸고 있지 않다');
   // 빈 칸이 화면을 밀어내면 안 된다 — 영역에는 style 을 주지 않는다(내용 없는 블록은 0px).
   assert.equal(/<Live[^>]*style/.test(flow), false,

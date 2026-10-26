@@ -20,7 +20,7 @@ import {
   sanitizeNote,
 } from '../lib/eumConsume.js';
 import { EUM_DONE_MESSAGE, EUM_DONE_NEXT, EUM_DONE_STATE } from '../lib/eumMessage.js';
-import { parseAccepted } from '../lib/eumSenior.js';
+import { parseAccepted, stepProgress, EUM_STEP_MAX } from '../lib/eumSenior.js';
 import { issueEumToken } from '../lib/eumToken.js';
 // 주석 걷어내기는 **한 곳**에서 가져온다(lib/sourceLint) — 이 파일도 두 자리에서 손으로
 // 짓고 있었고, 같은 함수가 테스트 파일 여섯 자리에 판본 셋으로 갈려 있었다.
@@ -348,7 +348,14 @@ test('완료 화면: 이미 접수된 경우와 방금 접수된 경우의 제�
   assert.equal(/EUM_DONE_MESSAGE/.test(flowCode), false, '제목이 있는 자리가 이어 쓴 문장을 쓴다');
   assert.match(FLOW, /EUM_CONSUME_CHANGE_HINT/, '바꾸는 길을 알려 준다(문구는 단일 출처)');
   // 단계 표시도 같은 사실을 말하지 않는다 — 예전에는 그 자리가 「완료」였다(셋째 줄).
-  assert.match(FLOW, /const stepLabel = step <= 3 \? `3단계 중 \$\{step\}단계` : '';/,
+  //
+  // 정정: 이 줄은 화면에 적힌 **리터럴을 그대로 고정**하고 있었다(9회차가 만료 문구에서 없앤
+  // 「사본을 고정하는 테스트」와 같은 모양이다). 그 사본에는 코드가 보장하지 않는 숫자가
+  // 들어 있었다 — 흐름 단계 수를 아는 쪽은 lib/eumSenior 이고, 화면이 그 수를 따로 적는 동안
+  // 둘을 맞춰 보는 곳이 없었다(24회차의 「5분」과 같은 꼴). 지금은 등록부를 가리키는지만 본다.
+  assert.match(FLOW, /const stepLabel = stepProgress\(step\);/,
+    '단계 표시를 화면이 손으로 적는다(단계 수는 lib/eumSenior 가 안다)');
+  assert.equal(stepProgress(EUM_STEP_MAX), '',
     '완료 화면의 단계 표시가 끝났다는 사실을 한 번 더 말한다');
 });
 

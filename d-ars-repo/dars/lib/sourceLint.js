@@ -842,3 +842,74 @@ export function styleColorRoles(src, prefixes = ['C']) {
   }
   return done();
 }
+
+// ── 이 파일에 **던질 것이 있는가** ────────────────────────────────────────
+//
+// 왜 필요한가 — 고친 결함: 「이음 어르신 신청」 묶음에는 어르신용 오류 경계가 있는데
+// (`app/eum/error.jsx`) **그 경계가 받지 못하는 파일이 하나** 있다 — 자기 레이아웃
+// (`app/eum/layout.jsx`)이다. Next 의 `error.jsx` 는 **같은 세그먼트의 레이아웃**에서 터진
+// 오류를 받지 못하고(그 경계가 레이아웃 **안쪽**에 있다) 그 위는 루트, 즉 **운영 포털의 오류
+// 화면**이다 — 14px 글자·「관리자」·「홈으로」·제품 브랜드색. 12회차가 경계 셋을 어르신
+// 화면으로 바꾸며 없앤 그 화면이고, 그 한 파일만 여전히 그리로 간다.
+// 지금 그 레이아웃에는 던질 것이 보이지 않는다(정적 리터럴 metadata·viewport · 본문은
+// `children` 반환뿐 · import 는 상수 표 하나). 위험한 쪽은 **다음에 들어오는 한 줄**이다 —
+// 거기에 계산이 하나 생기는 날, 그 결함은 아무 신호 없이 열린다(18·20회차의 포커스 링·번들
+// 경계와 같은 성질의 **잠복**이고, 그때 보이는 화면은 어르신이 되돌아올 길이 없는 화면이다).
+// 그래서 「던질 것이 없다」를 주석이 아니라 **불변식**으로 못박는다 — 계산이 없으면 던질
+// 것도 없다.
+//
+// 돌려주는 것: `[{ kind, line, text }]` — **비어 있어야 정상**이다. 읽지 못하면 `null`
+// (호출측 테스트가 "대조가 무의미해졌다" 로 실패해야 한다 · spreadShadowedKeys 와 같은 계약).
+//   kind: 'call'(호출) · 'await' · 'new' · 'throw' · 'template'(`${}` 안에서 toString 이
+//   불린다) · 'index'(계산된 색인) · 'global'(그 자체가 없을 수 있는 이름 — edge 런타임의
+//   `process` 가 그렇다) · 'member'(허용 목록 밖 이름의 속성 읽기 — 그 이름이 undefined 면
+//   읽는 순간 던진다).
+//
+// `allowedBases` 는 속성을 읽어도 되는 이름(= 상수 표를 import 한 이름)이다. 그 이름이
+// 가리키는 모듈이 **스스로 던지지 않는가**는 이 함수가 아니라 호출측의 모듈 등록부가 본다.
+// 그쪽 범위를 정직하게 적어 둔다: 그 모듈이 평가에서 던지면 어르신 화면 **전부**가 같은
+// 숨에 죽으므로 그것은 레이아웃만의 위험이 아니다(여기서 막는 것은 레이아웃만의 위험이다).
+//
+// 한계(정직하게): 줄 단위 정규식이다(이 파일의 다른 스캐너와 같다). **주석은 걷어낸 소스를
+// 받는 것이 계약**이고(stripSourceComments), 걷어내지 않으면 주석의 괄호까지 세어 **실패하는
+// 방향**으로 틀린다 — 조용히 통과하지 않는다. `import` 줄은 보지 않는다(모듈 등록부가 본다).
+const COMPUTE_KEYWORDS = new Set([
+  'if', 'for', 'while', 'switch', 'catch', 'return', 'typeof', 'function', 'void', 'delete',
+  'do', 'else', 'in', 'of', 'instanceof', 'case', 'yield', 'super', 'import', 'export',
+  'const', 'let', 'var', 'class', 'extends', 'try', 'finally', 'default', 'this',
+]);
+
+// 이름 자체가 없을 수 있거나(런타임마다 다르다) 읽는 것이 곧 계산인 전역.
+const COMPUTE_GLOBALS = ['process', 'globalThis', 'window', 'document', 'require', 'eval',
+  'Function', 'Symbol', 'Reflect', 'Proxy', 'JSON', 'Date', 'Math'];
+
+export function computeSites(src, allowedBases = []) {
+  if (typeof src !== 'string' || !src) return null;
+  const bases = new Set((Array.isArray(allowedBases) ? allowedBases : [allowedBases])
+    .filter((b) => typeof b === 'string' && /^[A-Za-z_$][\w$]*$/.test(b)));
+  const out = [];
+  src.split('\n').forEach((raw, i) => {
+    const line = i + 1;
+    const hit = (kind, text) => out.push({ kind, line, text: String(text).trim().slice(0, 80) });
+    if (/^\s*import\b/.test(raw)) return;
+    if (raw.includes('`')) hit('template', raw);
+    if (/\bawait\b/.test(raw)) hit('await', raw);
+    if (/\bnew\s+[A-Za-z_$]/.test(raw)) hit('new', raw);
+    if (/\bthrow\b/.test(raw)) hit('throw', raw);
+    for (const g of COMPUTE_GLOBALS) {
+      if (new RegExp(`\\b${g}\\b`).test(raw)) hit('global', g);
+    }
+    if (/[\w$)\]]\s*\[/.test(raw)) hit('index', raw);
+    for (const m of raw.matchAll(/(\.?)\s*\b([A-Za-z_$][\w$]*)\s*\(/g)) {
+      // 함수 **선언**은 호출이 아니다(`function 이름(`).
+      if (/\bfunction\s*$/.test(raw.slice(0, m.index))) continue;
+      if (!m[1] && COMPUTE_KEYWORDS.has(m[2])) continue;
+      hit('call', `${m[1]}${m[2]}(`);
+    }
+    for (const m of raw.matchAll(/\b([A-Za-z_$][\w$]*)\s*\.\s*([A-Za-z_$][\w$]*)/g)) {
+      if (bases.has(m[1])) continue;
+      hit('member', `${m[1]}.${m[2]}`);
+    }
+  });
+  return out;
+}

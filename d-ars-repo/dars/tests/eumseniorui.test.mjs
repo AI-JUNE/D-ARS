@@ -16,6 +16,7 @@ import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
   metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
   exportedObjectEntries, spreadShadowedKeys, styleColorRoles, stripSourceComments,
+  importedModules, computeSites,
 } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -435,11 +436,11 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
       if (marks.length) bad.push(`${name}: "${s}" → ${marks.join('')}`);
     }
   }
-  // 기준이 20 → 12 → 10 으로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다(제목·머리말,
-  // 그리고 25회차의 조작 요소 이름 넷). 그 표들은 tests/eummessage.test.mjs 의
-  // 「모든 문구 표에 …」가 같은 판정으로 본다 — 11회차 메모가 적은 "가드가 문구를 따라오지
-  // 않은 것" 을 되풀이하지 않게, 옮긴 자리에서 함께 세운다.
-  assert.ok(seen >= 10, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
+  // 기준이 20 → 12 → 10 → 9 로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다(제목·머리말,
+  // 25회차의 조작 요소 이름 넷, 그리고 29회차의 **단계 표시**). 그 표들은
+  // tests/eummessage.test.mjs 의 「모든 문구 표에 …」가 같은 판정으로 본다 — 11회차 메모가
+  // 적은 "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게, 옮긴 자리에서 함께 세운다.
+  assert.ok(seen >= 9, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
   assert.deepEqual(bad, [], `낭독되지 않는 기호로 문구를 가르고 있다\n${bad.join('\n')}`);
 });
 
@@ -1407,6 +1408,54 @@ test('키 안쪽에 Next 가 채우는 기본값까지 어르신 화면이 직�
   assert.match(apple, /title:\s*EUM_TITLE/, '홈 화면 이름은 어르신 문구여야 한다');
 });
 
+// ── 어르신 오류 경계가 **받지 못하는 파일 하나** ───────────────────────────────
+//
+// 고친 결함: 12회차는 이 묶음의 경계 화면 셋을 어르신 화면으로 바꿨다(오류·대기·잘린 링크).
+// 그런데 Next 의 `error.jsx` 는 **같은 세그먼트의 레이아웃**에서 터진 오류를 받지 못한다 —
+// 그 경계가 레이아웃 **안쪽**에 놓이기 때문이다. 그러면 가장 가까운 경계는 루트, 즉 운영
+// 포털의 오류 화면이고, 어르신이 보는 것은 14px 글자·「관리자」·「홈으로」·제품 브랜드색이다
+// (링크는 문자 안에 있고 수명은 5분이라, 한 번 나가면 돌아오는 길을 스스로 찾지 못한다).
+// 지금 그 파일에는 던질 것이 보이지 않지만 **그것을 대조하는 것이 하나도 없었다** — 다음에
+// 계산이 한 줄 들어오는 날 아무 신호 없이 열리는 **잠복**이다(18·20회차의 포커스 링·번들
+// 경계와 같은 성질이고, 이번에는 그 결함이 열리는 자리가 되돌아올 길 없는 화면이다).
+// 그래서 「던질 것이 없다」를 주석이 아니라 불변식으로 못박는다 — 계산이 없으면 던질 것도 없다.
+//
+// 속성을 읽어도 되는 이름(= 상수 표). 이 이름이 undefined 면 읽는 순간 던지므로 등록이 필요하다.
+const LAYOUT_CONST_BASES = ['EUM_COLORS'];
+
+// 레이아웃이 끌고 들어와도 되는 모듈과 **그 사유**. 사유 없는 import 는 다음 사람이 늘린다.
+const LAYOUT_IMPORTS = {
+  '@/lib/eumTheme': '색 단일 출처(주소창 색) — 리터럴 선언뿐이고 스스로 끌고 오는 것이 없다',
+};
+
+test('어르신 레이아웃에는 던질 것이 없다(그 파일의 오류만 포털 화면으로 간다)', () => {
+  const code = stripComments(eumLayout);
+  const sites = computeSites(code, LAYOUT_CONST_BASES);
+  assert.ok(Array.isArray(sites), '레이아웃을 읽지 못했다 — 대조가 무의미해지기 전에 고쳐라');
+  assert.deepEqual(sites, [],
+    `레이아웃에 계산이 들어왔다(이 파일의 오류는 어르신 경계가 받지 못한다): ${
+      sites.map((s) => `${s.kind} L${s.line} ${s.text}`).join(' | ')}`);
+  // 본문은 `children` 을 돌려주는 것뿐이다(레이아웃은 화면을 그리지 않는다는 결정과 같은 줄).
+  assert.match(code, /export default function EumLayout\(\{ children \}\) \{\s*return <>\{children\}<\/>;\s*\}/,
+    '레이아웃 본문에 그리는 일이 늘었다');
+  // import ↔ 등록부 양방향. 끌고 오는 모듈이 던지면 그것은 **이 파일만의 위험이 아니라**
+  // 어르신 화면 전부가 같은 숨에 죽는 일이므로, 여기서 보는 것은 「무엇을 끌고 오는가」다.
+  const imports = importedModules(code);
+  assert.deepEqual(imports.sort(), Object.keys(LAYOUT_IMPORTS).sort(),
+    `레이아웃이 끌고 오는 모듈이 등록부와 어긋난다: ${imports.join(', ')}`);
+  for (const [mod, why] of Object.entries(LAYOUT_IMPORTS)) {
+    assert.ok(typeof why === 'string' && why.length >= 10, `사유 없는 import: ${mod}`);
+  }
+  // 그 사유가 참인지 확인한다 — 상수 표가 **스스로** 끌고 오는 것이 없어야 평가가 리터럴뿐이다.
+  const theme = stripComments(readFileSync(resolve(root, 'lib/eumTheme.js'), 'utf8'));
+  assert.deepEqual(importedModules(theme), [],
+    '색 단일 출처가 다른 모듈을 끌고 온다 — 그 평가가 던지면 어르신 화면 전부가 함께 죽는다');
+  // 허용 목록이 썩지 않게: 등록한 이름은 실제로 쓰여야 한다.
+  for (const base of LAYOUT_CONST_BASES) {
+    assert.match(code, new RegExp(`\\b${base}\\s*\\.`), `쓰이지 않는 허용 이름: ${base}`);
+  }
+});
+
 // ── 파일 규약으로 head 에 끼어드는 것 ─────────────────────────────────────
 //
 // 고친 결함: 위 세 테스트는 루트 레이아웃의 `metadata` **export 키**를 전부 분류하게 한다.
@@ -1820,7 +1869,7 @@ test('낭독 영역을 만드는 길은 Live 하나이고, 손으로 적은 영�
   // 나중에 내용이 들어오는 세 자리는 전부 Live 를 쓴다(보조 사본·실패 안내·만료 임박 경고).
   assert.match(stripComments(prior), /<Live>/, '보조 사본 안내가 영역을 미리 두지 않는다');
   assert.match(stripComments(ui), /<Live assertive>/, '실패 안내가 영역을 미리 두지 않는다');
-  assert.match(stripComments(flow), /<Live>\s*\{soon \?/, '만료 임박 경고가 영역을 미리 두지 않는다');
+  assert.match(stripComments(flow), /<Live>\s*\{warnText \?/, '만료 임박 경고가 영역을 미리 두지 않는다');
   // 손으로 적은 영역의 수 ↔ 등록부 양방향 대조. 하나가 늘면 "내용이 나중에 오는가" 를
   // 다시 판단하게 만든다(새 영역이 조용히 생기는 것이 이 결함의 재발 경로다).
   // 세는 것은 **요소**다(한 요소가 role·aria-live 를 함께 적어도 한 자리). Live 는 둘 다

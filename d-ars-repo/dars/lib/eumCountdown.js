@@ -174,6 +174,36 @@ export function isSoon(leftMs, threshold = EUM_SOON_MS) {
   return Number.isFinite(th) && th > 0 && leftMs <= th;
 }
 
+// ── 경고가 사라지는 자리에 **만료 패널이 오지 않는다** ─────────────────────
+//
+// 고친 결함: 위 `isSoon` 은 0 이하를 띄우지 않고, 그 규칙의 사유는 「그 자리를 만료 패널이
+// 가져간다」였다(테스트 이름도 「만료된 뒤에는 임박 안내가 아니라 만료 화면이다」다).
+// 그런데 패널이 **오지 않는 상태가 둘** 있고, 둘 다 이 과제가 스스로 만든 것이다.
+//   · **제출 중**(22회차의 `!busy`) — 응답을 기다리는 동안에는 화면이 만료를 선언하지
+//     않는다. 남은 시간이 1분을 막 넘긴 상태에서 누른 제출은 기다리는 사이 0 에 닿으므로
+//     드문 경로가 아니다. 그때 화면에서 경고 문단이 **사라진다**.
+//   · **기기 시계 폴백**(28회차의 `selfExpired`) — 그 환경에서는 0 을 근거로 선언하지
+//     않는다(앞으로 뛴 시계가 멀쩡한 링크를 덮지 않게). 28회차는 그 대가를 「경고가
+//     사라지고 초 숫자가 0 이 된다」로 **한계에 적어 두었다** — 또 한 번 한계 문장이 원인을
+//     가리키고 있었다.
+// 어느 쪽이든 결과는 같다: **화면이 가장 급한 순간에 아무 말도 하지 않는다.** 바뀐 화면이
+// 그 자리를 설명해 주기 때문에 침묵해도 됐던 것인데, 바뀌지 않는 상태에서도 침묵했다.
+//
+// 그래서 「말하는가 마는가」를 여기서 가른다(26회차가 「무엇을 말하는가」를 `busy` 로 가른
+// 자리의 짝이다). 판정에 `busy` 를 받지 않는 이유: 화면은 만료를 선언한 순간 흐름 전체를
+// 패널로 **갈아치우므로**(이른 return), 이 함수가 불리는 자리는 이미 「패널이 오지 않는
+// 상태」다 — 조건을 한 번 더 적으면 만료 판정 자리가 둘이 된다.
+export const EUM_WARN_NONE = '';
+export const EUM_WARN_SOON = 'soon';   // 아직 남아 있다 — 「잠시 후 만료됩니다」가 참이다
+export const EUM_WARN_FLOOR = 'floor'; // 바닥에 닿았는데 패널이 오지 않는다(위 두 상태)
+
+// 지금 경고 자리에 무엇이 오는가. 모르는 남은 시간(null)은 종전처럼 아무것도 아니다.
+export function warnPhase(leftMs, threshold = EUM_SOON_MS) {
+  if (isSoon(leftMs, threshold)) return EUM_WARN_SOON;
+  if (isExpired(leftMs)) return EUM_WARN_FLOOR;
+  return EUM_WARN_NONE;
+}
+
 // 화면에 보여 줄 남은 초. 올림이라 "0초" 가 남은 채로 머무르지 않는다.
 export function secondsLeft(leftMs) {
   if (typeof leftMs !== 'number' || !Number.isFinite(leftMs) || leftMs <= 0) return 0;

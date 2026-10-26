@@ -7,6 +7,9 @@ import {
   TIMESLOTS,
   STEP_TITLE,
   stepTitle,
+  stepProgress,
+  EUM_FLOW_STEPS,
+  EUM_STEP_MIN,
   parseStep,
   clampStep,
   maxReachableStep,
@@ -102,6 +105,32 @@ test('완료 화면 제목: 접수 사실의 토막에서 오고 본문을 되�
   for (const bad of [null, 'yes', 42, [], Symbol('x')]) {
     assert.equal(stepTitle(4, bad), EUM_DONE_STATE.accepted, `state 입력: ${String(bad)}`);
   }
+});
+
+// ── 고친 결함: 단계 표시만 **화면이 손으로** 적었다 ─────────────────────────
+//
+// `const stepLabel = step <= 3 ? \`3단계 중 ${step}단계\` : '';` 였다(SeniorFlow).
+//   (1) 흐름 단계 수를 아는 쪽은 이 파일이고(EUM_STEP_MAX · 완료는 세지 않는다) 말하는 쪽은
+//       화면이었다 — 둘을 맞춰 보는 곳이 없었다(24회차의 「5분」·23회차의 수명 상한과 같은
+//       모양: 값을 보장하는 쪽과 말하는 쪽이 다르다). 단계가 하나 늘면 「3단계 중 4단계」다.
+//   (2) 단계에 매달린 문구의 집은 이미 여기다(STEP_TITLE) — 그 옆 한 줄만 등록부 밖이라
+//       문구 표 전수 검사(묵음 경계 · tests/eummessage)가 이 문장만 보지 못했다.
+//   (3) 그 자리를 지키던 테스트는 **리터럴을 고정**하고 있었다(9회차가 없앤 모양).
+test('단계 표시는 단계 수에서 파생된다(화면이 숫자를 적지 않는다)', () => {
+  assert.equal(EUM_FLOW_STEPS, EUM_STEP_MAX - 1, '완료 단계를 세고 있다');
+  for (let s = EUM_STEP_MIN; s <= EUM_FLOW_STEPS; s++) {
+    assert.equal(stepProgress(s), `${EUM_FLOW_STEPS}단계 중 ${s}단계`);
+    // 낭독 영역에 들어가는 문장이다 — 묵음 기호로 두 수를 가르면 "1단계 3단계" 로 들린다
+    // (예전 「1단계 / 3단계」가 바로 그 결함이었다).
+    assert.deepEqual(muteSeparatorsIn(stepProgress(s)), [], `${s}단계: 묵음 경계가 들어왔다`);
+  }
+  // 완료 화면에서는 **아무 말도 하지 않는다**(셀 단계가 없는 화면에는 셀 것도 없다).
+  assert.equal(stepProgress(EUM_STEP_MAX), '');
+  // 범위 밖·이상 입력에 던지지 않고, 지어내지도 않는다.
+  for (const bad of [0, 9, '열', null, undefined, [], {}, Symbol('x')]) {
+    assert.doesNotThrow(() => stepProgress(bad), `입력에 던졌다: ${String(bad)}`);
+  }
+  assert.equal(stepProgress(EUM_FLOW_STEPS + 1), '', '완료 뒤 단계를 세고 있다');
 });
 
 test('parseStep: 범위 밖·이상값은 1단계로 되돌린다', () => {

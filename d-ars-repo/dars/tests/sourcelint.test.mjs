@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles, stripSourceComments } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles, stripSourceComments, computeSites } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -854,4 +854,49 @@ test('주석 걷어내기를 테스트 파일이 다시 짓지 않는다(양방�
   assert.deepEqual(hand, [], `주석 걷어내기를 손으로 다시 지었다: ${hand.join(', ')}`);
   // 쓰는 쪽이 하나도 없으면 위 대조가 빈 채로 통과한다(가드가 비어 통과하면 안 된다).
   assert.ok(users.length >= 6, `걷어내기 단일 출처를 쓰는 테스트가 줄었다: ${users.length}`);
+});
+
+// ── 이 파일에 **던질 것이 있는가**(computeSites) ───────────────────────────
+//
+// 왜 필요한가: 「이음 어르신 신청」 묶음의 어르신용 오류 경계(`app/eum/error.jsx`)는 **자기
+// 레이아웃**에서 터진 오류를 받지 못하고, 그 위는 운영 포털의 오류 화면이다 — 어르신이
+// 돌아올 길이 없는 화면이다(내력은 lib/sourceLint 의 그 자리 주석). 지금 그 파일에는 던질
+// 것이 보이지 않지만 **그것을 대조하는 것이 없었다.** 계산이 없으면 던질 것도 없다.
+test('computeSites: 호출·await·new·throw·템플릿·색인·전역을 종류와 행으로 보고한다', () => {
+  assert.deepEqual(computeSites('const a = fmt(x);'), [{ kind: 'call', line: 1, text: 'fmt(' }]);
+  assert.deepEqual(computeSites('const a = 1;\nconst b = await load();').map((s) => s.kind).sort(),
+    ['await', 'call']);
+  assert.equal(computeSites('const e = new Error(1);').some((s) => s.kind === 'new'), true);
+  assert.equal(computeSites('if (!a) throw 1;').some((s) => s.kind === 'throw'), true);
+  assert.equal(computeSites('const t = `a${b}c`;')[0].kind, 'template', 'template 안에서 toString 이 불린다');
+  assert.equal(computeSites('const v = table[key];')[0].kind, 'index');
+  // 그 자체가 없을 수 있는 이름(edge 런타임의 process) — 읽는 순간 던진다.
+  assert.equal(computeSites('const t = process.env.T;').some((s) => s.kind === 'global'), true);
+  // 행 번호는 1부터, 사람이 바로 찾아갈 수 있게 보고한다.
+  assert.equal(computeSites('const a = 1;\n\nconst b = go();')[0].line, 3);
+});
+
+test('computeSites: 리터럴 선언·함수 선언·허용된 상수 읽기는 계산이 아니다', () => {
+  assert.deepEqual(computeSites("export const metadata = { title: { absolute: '이음 어르신 신청' } };"), []);
+  assert.deepEqual(computeSites('export const metadata = { icons: { icon: [], apple: [] } };'), [],
+    '빈 배열 리터럴을 색인으로 오인한다');
+  assert.deepEqual(computeSites('export default function L({ children }) { return <>{children}</>; }'), [],
+    '함수 **선언**을 호출로 오인한다');
+  // 허용 목록에 있는 이름의 속성 읽기만 통과한다(그 이름이 undefined 면 읽는 순간 던진다).
+  assert.deepEqual(computeSites('export const viewport = { themeColor: C.bg };', ['C']), []);
+  assert.deepEqual(computeSites('export const viewport = { themeColor: C.bg };').map((s) => s.kind),
+    ['member'], '허용하지 않은 이름의 속성 읽기를 통과시켰다');
+  // import 줄은 보지 않는다 — 무엇을 끌고 들어오는가는 모듈 등록부가 본다(importedModules).
+  // (경로는 **실제로 있는 것**을 쓴다 — 이 저장소는 테스트 파일의 import 글자까지 디스크와
+  //  대소문자로 대조하므로(tests/importcase), 지어낸 경로는 거기서 실패한다.)
+  assert.deepEqual(computeSites("import { EUM_COLORS } from '@/lib/eumTheme';"), []);
+});
+
+test('computeSites: 못 읽으면 null(조용한 통과 금지) · 이상 입력에 throw 하지 않는다', () => {
+  for (const bad of [null, undefined, '', 42, {}, []]) {
+    assert.doesNotThrow(() => computeSites(bad));
+    assert.equal(computeSites(bad), null, `빈 배열로 조용히 통과했다: ${String(bad)}`);
+  }
+  assert.doesNotThrow(() => computeSites('const a = C.b;', [null, 42, '1bad', {}]));
+  assert.equal(computeSites('const a = C.b;', 'C').length, 0, '이름 하나를 문자열로 넘길 수 있어야 한다');
 });

@@ -38,7 +38,9 @@ import {
   EUM_SOON_BUSY,
   soonMessage,
 } from '../lib/eumMessage.js';
-import { muteSeparatorsIn, EUM_PRIOR_TAIL, EUM_STEP_MIN, EUM_STEP_MAX } from '../lib/eumSenior.js';
+import {
+  muteSeparatorsIn, EUM_PRIOR_TAIL, EUM_STEP_MIN, EUM_STEP_MAX, EUM_FLOW_STEPS, stepProgress,
+} from '../lib/eumSenior.js';
 import { importedModules, stripSourceComments } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -551,8 +553,12 @@ test('만료 임박 경고: 단계마다 그 화면에서 할 수 있는 일을 
   // 등록부에 끼워 넣지 않는다 — 그 표는 **단계 ↔ 이름** 양방향 대조의 자리다(위 참조).
   assert.equal(Object.values(EUM_SOON_NEXT).includes(EUM_SOON_BUSY), false,
     '단계 등록부에 단계가 아닌 이름이 끼면 위 양방향 대조가 무의미해진다');
-  assert.match(MESSAGE_SRC, /if \(busy\) return `\$\{EUM_SOON_LEAD\}\. \$\{EUM_SOON_BUSY\}\.`;/,
+  // 토막을 고르는 자리는 **한 줄**이다 — 상태별 분기가 둘로 갈리면 바닥 쪽(아래 atFloor)과
+  // 임박 쪽이 서로 다른 토막을 쓰게 된다.
+  assert.match(MESSAGE_SRC, /const tail = busy \? EUM_SOON_BUSY : EUM_SOON_NEXT\[step\];/,
     '제출 중 토막을 손으로 또 짓는다');
+  assert.match(MESSAGE_SRC, /return next \? `\$\{EUM_SOON_LEAD\}\. \$\{next\}\.` : `\$\{EUM_SOON_LEAD\}\.`;/,
+    '앞 토막을 두 자리에서 이어 붙이고 있다');
 
   // 모르는 단계는 **앞 토막만** 돌려준다 — 침묵은 이 경고에서 가장 비싼 결과다(15회차).
   for (const bad of ['알 수 없음', '', null, undefined, 0, 4, 42, 'constructor', '__proto__']) {
@@ -675,6 +681,13 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     // (eumCountdown)에 있던 동안 이 대조를 비껴가고 있었다(가드가 문구를 따라오지 않은 자리).
     EUM_CONSUME_HINT: { change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT },
     EUM_SOON: { lead: EUM_SOON_LEAD, busy: EUM_SOON_BUSY, ...EUM_SOON_NEXT },
+    // 단계 표시도 **화면에 그려지는 글자**다 — 하필 낭독 영역에 들어가 단계마다 다시 읽히는
+    // 자리이고, 29회차까지 화면이 손으로 적어 이 대조 밖에 있었다(「1단계 / 3단계」의 슬래시가
+    // 묵음이라는 사실이 이 과제의 첫 묵음 결함이었는데, 그 문장만 표 밖에 남아 있었다).
+    // 등록부가 아니라 함수라 **그려지는 값 전부**를 넣는다.
+    EUM_STEP_PROGRESS: Object.fromEntries(
+      Array.from({ length: EUM_FLOW_STEPS }, (_, i) => [String(i + 1), stepProgress(i + 1)]),
+    ),
     // 조작 요소의 이름도 **화면에 그려지는 글자**다(25회차에 이 표로 옮겨 왔다) — 화면 쪽
     // 대조에서 빠졌으므로 여기서 같은 판정으로 받는다. 끝에 붙은 줄임표(「신청하는 중…」)는
     // 무엇과 무엇을 가르지 않으므로 경계가 아니다(muteSeparatorsIn 의 계약).

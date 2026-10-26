@@ -32,6 +32,7 @@ import {
   ACTIVITIES,
   TIMESLOTS,
   stepTitle,
+  stepProgress,
   clampStep,
   summaryText,
   buildPreferences,
@@ -55,7 +56,9 @@ import {
 } from '@/lib/eumSenior';
 import {
   countingDown,
-  isSoon,
+  EUM_WARN_FLOOR,
+  EUM_WARN_NONE,
+  EUM_WARN_SOON,
   leftNow,
   markClock,
   nowTick,
@@ -64,6 +67,7 @@ import {
   secondsLeft,
   selfExpired,
   tickNow,
+  warnPhase,
 } from '@/lib/eumCountdown';
 // 문구는 `lib/eumMessage` 에서 가져온다. 예전에는 이 파일이 만료·401 안내를 **손으로 적고**
 // 있었다(401 쪽은 마침표가 하나 더 붙은 두 번째 판본이었다) — `lib/eumToken` 을 import 할 수
@@ -655,7 +659,16 @@ export default function SeniorFlow({
     );
   }
 
-  const soon = !done && isSoon(left);
+  // 경고 자리에 무엇이 오는가. **「없음」이 두 가지로 갈린다**는 것이 이번 고침이다 —
+  // 종전에는 `isSoon(left)` 하나였고, 그 판정은 0 이하를 띄우지 않았다(사유: 「그 자리를
+  // 만료 패널이 가져간다」). 그런데 이 화면은 **패널을 띄우지 않는 상태**를 둘 만들어 두었다
+  // (제출 중 · 기기 시계 폴백 — 바로 위 expiredNow 의 `!busy` 와 `selfExpired`). 그 둘에서는
+  // 경고가 사라진 자리에 아무것도 오지 않아, 가장 급한 순간에 화면이 **아무 말도 하지 않았다**
+  // (lib/eumCountdown 의 warnPhase 주석). 판정은 거기 한 곳이고 여기서는 받는다.
+  const warn = done ? EUM_WARN_NONE : warnPhase(left);
+  // 바닥에서는 앞 토막(「잠시 후 링크가 만료됩니다」)이 참이 아니므로 떼고 할 일만 말한다
+  // (lib/eumMessage 의 `atFloor`). 할 말이 없으면 ''(아래에서 글자를 그리지 않는다).
+  const warnText = warn ? soonMessage(step, busy, warn === EUM_WARN_FLOOR) : '';
   // 단계 표시. 예전에는 「1단계 / 3단계」였는데 슬래시는 **낭독되지 않아** "1단계 3단계" 로
   // 들렸다 — 지금 몇 번째인지가 아니라 단계 둘을 읽어 주는 것처럼 들린다. 이 문단은 바로
   // aria-live 영역이라 단계마다 다시 낭독되는 자리다. 낱말로 말한다(EUM_MUTE_MARKS 참조).
@@ -664,7 +677,12 @@ export default function SeniorFlow({
   // 제목이 이미 「신청이 접수되었습니다」이고 본문이 다음에 일어날 일을 말한다 — 「완료」는
   // 진행 상황을 알리는 자리에서 **끝났다는 사실을 한 번 더** 말하는 셋째 줄이었다
   // (lib/eumSenior 의 STEP_TITLE 주석 참조). 셀 단계가 없는 화면에서는 셀 것도 없다.
-  const stepLabel = step <= 3 ? `3단계 중 ${step}단계` : '';
+  //
+  // 고친 결함: 그 문장을 **이 화면이 손으로 적고** 있었다(「3단계 중 N단계」). 단계 수를 아는
+  // 쪽은 lib/eumSenior 인데(`EUM_STEP_MAX` · 완료는 세지 않는다) 말하는 쪽은 여기였고, 둘을
+  // 맞춰 보는 곳이 없었다 — 24회차의 「5분」과 같은 모양이다(코드가 보장하지 않는 숫자를
+  // 문구가 말한다). 단계에 매달린 문구의 집은 이미 그 파일이다(`STEP_TITLE`).
+  const stepLabel = stepProgress(step);
   // 완료 화면이 보여 줄 요약. 세 경우가 다르다(아래 4단계 주석 참조) — 모르면 빈 문자열이고
   // 화면은 요약을 아예 그리지 않는다. 조립은 lib/eumSenior.summaryText 한 곳에서만 한다:
   // 예전에는 이 자리에서 `labelOf(…) · labelOf(…)` 로 손수 이어 붙여, 확인 화면과 **형식이
@@ -725,12 +743,26 @@ export default function SeniorFlow({
             시간이 1분을 막 넘긴 상태에서 누른 제출은 응답을 기다리는 사이 눈금이 1분 아래로
             내려가므로, 경고가 **처음 뜨는 시점이 제출 중**인 경우가 드물지 않다. 그래서
             지금은 `busy` 도 함께 넘긴다 — 기다리는 동안 화면이 만료를 선언하지 않는 것과
-            **같은 결정**이다(바로 위 expiredNow 의 `!busy`). */}
+            **같은 결정**이다(바로 위 expiredNow 의 `!busy`).
+
+            고친 결함: 그 「같은 결정」이 **경고를 지우고 있었다.** 눈금이 0 에 닿으면
+            `isSoon` 이 거짓이 되는데(사유는 「그 자리를 만료 패널이 가져간다」) 제출 중에는
+            그 패널을 일부러 띄우지 않으므로, 응답을 기다리는 사이 0 을 지난 화면은 경고도
+            패널도 없는 **빈 자리**가 된다. 기기 시계 폴백에서도 같다(28회차가 선언을 닫은
+            그 환경 — 거기서는 그 상태가 문서가 사는 동안 이어진다). 지금은 바닥에 닿아도
+            말하고, 참이 아닌 앞 토막만 뗀다(위 warnText).
+
+            초 숫자는 **바닥에서는 그리지 않는다.** 「남은 시간 0초」는 단조 눈금에서는
+            이미 지난 일을 0 으로 말하고, 기기 시계 폴백에서는 우리가 **믿지 않기로 한 수**다
+            (그 0 을 근거로는 만료조차 선언하지 않는다) — 옆 문장이 「…해 주세요」로 바뀌는
+            자리에서 그 0 만 반대 방향을 가리킨다. */}
         <Live>
-          {soon ? (
+          {warnText ? (
             <p style={S.warn}>
-              {soonMessage(step, busy)}
-              <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
+              {warnText}
+              {warn === EUM_WARN_SOON ? (
+                <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
+              ) : null}
             </p>
           ) : null}
         </Live>
