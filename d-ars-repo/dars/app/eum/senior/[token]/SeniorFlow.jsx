@@ -33,6 +33,7 @@ import {
   TIMESLOTS,
   stepTitle,
   stepProgress,
+  stepGroupLabel,
   clampStep,
   summaryText,
   buildPreferences,
@@ -88,6 +89,10 @@ import {
 // `lib/eumCountdown`(눈금)에 있었다. 문장 두 줄을 얻으려고 서버 쪽 판정 모듈을 브라우저로
 // 끌고 들어오던 자리이고(그 파일에는 공유 저장소 어댑터가 예약돼 있다), 임박 경고는 문장이
 // **한 벌**이라 1·2단계에서 화면에 없는 것을 가리켰다(lib/eumMessage 의 EUM_SOON_NEXT 참조).
+// 초 표시 한 줄도 같은 자리에서 가져온다 — 예전에는 이 파일이 「남은 시간 …초」를 손으로
+// 적었다. 가운데에 값이 끼어 있어서 화면 문구 대조도(JSX 글자 노드 정규식이 `{}` 를 받지
+// 않았다) 수명 숫자 대조도(리터럴 숫자만 찾는다) 이 문단을 지나가지 않았다
+// (lib/eumMessage 의 secondsMessage 주석 참조).
 // 조작 요소의 **이름**도 같은 자리에서 가져온다 — 예전에는 이 파일이 넷을 손으로 적었다
 // (「이대로 신청하기」·「신청하는 중…」·「앞 화면으로」·「다시 고르기」). 경계 화면의 단추 이름은
 // 이미 그 표에 있었고(`errorRetry`) 그 화면의 본문은 그것을 끼워서 지었는데, 흐름 화면만 규칙
@@ -96,7 +101,8 @@ import {
 import {
   EUM_ACTION,
   EUM_CONSUME_CHANGE_HINT, EUM_CONSUME_UNKNOWN_HINT,
-  EUM_DONE_NEXT, EUM_PANEL_TITLE, panelAsk, soonMessage, submitMessage, tokenMessage,
+  EUM_DONE_NEXT, EUM_PANEL_TITLE, panelAsk, secondsMessage, soonMessage, submitMessage,
+  tokenMessage,
 } from '@/lib/eumMessage';
 import { fetchOnce } from '@/lib/fetchJson';
 // 머리말은 글자뿐 아니라 **자리도** 한 조각이다(ui.jsx 의 Kicker) — 예전에는 네 화면이
@@ -755,13 +761,20 @@ export default function SeniorFlow({
             초 숫자는 **바닥에서는 그리지 않는다.** 「남은 시간 0초」는 단조 눈금에서는
             이미 지난 일을 0 으로 말하고, 기기 시계 폴백에서는 우리가 **믿지 않기로 한 수**다
             (그 0 을 근거로는 만료조차 선언하지 않는다) — 옆 문장이 「…해 주세요」로 바뀌는
-            자리에서 그 0 만 반대 방향을 가리킨다. */}
+            자리에서 그 0 만 반대 방향을 가리킨다.
+
+            고친 결함: 그 한 줄을 **이 화면이 손으로 적고** 있었다(「남은 시간 …초」). 문장은
+            이제 등록부에서 오고(lib/eumMessage 의 secondsMessage) 수는 눈금 모듈이 센다 —
+            값이 가운데 끼어 있어서 화면 문구 대조도 수명 숫자 대조도 이 문단을 한 번도
+            지나가지 않던 자리다. 앞의 공백 한 칸만 여기 남는다(문장과 문장 사이를 벌리는
+            것은 자리의 일이고, 그 공백은 묵음이어도 가르는 것이 없다 — 양옆이 한 문장씩
+            끝난 뒤다). */}
         <Live>
           {warnText ? (
             <p style={S.warn}>
               {warnText}
               {warn === EUM_WARN_SOON ? (
-                <span aria-hidden="true"> 남은 시간 {secondsLeft(left)}초</span>
+                <span aria-hidden="true"> {secondsMessage(secondsLeft(left))}</span>
               ) : null}
             </p>
           ) : null}
@@ -785,9 +798,15 @@ export default function SeniorFlow({
             스크린리더에만 전해졌고, 네 버튼의 모양은 똑같았다 — 2단계에서 「앞 화면으로」를 눌러
             돌아오면 아까 고른 것이 주소에도 상태에도 남아 있는데 화면은 처음과 구별되지 않았다
             (6회차에 "다시 그려져도 고른 것이 살아남는다" 를 고쳐 놓고, 살아남은 것을 보여 주지
-            않고 있었다). 색만으로 말하지 않는다 — ✓ 표시가 함께 붙는다(ui.jsx 의 S.mark). */}
+            않고 있었다). 색만으로 말하지 않는다 — ✓ 표시가 함께 붙는다(ui.jsx 의 S.mark).
+
+            묶음의 이름은 **등록부에서 온다**(lib/eumSenior 의 STEP_GROUP_LABEL). 고친 결함:
+            이 화면이 둘을 손으로 적고 있었고, 그 글자는 **낭독되는 이름**이라 눈으로 읽어
+            고칠 수 없는 자리다 — 문구 표 전수 검사도 보지 못했고, 그 자리를 지키던 테스트는
+            리터럴을 고정하며 통과했다. 이름은 **지금 단계에서** 꺼낸다(그 블록 안이므로 단계가
+            곧 1·2 다) — 숫자를 다시 적으면 이름과 블록이 두 자리에서 정해진다. */}
         {step === 1 ? (
-          <div style={S.list} role="group" aria-label="희망 활동 고르기">
+          <div style={S.list} role="group" aria-label={stepGroupLabel(step)}>
             {ACTIVITIES.map((o) => (
               <button
                 key={o.k}
@@ -805,7 +824,8 @@ export default function SeniorFlow({
 
         {step === 2 ? (
           <>
-            <div style={S.list} role="group" aria-label="희망 시간대 고르기">
+            {/* 이름은 1단계와 **같은 등록부**에서 온다(위 주석 참조). */}
+            <div style={S.list} role="group" aria-label={stepGroupLabel(step)}>
               {TIMESLOTS.map((o) => (
                 <button
                   key={o.k}

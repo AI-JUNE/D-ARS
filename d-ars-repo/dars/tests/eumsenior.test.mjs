@@ -8,6 +8,8 @@ import {
   STEP_TITLE,
   stepTitle,
   stepProgress,
+  STEP_GROUP_LABEL,
+  stepGroupLabel,
   EUM_FLOW_STEPS,
   EUM_STEP_MIN,
   parseStep,
@@ -131,6 +133,44 @@ test('단계 표시는 단계 수에서 파생된다(화면이 숫자를 적지 
     assert.doesNotThrow(() => stepProgress(bad), `입력에 던졌다: ${String(bad)}`);
   }
   assert.equal(stepProgress(EUM_FLOW_STEPS + 1), '', '완료 뒤 단계를 세고 있다');
+});
+
+// ── 고친 결함: 선택지 묶음의 **낭독되는 이름**도 화면이 손으로 적었다 ──────────
+//
+// 바로 위와 같은 자리의 같은 결함이고(29회차 메모가 「다음에 볼 자리」로 지목했다), 다른
+// 점은 하나다 — 이 글자는 **눈에 한 픽셀도 나타나지 않는다.** 보는 어르신은 선택지 네 개를
+// 보고 제목으로 무엇을 고르는지 알지만, 듣는 어르신에게는 묶음에 들어서는 순간 읽히는 이
+// 이름이 유일한 안내다. 그래서 사본이 생겨도 눈으로는 알아차릴 수 없고, 등록부 밖이라
+// 문구 표 전수 검사(묵음 경계 · tests/eummessage)도 보지 못했다. 그 자리를 지키던 테스트는
+// 리터럴을 고정하고 있었다(`aria-label="희망 활동 고르기"` · 9회차가 없앤 모양).
+test('선택지 묶음 이름: 고르는 단계마다 하나씩 있고 그 밖에서는 지어내지 않는다', () => {
+  // 고르는 단계는 1·2 뿐이다 — 그 뒤는 확인(EUM_FLOW_STEPS)과 완료(EUM_STEP_MAX)다.
+  // 등록부 키를 손으로 적지 않고 **단계 규칙에서** 만들어 비교한다.
+  const choosing = [];
+  for (let s = EUM_STEP_MIN; s < EUM_FLOW_STEPS; s += 1) choosing.push(String(s));
+  assert.deepEqual(Object.keys(STEP_GROUP_LABEL).sort(), choosing.sort(),
+    '등록부가 고르는 단계와 어긋난다(모르는 단계는 aria-label="" 이 되고, 남는 이름은 표를 썩힌다)');
+  for (const s of choosing) {
+    const label = stepGroupLabel(Number(s));
+    assert.equal(label, STEP_GROUP_LABEL[s], `${s}단계: 등록부를 거치지 않는다`);
+    assert.ok(label.length > 3, `${s}단계: 이름이 비었다 — 빈 라벨은 아무 말도 하지 않는다`);
+    // 낭독되는 이름이다 — 묵음 기호로 가르면 두 토막이 한 덩어리로 들린다.
+    assert.deepEqual(muteSeparatorsIn(label), [], `${s}단계: 묵음 경계가 들어왔다`);
+    // 무엇을 고르는 묶음인지 말한다(「고르기」) — 그 한 마디가 이 이름의 존재 이유다.
+    assert.match(label, /고르기$/, `${s}단계: 이름이 할 일을 말하지 않는다 — ${label}`);
+  }
+  // 두 묶음이 서로 다른 말을 한다 — 같으면 듣는 어르신은 두 화면을 구별할 수 없다.
+  assert.equal(new Set(Object.values(STEP_GROUP_LABEL)).size, choosing.length, '두 묶음의 이름이 같다');
+  // 고르지 않는 단계·이상 입력에는 **지어내지 않는다**(''). 던지지도 않는다 — 이 판정이
+  // 렌더 도중 던지면 신청 화면이 통째로 빈 화면이 된다(parseStep 과 같은 이유).
+  // `'1'`(글자)·`1.5` 도 ''이다: 이 함수는 주소가 아니라 화면이 든 정수를 받고, 모르는 값을
+  // parseStep 처럼 1 로 떨어뜨리면 **1단계의 이름**을 다른 화면에서 읽어 준다(틀린 이름보다
+  // 없는 이름이 낫다 · 그 자리 주석 참조).
+  for (const bad of [EUM_FLOW_STEPS, EUM_STEP_MAX, 0, 9, 1.5, '1', '열', null, undefined, [], {},
+    Symbol('x'), 'constructor', '__proto__', 'toString']) {
+    assert.doesNotThrow(() => stepGroupLabel(bad), `입력에 던졌다: ${String(bad)}`);
+    assert.equal(stepGroupLabel(bad), '', `입력: ${String(bad)}`);
+  }
 });
 
 test('parseStep: 범위 밖·이상값은 1단계로 되돌린다', () => {

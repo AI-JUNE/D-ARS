@@ -37,9 +37,11 @@ import {
   EUM_SOON_NEXT,
   EUM_SOON_BUSY,
   soonMessage,
+  secondsMessage,
 } from '../lib/eumMessage.js';
 import {
   muteSeparatorsIn, EUM_PRIOR_TAIL, EUM_STEP_MIN, EUM_STEP_MAX, EUM_FLOW_STEPS, stepProgress,
+  STEP_GROUP_LABEL,
 } from '../lib/eumSenior.js';
 import { importedModules, stripSourceComments } from '../lib/sourceLint.js';
 
@@ -570,6 +572,40 @@ test('만료 임박 경고: 단계마다 그 화면에서 할 수 있는 일을 
   assert.equal(/EUM_SOON_MESSAGE/.test(countdown), false, '옛 단일 문장이 되살아났다');
 });
 
+// ── 고친 결함: 눈금 숫자를 읽는 한 줄만 화면이 지었다 ───────────────────────
+//
+// 「남은 시간 {secondsLeft(left)}초」가 `SeniorFlow` 안에 손으로 적혀 있었다. 29회차의 단계
+// 표시·25회차의 조작 요소 이름과 같은 모양이고, 이 화면군에서 화면이 직접 지어 그리던
+// **마지막 문구**다. 두 가드의 틈에 정확히 들어가 있었다 — 화면 문구 대조는 JSX 글자 노드
+// 정규식이 `{}` 를 받지 않아 이 문단을 지나가지 않았고(30회차에 그 구멍도 닫았다), 수명 숫자
+// 대조는 **리터럴 숫자**만 찾는다(그 테스트의 주석이 이 문단을 예로 들기까지 했다 —
+// 「숫자는 괜찮다」는 사실은 맞았고, 문장이 등록부 밖이라는 사실은 아무도 보지 않았다).
+test('초 표시: 수는 눈금이 세고 문장은 표가 든다(모르는 값에는 아무 말도 하지 않는다)', () => {
+  assert.equal(secondsMessage(42), '남은 시간 42초');
+  assert.equal(secondsMessage(1), '남은 시간 1초');
+  // 바닥(0)에서 화면은 이 줄을 그리지 않지만(29회차) 함수는 거짓을 만들지 않는다 —
+  // 0 은 「셀 수 없다」가 아니라 **0초**다. 그리는가 마는가는 화면의 판정이다.
+  assert.equal(secondsMessage(0), '남은 시간 0초');
+  // 수를 여기서 짓지 않는다 — 올림(secondsLeft)은 눈금 모듈의 몫이고, 이 함수는 받은 값을
+  // 끼운다. 소수점이 그대로 그려지지 않게 내림만 한다.
+  assert.equal(secondsMessage(12.7), '남은 시간 12초');
+  // 모르는 값·음수에는 **아무 말도 하지 않는다**(지어내지 않는다 · 던지지도 않는다 —
+  // 이 함수가 렌더 도중 던지면 신청 화면이 통째로 빈 화면이 된다).
+  for (const bad of [-1, NaN, Infinity, '42', null, undefined, [], {}, Symbol('x')]) {
+    assert.doesNotThrow(() => secondsMessage(bad), `입력에 던졌다: ${String(bad)}`);
+    assert.equal(secondsMessage(bad), '', `입력: ${String(bad)}`);
+  }
+  // 문장에 **수를 손으로 적지 않는다** — 들어오는 값을 끼운다(「코드가 보장하지 않는 숫자를
+  // 문구가 말하지 않는다」는 24·29회차의 선 · 리터럴 숫자 금지 대조는 tests/eumseniorui).
+  assert.match(MESSAGE_SRC, /return `남은 시간 \$\{n\}초`;/, '초 문장이 값을 끼우지 않는다');
+  // 이 한 줄은 화면이 `aria-hidden` 으로 가린다(매초 바뀌는 숫자를 낭독 영역에 들이면 1초마다
+  // 말이 끊긴다) — 그래서 **보이는 쪽에만** 전해진다. 그 사실은 화면 쪽에서 고정한다
+  // (tests/eumseniorui.test.mjs).
+  assert.match(SCREENS['app/eum/senior/[token]/SeniorFlow.jsx'],
+    /<span aria-hidden="true"> \{secondsMessage\(secondsLeft\(left\)\)\}<\/span>/,
+    '초 표시가 등록부를 거치지 않거나 낭독 영역으로 새어 들어갔다');
+});
+
 // ── 깨졌을 때·기다릴 때 보이는 화면의 문구 ─────────────────────────────────
 //
 // 고친 결함: 11회차는 제출 실패 다섯 문장을 이 표로 옮기면서 경계 화면 둘은 「회당 2~3건」
@@ -692,6 +728,13 @@ test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
     // 대조에서 빠졌으므로 여기서 같은 판정으로 받는다. 끝에 붙은 줄임표(「신청하는 중…」)는
     // 무엇과 무엇을 가르지 않으므로 경계가 아니다(muteSeparatorsIn 의 계약).
     EUM_ACTION,
+    // 30회차에 옮겨 온 둘. **선택지 묶음의 이름**은 눈에 한 픽셀도 나타나지 않고 들리는
+    // 쪽에만 전해지는 글자라(lib/eumSenior 의 STEP_GROUP_LABEL) 묵음 기호가 들어가도 눈으로는
+    // 알 수 없다. **초 표시**는 반대로 보이는 쪽에만 전해지는데, 가운데에 값이 끼어 있어서
+    // 화면 쪽 글자 노드 대조가 이 문단을 한 번도 지나가지 않았다 — 등록부가 아니라 함수라
+    // 그려지는 꼴을 넣는다(수는 lib/eumCountdown.secondsLeft 가 센다).
+    STEP_GROUP_LABEL,
+    EUM_SECONDS: { left: secondsMessage(42) },
   };
   const bad = [];
   let seen = 0;

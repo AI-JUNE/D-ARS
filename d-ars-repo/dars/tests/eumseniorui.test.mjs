@@ -10,8 +10,10 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { EUM_COLORS, EUM_CONTRAST_PAIRS, EUM_FONT_PX, EUM_TAP_PX } from '../lib/eumTheme.js';
-import { muteSeparatorsIn } from '../lib/eumSenior.js';
+import {
+  EUM_COLORS, EUM_CONTRAST_PAIRS, EUM_FONT_PX, EUM_TAP_PX, contrastRatio,
+} from '../lib/eumTheme.js';
+import { muteSeparatorsIn, STEP_GROUP_LABEL } from '../lib/eumSenior.js';
 import { EUM_KICKER, EUM_PANEL_TITLE } from '../lib/eumMessage.js';
 import {
   metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs,
@@ -166,9 +168,44 @@ test('키보드: 모든 button 에 type 이 명시돼 있다(암시적 submit �
   }
 });
 
+// ── 고친 결함: 묶음의 **낭독되는 이름**만 화면이 손으로 적었다 ───────────────
+//
+// 이 테스트는 한동안 `aria-label="희망 활동 고르기"` 를 글자째로 찾으며 통과했다 — 9회차가
+// 만료 문구에서 없앤 「**사본을 고정하는 테스트**」 그 모양이고, 29회차가 단계 표시에서
+// 없앤 것과 같은 자리다(그 회차 메모가 이 둘을 「다음에 볼 자리」로 지목했다).
+// 왜 가벼운 일이 아닌가: 그 글자는 **보는 어르신에게는 한 픽셀도 나타나지 않고** 들리는
+// 쪽에서는 묶음에 들어서는 순간 읽히는 유일한 안내다. 즉 눈으로 읽어 고칠 수 없는 문구인데
+// 등록부 밖이라 문구 표 전수 검사(묵음 경계 · tests/eummessage)도 보지 못했다.
+// 지금 이름은 lib/eumSenior 의 STEP_GROUP_LABEL 에서 오고(단계 제목·단계 표시와 같은 집),
+// 여기서는 **묶음을 그리는 단계 ↔ 등록부**를 양방향으로 본다.
 test('스크린리더: 선택지 묶음에 라벨이 있고 단계 전환이 낭독된다', () => {
-  assert.match(flow, /role="group"\s+aria-label="희망 활동 고르기"/);
-  assert.match(flow, /role="group"\s+aria-label="희망 시간대 고르기"/);
+  const shown = stripComments(flow);
+  // 묶음을 그리는 단계를 소스에서 읽는다 — `{step === N ?` 블록 안에 role="group" 이 있는가.
+  // (한 단계가 블록을 둘 이상 가질 수 있으므로 — 3단계는 안내 자리를 사이에 두고 갈려 있다 —
+  //  블록은 다음 `{step === N ?` 까지로 자르고 단계 번호는 모아서 비교한다.)
+  const marks = [...shown.matchAll(/\{step === (\d) \?/g)];
+  assert.ok(marks.length >= 4, `단계 블록을 찾지 못했다: ${marks.length}`);
+  const grouped = new Set();
+  for (let i = 0; i < marks.length; i += 1) {
+    const from = marks[i].index;
+    const to = i + 1 < marks.length ? marks[i + 1].index : shown.length;
+    if (/role="group"/.test(shown.slice(from, to))) grouped.add(marks[i][1]);
+  }
+  assert.deepEqual([...grouped].sort(), Object.keys(STEP_GROUP_LABEL).sort(),
+    '선택지 묶음을 그리는 단계와 이름 등록부가 어긋난다(모르는 단계는 aria-label="" 이 된다)');
+  // 모든 묶음이 **등록부에서 꺼낸 이름**을 쓴다. 숫자를 다시 적지 않는다 — 블록이 이미
+  // 그 단계이므로 `stepGroupLabel(step)` 한 가지뿐이어야 한다.
+  const tags = [...shown.matchAll(/<div[^>]*role="group"[^>]*>/g)].map((m) => m[0]);
+  assert.equal(tags.length, Object.keys(STEP_GROUP_LABEL).length, `묶음 수가 등록부와 다르다: ${tags.length}`);
+  for (const tag of tags) {
+    assert.match(tag, /aria-label=\{stepGroupLabel\(step\)\}/, `묶음 이름을 손으로 적었다: ${tag.slice(0, 70)}`);
+  }
+  // 사본이 되살아나면 이름이 두 자리에서 정해진다(9·25·29회차와 같은 모양).
+  for (const [name, src] of Object.entries(eumSources)) {
+    for (const [key, label] of Object.entries(STEP_GROUP_LABEL)) {
+      assert.ok(!stripComments(src).includes(label), `${name}: 묶음 이름을 손으로 적었다 — ${key}: ${label}`);
+    }
+  }
   assert.match(flow, /aria-pressed=/, '선택 여부가 낭독되지 않는다');
   // 단계 표시는 영역을 **손으로 적지 않는다** — 영역은 늘 있고 내용만 바뀌는 자리이므로
   // ui.jsx 의 Live 하나로 받는다(완료 화면에서는 할 말이 없어 글자를 그리지 않는다 ·
@@ -418,16 +455,27 @@ test('떠나는 항목의 주소에도 그 화면에서 고른 것을 적는다(
 //     이 문단은 aria-live 영역이라 단계마다 다시 낭독되는 자리다)
 // 표시 이름·구분자 쪽 계약은 tests/eumsenior.test.mjs 가 본다. 여기서는 **화면이 손으로 적는
 // 문구**를 본다 — 등록부를 고쳐도 화면이 자기 문장에 기호를 적으면 같은 일이 되풀이된다.
+// (정정: 이 대조의 **JSX 글자 노드** 쪽이 자기 이름보다 좁았다 — 문자 클래스가 `{`·`}` 를
+//  아예 받지 않아 **값이 끼인 글자 노드**를 한 번도 지나가지 않았다. 그런 문단이 실제로 하나
+//  있었다: 만료 임박 경고 옆의 「남은 시간 {secondsLeft(left)}초」. 그 자리는 수명 숫자 대조
+//  에서도 빠진다(리터럴 숫자만 찾는다) — 두 가드의 틈에 정확히 들어가 있었던 셈이다.
+//  30회차에 그 문장은 등록부로 옮겼고(lib/eumMessage 의 secondsMessage) 여기서는 **구멍을**
+//  닫는다: 값 자리(`{…}`)를 템플릿의 `${…}` 와 **같은 방식**으로 먼저 비우고 나서 긁는다.
+//  지금 걸리는 자리는 없다(잠복) — 막는 것은 다음에 들어오는 한 줄이다.)
 test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다', () => {
   const screens = { ...boundary, 'SeniorFlow.jsx': flow, 'ui.jsx': ui, 'page.jsx': page, 'PriorLocal.jsx': prior };
   const bad = [];
   let seen = 0;
   for (const [name, src] of Object.entries(screens)) {
     const shown = stripComments(src);
+    // 값 자리를 먼저 비운다 — 글자 노드 안의 `{…}` 는 문구가 아니라 값이고, 비우지 않으면
+    // 그 노드가 통째로 대조 밖으로 빠진다(위 정정). 리터럴 쪽은 영향이 없다(한 줄 안에서
+    // 중괄호가 글자열을 끊지 않는다).
+    const text = shown.replace(/\{[^{}\n]*\}/g, ' ');
     // 화면에 나가는 문구가 있는 자리는 둘이다 — 한글이 든 리터럴, 그리고 JSX 글자 노드.
     const texts = [
       ...[...shown.matchAll(/(['"`])((?:[^'"`\\\n]|\\.)*?[가-힣](?:[^'"`\\\n]|\\.)*?)\1/g)].map((m) => m[2]),
-      ...[...shown.matchAll(/>\s*([^<>{}\n]*[가-힣][^<>{}\n]*?)\s*</g)].map((m) => m[1]),
+      ...[...text.matchAll(/>\s*([^<>\n]*[가-힣][^<>\n]*?)\s*</g)].map((m) => m[1]),
     ];
     seen += texts.length;
     for (const s of texts) {
@@ -436,11 +484,12 @@ test('화면이 손으로 적는 문구에 낭독되지 않는 경계가 없다'
       if (marks.length) bad.push(`${name}: "${s}" → ${marks.join('')}`);
     }
   }
-  // 기준이 20 → 12 → 10 → 9 로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다(제목·머리말,
-  // 25회차의 조작 요소 이름 넷, 그리고 29회차의 **단계 표시**). 그 표들은
-  // tests/eummessage.test.mjs 의 「모든 문구 표에 …」가 같은 판정으로 본다 — 11회차 메모가
-  // 적은 "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게, 옮긴 자리에서 함께 세운다.
-  assert.ok(seen >= 9, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
+  // 기준이 20 → 12 → 10 → 9 → 7 로 내려간 것은 **문구가 표로 옮겨 갔기 때문**이다
+  // (제목·머리말, 25회차의 조작 요소 이름 넷, 29회차의 **단계 표시**, 30회차의 **선택지 묶음
+  // 이름 둘**). 그 표들은 tests/eummessage.test.mjs 의 「모든 문구 표에 …」가 같은 판정으로
+  // 본다 — 11회차 메모가 적은 "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게, 옮긴
+  // 자리에서 함께 세운다. 남은 7 은 마무리 문구 셋(ui.jsx)과 head 제목 넷(각 page)이다.
+  assert.ok(seen >= 7, `문구를 찾지 못했다(검사가 비어 통과하면 안 된다): ${seen}건`);
   assert.deepEqual(bad, [], `낭독되지 않는 기호로 문구를 가르고 있다\n${bad.join('\n')}`);
 });
 
@@ -534,6 +583,49 @@ test('대비 쌍 등록부가 화면이 실제로 쓰는 색과 양방향으로 
   for (const [a, b] of EUM_CONTRAST_PAIRS) {
     assert.ok(a in EUM_COLORS && b in EUM_COLORS, `등록부 밖의 색을 가리키는 쌍: ${a}/${b}`);
   }
+});
+
+// ── 고친 결함: 그 **역할 단위** 대조가 테두리의 한쪽 면만 보고 있었다 ────────────
+//
+// 23회차는 위 대조를 세울 때 「조합 하나하나를 소스에서 되짚으려면 상속까지 따라가야 하므로
+// **할 수 있는 만큼**을 정직하게 고정한다」고 적었다. 그 「할 수 있는 만큼」이 하필 가장 비싼
+// 한 조합을 비껴갔다 — **경고 상자의 테두리 대 화면 바탕**이다.
+//   · 경고 상자(만료 임박 경고 · 보조 사본 안내 — 둘 다 `S.warn`)의 채움색은 바탕과
+//     **1.18:1** 이다. 저시력·흑백에서는 흰 바닥과 구별되지 않으므로, 그 상자를 상자로
+//     보이게 하는 것은 **2px 테두리 하나**뿐이다.
+//   · 그런데 등록부에는 그 테두리의 **안쪽** 한 쪽만 있었다(`['warnEdge','warnBg']`).
+//     `warnEdge` 는 그 쌍의 전경으로 등록돼 있으니 역할 대조는 그대로 통과한다 — 즉 테두리
+//     색을 밝게 손봐도 아무 테스트가 깨지지 않는 상태였다.
+//   · 다른 상자에는 이 구멍이 없다: 요약·선택지·주버튼의 테두리 색(`sub`·`brand`)과 포커스
+//     링(`focus`)은 **전경으로도 쓰여** 바탕과의 쌍이 이미 있었다. 경고 상자만 전경으로
+//     쓰이지 않는 색을 테두리에 쓴다 — 그래서 하나만 빠진 것이 눈에 띄지 않았다.
+// 그래서 대조를 한 칸 넓힌다: 테두리·링으로 쓰인 색은 **바탕과의 쌍도** 가져야 한다.
+// 그 대조가 성립하는 전제는 「테두리를 가진 상자의 바깥이 화면 바탕이다」이고, 전제도 함께 본다.
+test('테두리·링은 화면 바탕과의 대비도 등록돼 있다(테두리는 두 면을 가진다)', () => {
+  const uiCode = stripComments(ui);
+  const roles = styleColorRoles(uiCode, ['C']);
+  assert.ok(roles.edge.length >= 3, `테두리 색을 찾지 못했다: ${roles.edge.length}`);
+  const againstBg = new Set(EUM_CONTRAST_PAIRS.filter((p) => p[1] === 'bg').map((p) => p[0]));
+  for (const role of roles.edge) {
+    assert.ok(againstBg.has(role),
+      `테두리 색 ${role} 이 화면 바탕과의 쌍을 갖지 않았다 — 상자가 바탕에서 사라져도 아무 테스트가 깨지지 않는다`);
+  }
+  // 전제 ①: 테두리를 가진 상자와 `<main>`(바탕색) 사이에 있는 것은 두 컨테이너뿐이고
+  // 둘 다 배경을 칠하지 않는다. 하나라도 칠하는 날 「바깥은 바탕」이 거짓이 되므로 여기서
+  // 먼저 실패한다(그때 다시 정할 것은 「그 상자의 바깥 색이 무엇인가」다).
+  for (const [name, from, to] of [['wrap', '  wrap: {', '  kicker: {'], ['list', '  list: {', '  choice: ']]) {
+    const at = uiCode.indexOf(from);
+    assert.ok(at > -1, `${name} 스타일을 찾지 못했다 — 대조가 무의미해지기 전에 고쳐라`);
+    const block = uiCode.slice(at, uiCode.indexOf(to, at));
+    assert.ok(block.length > 10, `${name} 스타일 블록을 읽지 못했다`);
+    assert.equal(/background/.test(block), false,
+      `${name} 가 배경을 칠한다 — 테두리 바깥이 더 이상 화면 바탕이 아니다`);
+  }
+  // 전제 ②: 경고 상자의 채움색은 바탕과 요건(4.5:1)은 물론 WCAG 1.4.11 의 3:1 에도 못 미친다 —
+  // 그래서 그 테두리가 상자의 **유일한 경계**다. 채움색을 진하게 바꿔 이 사실이 달라지는
+  // 날에도 위 대조는 그대로 맞지만, 이 줄은 **왜** 그 대조가 필요한지를 들고 있다.
+  assert.ok(contrastRatio(EUM_COLORS.warnBg, EUM_COLORS.bg) < 3,
+    '경고 상자의 채움색이 바탕과 구별되게 바뀌었다 — 테두리가 유일한 경계라는 근거를 다시 보라');
 });
 
 // ── 고친 결함: 유일한 되돌리기 수단만 **누를 자리**가 작았다 ──────────────────
@@ -951,7 +1043,12 @@ test('실패 안내는 주버튼 뒤에 온다(안내가 가리키는 단추를 
   // 고르는 화면(1단계)의 안내는 반대다 — 그 문장이 가리키는 것은 **선택지**이므로 위에 온다.
   const chooseAlert = shown.indexOf('<Alert text={alertAtChoose}');
   assert.ok(chooseAlert > -1, '고르는 화면에 안내 자리가 없다');
-  assert.ok(chooseAlert < shown.indexOf('희망 활동 고르기'), '안내가 선택지보다 뒤에 있다');
+  // 자리는 **선택지 묶음**으로 찾는다(그 묶음의 이름은 이제 등록부에서 온다 — 30회차에
+  // 손으로 적힌 두 라벨을 lib/eumSenior 로 올렸다. 예전에는 여기서 그 글자를 찾았고,
+  // 글자가 바뀌면 `indexOf` 가 -1 이 되어 이 대조가 **조용히 거짓**이 되는 모양이었다).
+  const firstGroup = shown.indexOf('role="group"');
+  assert.ok(firstGroup > -1, '선택지 묶음을 찾지 못했다');
+  assert.ok(chooseAlert < firstGroup, '안내가 선택지보다 뒤에 있다');
 
   // 자리가 둘로 갈렸으므로 **표현은 한 곳**이어야 한다(ui.jsx 의 Alert).
   assert.match(ui, /export function Alert\(\{ text = '' \}\)/, '안내 표현의 단일 출처가 없다');

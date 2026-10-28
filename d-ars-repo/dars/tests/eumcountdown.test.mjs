@@ -422,8 +422,11 @@ test('만료 임박 안내가 스크린리더에도 전달되고, 초 숫자는 
   // 이미 지난 일을 0 으로 말하고, 기기 시계 폴백에서는 우리가 믿지 않기로 한 수다
   // (그 0 으로는 만료조차 선언하지 않는다 · selfExpired).
   assert.match(block, /warn === EUM_WARN_SOON \? \(/, '바닥에서도 초 숫자를 그리고 있다');
-  assert.match(block, /aria-hidden="true"[^>]*>[^<]*\{secondsLeft\(left\)\}/,
-    '매초 바뀌는 초 숫자가 낭독 영역 안에 있으면 문장이 1초마다 끊긴다');
+  // (문장은 30회차에 **등록부로** 옮겼다 — `lib/eumMessage.secondsMessage`. 여기서 지키는
+  //  것은 그 한 줄이 `aria-hidden` 안에 있고 **수는 이 모듈이 센다**는 것이다: 화면이 초를
+  //  따로 세면 옆의 눈금과 두 벌로 갈라진다.)
+  assert.match(block, /aria-hidden="true"[^>]*>[^<]*\{secondsMessage\(secondsLeft\(left\)\)\}/,
+    '매초 바뀌는 초 숫자가 낭독 영역 안에 있거나, 문장·수가 한 자리에서 나오지 않는다');
 
   // 낭독 영역은 **경고보다 먼저 문서에 있어야** 한다 — 경고가 생기는 순간 함께 태어나면
   // 「살아 있던 영역의 내용이 바뀐 것」이 아니라서 들리지 않는다.
