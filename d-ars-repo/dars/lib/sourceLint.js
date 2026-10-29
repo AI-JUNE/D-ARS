@@ -446,6 +446,56 @@ export function exportedObjectEntries(src, name) {
   return out;
 }
 
+// ── 어르신이 읽거나 듣는 글자를 든 **등록부의 이름**을 소스에서 센다 ─────────
+//
+// 왜 필요한가(고친 결함): 문구 표의 묵음 경계 전수 검사는 검사할 표의 **목록을 손으로**
+// 들고 있었다(tests/eummessage.test.mjs). 그래서 표가 하나 늘 때마다 누군가 그 목록에
+// 적어 주어야 했고, 11·25·29·30회차는 실제로 적었다 — 적지 않은 둘이 남아 있었다
+// (`STEP_TITLE`·`EUM_PRIOR_TAIL` · 둘 다 lib/eumSenior.js 라 화면 쪽 글자 대조도 보지
+// 못한다). 「기본값은 아무도 적지 않아도 조용히 붙는다」의 반대 모양이다 — **아무도 적지
+// 않으면 조용히 빠진다**.
+// 그래서 목록을 소스에서 **파생**한다: `export const` 로 내보내는 값의 초기식에 한글이
+// 들어 있으면 그것은 화면에 그려지거나 낭독되는 글자다(문자열·표·목록 전부).
+//
+// 한계(정직하게): **함수가 짓는 문장은 보지 못한다**(`stepProgress`·`secondsMessage`·
+// `soonMessage`·`priorLocalNotice`). 그쪽은 값이 아니라 꼴이라 호출해 봐야 알 수 있고,
+// 호출 인자를 이 함수가 지어낼 수는 없다 — 그 자리는 여전히 손으로 적는다. 이 대조가
+// 닫는 것은 **등록부**이고, 지금 빠져 있던 둘이 전부 등록부였다.
+// 주석은 먼저 걷어낸다 — 사유를 적은 한글 주석까지 세면 이름이 아닌 것이 섞인다.
+export function exportedTextNames(src) {
+  const out = [];
+  if (typeof src !== 'string' || !src) return out;
+  const code = stripSourceComments(src);
+  const head = /export\s+const\s+([A-Za-z_$][\w$]*)\s*=/g;
+  let m;
+  while ((m = head.exec(code)) !== null) {
+    let i = head.lastIndex;
+    let depth = 0;
+    let text = '';
+    while (i < code.length) {
+      const c = code[i];
+      if (c === '"' || c === "'" || c === '`') {
+        const end = endOfStringLiteral(code, i);
+        text += code.slice(i, end);
+        i = end;
+        continue;
+      }
+      if (c === '{' || c === '[' || c === '(') { depth += 1; text += c; i += 1; continue; }
+      if (c === '}' || c === ']' || c === ')') {
+        if (depth === 0) break;
+        depth -= 1; text += c; i += 1; continue;
+      }
+      // 초기식의 끝 — 깊이 0 에서 만난 `;` 또는 줄바꿈이다(여러 줄짜리 값은 괄호가 먼저
+      // 열리므로 깊이가 0 이 아니다).
+      if (depth === 0 && (c === ';' || c === '\n')) break;
+      text += c;
+      i += 1;
+    }
+    if (/[가-힣]/.test(text)) out.push(m[1]);
+  }
+  return out;
+}
+
 // `export const metadata = { … }` 의 최상위 키 → 값 텍스트. 못 읽으면 빈 객체.
 export function metadataFields(src) {
   const out = {};

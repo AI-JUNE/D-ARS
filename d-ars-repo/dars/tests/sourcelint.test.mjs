@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles, stripSourceComments, computeSites } from '../lib/sourceLint.js';
+import { buttonTags, missingButtonType, openTags, missingThScope, missingTableLabel, buttonElements, elementsOf, unnamedIconButtons, dialogMissingRequirements, missingImgAlt, unlabeledSvgs, blankTargetMissingRel, positiveTabIndex, autoFocusLines, unassociatedLabels, nonInteractiveOnClick, deadControlledInputs, hasPopupMissingExpanded, iframeMissingTitle, htmlMissingLang, anchorWithoutHref, duplicateIdAttrs, exportedObjectEntries, exportedTextNames, metadataFields, inlineStringConsts, cssBareSelectors, cssBareDecls, cssExternalRefs, spreadShadowedKeys, importedModules, styleColorRoles, stripSourceComments, computeSites } from '../lib/sourceLint.js';
 
 test('한 줄 태그: type 없는 <button> 을 행 번호로 보고한다', () => {
   const src = 'a\n<button onClick={x}>go</button>\n';
@@ -899,4 +899,49 @@ test('computeSites: 못 읽으면 null(조용한 통과 금지) · 이상 입력
   }
   assert.doesNotThrow(() => computeSites('const a = C.b;', [null, 42, '1bad', {}]));
   assert.equal(computeSites('const a = C.b;', 'C').length, 0, '이름 하나를 문자열로 넘길 수 있어야 한다');
+});
+
+// ── exportedTextNames: 어르신이 읽거나 듣는 글자를 든 **등록부의 이름** ──────────
+//
+// 왜 필요한가: 문구 표의 묵음 경계 전수 검사가 **검사할 표의 목록을 손으로** 들고 있었고,
+// 적지 않은 둘이 빠져 있었다(STEP_TITLE·EUM_PRIOR_TAIL · tests/eummessage.test.mjs 참조).
+// 목록을 소스에서 파생하면 적지 않아도 빠지지 않고, **적지 않으면 통과하지 못한다**.
+test('exportedTextNames: 한글이 든 export const 의 이름만 돌려준다(꼴을 가리지 않는다)', () => {
+  const src = [
+    "export const A = '안내 한 줄';",                       // 글자열
+    'export const B = { x: 1 };',                           // 한글 없음
+    "export const C = { k: '표 안의 글자' };",              // 표
+    "export const D = ['목록', '안의', '글자'];",           // 목록
+    'export const E = [1, 2, 3];',                          // 한글 없음
+    "export const F = `${A}. 이어 쓴 글자`;",               // 템플릿(리터럴 한글 있음)
+    'export const G = `${A}. ${B}`;',                        // 조립뿐 — 리터럴 한글 없음
+    "const H = '내보내지 않는다';",                          // export 아님
+  ].join('\n');
+  assert.deepEqual(exportedTextNames(src), ['A', 'C', 'D', 'F']);
+});
+
+test('exportedTextNames: 주석의 한글은 세지 않고, 여러 줄 표도 끝까지 읽는다', () => {
+  const commented = [
+    '// 이 줄은 사유를 적은 주석이다',
+    'export const A = { x: 1 };',
+    '/* 여러 줄 주석의 한글 */',
+    'export const B = [1];',
+  ].join('\n');
+  assert.deepEqual(exportedTextNames(commented), [], '주석의 한글을 등록부로 오인한다');
+
+  const multiline = [
+    'export const T = {',
+    '  1: \'첫 줄\',',
+    '  2: \'둘째 줄\',',
+    '};',
+    'export const N = 24;',
+  ].join('\n');
+  assert.deepEqual(exportedTextNames(multiline), ['T']);
+});
+
+test('exportedTextNames: 이상 입력에 throw 하지 않고 빈 목록이다', () => {
+  for (const bad of [null, undefined, '', 42, {}, []]) {
+    assert.doesNotThrow(() => exportedTextNames(bad));
+    assert.deepEqual(exportedTextNames(bad), [], `입력: ${String(bad)}`);
+  }
 });

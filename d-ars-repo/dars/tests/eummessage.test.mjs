@@ -41,9 +41,9 @@ import {
 } from '../lib/eumMessage.js';
 import {
   muteSeparatorsIn, EUM_PRIOR_TAIL, EUM_STEP_MIN, EUM_STEP_MAX, EUM_FLOW_STEPS, stepProgress,
-  STEP_GROUP_LABEL,
+  STEP_GROUP_LABEL, STEP_TITLE, ACTIVITIES, TIMESLOTS, priorLocalNotice,
 } from '../lib/eumSenior.js';
-import { importedModules, stripSourceComments } from '../lib/sourceLint.js';
+import { exportedTextNames, importedModules, stripSourceComments } from '../lib/sourceLint.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
@@ -697,49 +697,141 @@ test('조작 요소 이름: 등록부와 화면이 양방향으로 맞는다(손
 // 10회차는 「귀로 들을 때 사라지는 글자」를 고치고, 화면이 손으로 적는 문구를 전부 긁어
 // `muteSeparatorsIn` 으로 대조하게 했다(tests/eumseniorui.test.mjs). 그런데 11회차가 제출 실패
 // 다섯 문장을 화면에서 **이 파일로 옮기면서** 그 문장들은 더 이상 그 대조에 걸리지 않게 됐다 —
-// 가드가 문구를 따라오지 않은 것이다. 이번에 경계 화면 문구와 접수 문구까지 옮기므로
-// 네 표 전부를 여기서 같은 판정으로 본다.
+// 가드가 문구를 따라오지 않은 것이다. 그래서 옮긴 표들을 여기서 같은 판정으로 받는다.
+//
+// ── 고친 결함: 그 **목록을 손으로** 들고 있었다 ───────────────────────────────
+// 11·25·29·30회차는 표를 옮길 때마다 아래 목록에 **적어 주었다**. 적어야 한다는 것은
+// 안 적으면 조용히 빠진다는 뜻이고, 실제로 둘이 빠져 있었다 —
+//   · `STEP_TITLE` — 네 화면의 **제목**(32px h1)이고, 단계가 바뀔 때마다 포커스가 옮겨 가며
+//     낭독되는 바로 그 글자다(SeniorFlow 의 headingRef). 4단계만 `EUM_DONE_STATE` 를
+//     가리켜 간접적으로 걸렸고 1~3단계는 어느 대조에도 들어 있지 않았다.
+//   · `EUM_PRIOR_TAIL` — 보조 사본 안내의 끝 문장 다섯 자리. 그중 `confirm` 한 자리만
+//     tests/eumsenior.test.mjs 가 조립된 문장으로 한 번 보았고(세 가지 끝 문장 중 하나다),
+//     만료 둘·「이미 접수됐다」 둘은 아무도 보지 않았다.
+// 둘 다 `lib/eumSenior.js` 에 있어 **화면 쪽 글자 대조도 보지 못한다**(그 대조는 화면
+// 파일만 긁는다). 30회차가 「가드의 시야가 좁았다」를 고친 다음 자리이고, 이번에 좁았던
+// 것은 시야가 아니라 **목록을 사람이 적는다는 사실** 자체다.
+// 그래서 목록을 소스에서 **파생**한다(lib/sourceLint.exportedTextNames) — 아래
+// `TEXT_REGISTRY` 가 파생 목록과 양방향으로 맞아야 통과한다.
+
+// 어르신이 읽거나 듣는 글자를 들 수 있는 자리 = 어르신 화면이 끌고 들어와도 되는 eum 모듈
+// (위 CLIENT_SAFE_LIB). `lib/eumCountdown` 은 지금 한글을 한 자도 들지 않지만 목록에 둔다 —
+// 29회차까지 만료 임박 경고가 **거기** 있었고, 되돌아오는 날 이 대조가 받아야 한다.
+// 화면 파일의 등록부(`ui.jsx` 의 EUM_NOTICE_FOOT)는 여기 넣지 않는다 — 그쪽은 화면 쪽 대조가
+// **등록부든 아니든 한글 리터럴을 전부** 긁으므로(tests/eumseniorui.test.mjs) 빠질 자리가 없다.
+// 이 대조가 메우는 구멍은 「화면 파일이 아닌 lib 에 있는 표」다.
+const TEXT_SOURCES = {
+  'lib/eumMessage.js': MESSAGE_SRC,
+  'lib/eumSenior.js': read('lib/eumSenior.js'),
+  'lib/eumCountdown.js': read('lib/eumCountdown.js'),
+};
+
+// 파생 목록 ↔ 실제 값. 이름이 늘면 여기 적지 않으면 통과하지 못한다(양방향 대조).
+const TEXT_REGISTRY = {
+  // 패널의 제목·본문·머리말.
+  EUM_PANEL_TITLE,
+  EUM_PANEL_ASK,
+  EUM_PANEL_ASK_EXPIRED,
+  EUM_KICKER,
+  // 제출 실패 안내 다섯 문장(11회차에 화면에서 옮겨 왔다).
+  EUM_SUBMIT_MESSAGE,
+  // 접수 사실의 두 토막 — 이어 쓴 문장만 보면 토막 쪽 기호를 놓친다.
+  EUM_DONE_STATE,
+  EUM_DONE_NEXT,
+  // 경계 화면(오류·대기) 문구.
+  EUM_BOUNDARY_MESSAGE,
+  // 이미 접수된 링크를 만난 사람에게 하는 두 줄.
+  EUM_CONSUME_CHANGE_HINT,
+  EUM_CONSUME_UNKNOWN_HINT,
+  // 만료 임박 경고의 앞 토막·단계별 뒤 토막·제출 중 뒤 토막.
+  EUM_SOON_LEAD,
+  EUM_SOON_NEXT,
+  EUM_SOON_BUSY,
+  // 조작 요소의 이름(25회차). 끝에 붙은 줄임표(「신청하는 중…」)는 무엇과 무엇을 가르지
+  // 않으므로 경계가 아니다(muteSeparatorsIn 의 계약).
+  EUM_ACTION,
+  // 선택지의 표시 이름 — 구간을 낱말로 말한다(「오전 9시부터 12시까지」).
+  ACTIVITIES,
+  TIMESLOTS,
+  // 네 단계의 제목(이번에 더했다 — 위 결함 주석).
+  STEP_TITLE,
+  // 선택지 묶음의 이름(30회차) — 눈에 한 픽셀도 나타나지 않고 들리는 쪽에만 전해진다.
+  STEP_GROUP_LABEL,
+  // 보조 사본 안내의 끝 문장 다섯 자리(이번에 더했다 — 위 결함 주석).
+  EUM_PRIOR_TAIL,
+};
+
+// 등록부가 아니라 **조립되거나 함수가 짓는** 문장. 소스에 한글 리터럴이 없으므로 파생
+// 목록에 나타나지 않는다 — 그려지는 꼴을 여기서 손으로 넣는다(파생이 닫지 못하는 자리이고,
+// `exportedTextNames` 주석이 그 한계를 적어 두었다).
+const TEXT_ASSEMBLED = () => ({
+  // 제목이 없는 알림 한 줄(두 토막을 이어 쓴다).
+  EUM_TOKEN_MESSAGE,
+  EUM_DONE_MESSAGE,
+  // 단계 표시 — 낭독 영역에 들어가 단계마다 다시 읽힌다(「1단계 / 3단계」의 슬래시가
+  // 묵음이라는 사실이 이 과제의 첫 묵음 결함이었다).
+  EUM_STEP_PROGRESS: Object.fromEntries(
+    Array.from({ length: EUM_FLOW_STEPS }, (_, i) => [String(i + 1), stepProgress(i + 1)]),
+  ),
+  // 초 표시 — 보이는 쪽에만 전해지지만, 가운데에 값이 끼어 있어 화면 쪽 글자 노드 대조가
+  // 이 문단을 한 번도 지나가지 않던 자리다(30회차).
+  EUM_SECONDS: { left: secondsMessage(42) },
+  // 만료 임박 경고의 **조립된 한 문장**. 세 상태를 다 본다(평소·제출 중·바닥).
+  EUM_SOON_MESSAGE: Object.fromEntries(
+    Array.from({ length: EUM_FLOW_STEPS }, (_, i) => i + 1).flatMap((s) => [
+      [`s${s}`, soonMessage(s)],
+      [`s${s}.busy`, soonMessage(s, true)],
+      [`s${s}.floor`, soonMessage(s, false, true)],
+    ]),
+  ),
+  // 보조 사본 안내의 조립된 문장 — **등록부의 다섯 자리 전부**를 본다. 예전에는 한 자리
+  // (`confirm`)만 조립해 보았고, 끝 문장이 세 가지라 둘은 아무도 읽지 않았다.
+  EUM_PRIOR_NOTICE: Object.fromEntries(
+    Object.keys(EUM_PRIOR_TAIL).map((k) => [k, priorLocalNotice(PRIOR_SAMPLE, k)]),
+  ),
+});
+
+// 조립된 문장을 만들 때 쓰는 「전에 낸 신청」 한 벌(규격 안의 값 — 화이트리스트를 통과한다).
+const PRIOR_SAMPLE = { activity: 'walk', timeslot: 'morning' };
+
+// 값 안의 **모든 글자열**을 경로와 함께 펼친다(표·목록·중첩 전부). 글자가 아닌 값은 센다는
+// 말을 하지 않는다 — 모르는 것을 통과로도 위반으로도 넘기지 않는다.
+function stringsIn(value, path = '') {
+  if (typeof value === 'string') return value ? [[path || '(값)', value]] : [];
+  if (Array.isArray(value)) {
+    return value.flatMap((v, i) => stringsIn(v, path ? `${path}.${i}` : String(i)));
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value).flatMap(([k, v]) => stringsIn(v, path ? `${path}.${k}` : k));
+  }
+  return [];
+}
+
+test('문구 등록부 목록이 소스에서 파생된다(새 표가 조용히 빠지지 않는다)', () => {
+  const derived = new Set();
+  for (const [name, src] of Object.entries(TEXT_SOURCES)) {
+    for (const n of exportedTextNames(src)) {
+      assert.ok(!derived.has(n), `${name}: 등록부 이름이 두 파일에 있다 — ${n}`);
+      derived.add(n);
+    }
+  }
+  assert.ok(derived.size >= 15, `등록부를 찾지 못했다(검사가 비어 통과하면 안 된다): ${derived.size}건`);
+  assert.deepEqual(
+    Object.keys(TEXT_REGISTRY).sort(), [...derived].sort(),
+    '소스의 문구 등록부와 검사 목록이 어긋난다 — 새 표는 묵음 대조에 등록해야 한다',
+  );
+  // 등록한 값이 실제로 글자를 들고 있어야 한다(이름만 적고 값이 비면 대조가 조용히 빈다).
+  for (const [name, value] of Object.entries(TEXT_REGISTRY)) {
+    assert.ok(stringsIn(value).length > 0, `${name}: 등록했는데 글자가 없다`);
+  }
+});
+
 test('모든 문구 표에 낭독되지 않는 경계가 없다', () => {
-  const tables = {
-    EUM_TOKEN_MESSAGE,
-    EUM_SUBMIT_MESSAGE,
-    EUM_DONE_MESSAGE,
-    // 나눈 두 토막도 **화면에 그려지는 글자**다(진입 패널의 제목·본문) — 이어 쓴 문장만
-    // 보면 토막 쪽에 들어온 기호를 이 대조가 놓친다.
-    EUM_DONE_SPLIT: { ...EUM_DONE_STATE, next: EUM_DONE_NEXT },
-    EUM_BOUNDARY_MESSAGE,
-    // 제목·머리말·할 일 한 줄도 **화면에 그려지는 글자**다. 이 표로 옮겨 오면서 화면 쪽
-    // 대조(tests/eumseniorui)에서 빠졌으므로 여기서 같은 판정으로 받는다 — 11회차가 겪은
-    // "가드가 문구를 따라오지 않은 것" 을 되풀이하지 않게.
-    EUM_PANEL_TITLE,
-    EUM_PANEL_TEXT: { ask: EUM_PANEL_ASK, askExpired: EUM_PANEL_ASK_EXPIRED, kicker: EUM_KICKER },
-    // 이번에 옮겨 온 넷도 같은 판정으로 받는다 — 판정 모듈(eumConsume)·눈금 모듈
-    // (eumCountdown)에 있던 동안 이 대조를 비껴가고 있었다(가드가 문구를 따라오지 않은 자리).
-    EUM_CONSUME_HINT: { change: EUM_CONSUME_CHANGE_HINT, unknown: EUM_CONSUME_UNKNOWN_HINT },
-    EUM_SOON: { lead: EUM_SOON_LEAD, busy: EUM_SOON_BUSY, ...EUM_SOON_NEXT },
-    // 단계 표시도 **화면에 그려지는 글자**다 — 하필 낭독 영역에 들어가 단계마다 다시 읽히는
-    // 자리이고, 29회차까지 화면이 손으로 적어 이 대조 밖에 있었다(「1단계 / 3단계」의 슬래시가
-    // 묵음이라는 사실이 이 과제의 첫 묵음 결함이었는데, 그 문장만 표 밖에 남아 있었다).
-    // 등록부가 아니라 함수라 **그려지는 값 전부**를 넣는다.
-    EUM_STEP_PROGRESS: Object.fromEntries(
-      Array.from({ length: EUM_FLOW_STEPS }, (_, i) => [String(i + 1), stepProgress(i + 1)]),
-    ),
-    // 조작 요소의 이름도 **화면에 그려지는 글자**다(25회차에 이 표로 옮겨 왔다) — 화면 쪽
-    // 대조에서 빠졌으므로 여기서 같은 판정으로 받는다. 끝에 붙은 줄임표(「신청하는 중…」)는
-    // 무엇과 무엇을 가르지 않으므로 경계가 아니다(muteSeparatorsIn 의 계약).
-    EUM_ACTION,
-    // 30회차에 옮겨 온 둘. **선택지 묶음의 이름**은 눈에 한 픽셀도 나타나지 않고 들리는
-    // 쪽에만 전해지는 글자라(lib/eumSenior 의 STEP_GROUP_LABEL) 묵음 기호가 들어가도 눈으로는
-    // 알 수 없다. **초 표시**는 반대로 보이는 쪽에만 전해지는데, 가운데에 값이 끼어 있어서
-    // 화면 쪽 글자 노드 대조가 이 문단을 한 번도 지나가지 않았다 — 등록부가 아니라 함수라
-    // 그려지는 꼴을 넣는다(수는 lib/eumCountdown.secondsLeft 가 센다).
-    STEP_GROUP_LABEL,
-    EUM_SECONDS: { left: secondsMessage(42) },
-  };
+  const tables = { ...TEXT_REGISTRY, ...TEXT_ASSEMBLED() };
   const bad = [];
   let seen = 0;
-  for (const [table, entries] of Object.entries(tables)) {
-    for (const [key, msg] of Object.entries(entries)) {
+  for (const [table, value] of Object.entries(tables)) {
+    for (const [key, msg] of stringsIn(value)) {
       seen += 1;
       const marks = muteSeparatorsIn(msg);
       if (marks.length) bad.push(`${table}.${key}: "${msg}" → ${marks.join('')}`);

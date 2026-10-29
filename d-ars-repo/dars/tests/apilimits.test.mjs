@@ -12,6 +12,10 @@ import { fileURLToPath } from 'node:url';
 import {
   LIMIT_POLICY, limiter, consume, ipKey, resetLimits, limitsDisabled,
 } from '../lib/apiLimits.js';
+// 검증 실패의 키 범위는 사유별 등록부가 정한다 — 이 파일은 그 판정을 **그대로** 써서
+// 「같은 방의 다른 어르신이 막히지 않는다」를 실제 키로 확인한다(사본을 적지 않는다).
+import { failLimitScope } from '../lib/eumToken.js';
+import { consumeKey } from '../lib/eumConsume.js';
 
 function fresh(name) { resetLimits(name); }
 
@@ -171,6 +175,36 @@ test('이음 제출: 위조 토큰 홍수는 여전히 IP 단위(tokenFail)로 �
   assert.equal(consume('tokenFail', '198.51.100.7'), null, '다른 IP 로 전이되면 안 된다');
 });
 
+// ── 검증 실패 바구니에 **우리 링크**가 섞여 있었다 ─────────────────────────────
+//
+// 고친 결함: 위 '키 선택이 핵심' 규칙은 「검증 실패 → IP 단위로, **실제 위협(브루트포스)만
+// 겨냥한다**」다. 그런데 만료(`expired`)는 서명·sid·수명이 **모두 통과한 뒤**에만 나오는
+// 사유다 — 위조자가 아니라 **늦게 누른 어르신**이고, 링크 수명은 5분이라 고르는 사이에 죽는
+// 일이 드물지 않다. 그 410 들이 공유 IP 한 방(복지관·경로당)의 위협 예산을 깎으면 그 방의
+// 다음 실패 응답이 **429** 가 되고, 화면은 만료 패널 대신 「잠시 후 다시 눌러 주세요」를
+// 띄운다 — 죽은 링크에 대해 기다리는 것은 유일하게 아무 효과가 없는 일이다.
+// 사유별 키 범위의 단일 출처는 `lib/eumToken.EUM_FAIL_LIMIT_SCOPE`(사유 포함)다.
+test('이음 제출: 만료는 링크 단위라 같은 방의 다른 어르신을 막지 않는다', () => {
+  fresh('tokenFail');
+  const max = LIMIT_POLICY.tokenFail.max;
+  const keyOf = (token) => (failLimitScope('expired') === 'link' ? consumeKey(token) : 'ip-shared');
+  // 한 어르신의 만료 링크가 자기 몫을 다 쓴다(손이 떨려 여러 번 눌렀다고 하자).
+  const a = keyOf(`body.${'A'.repeat(43)}`);
+  assert.ok(a, '만료 토큰에서도 링크 키를 만들 수 있어야 한다');
+  for (let i = 0; i < max; i++) assert.equal(consume('tokenFail', a), null);
+  assert.ok(consume('tokenFail', a), '자기 한도는 정상적으로 걸려야 한다');
+  // 같은 방(같은 공인 IP)의 다음 어르신은 **링크가 다르므로** 영향을 받지 않는다 —
+  // 그 사람에게는 429 가 아니라 410(만료 안내)이 가야 한다.
+  for (const other of ['B', 'C', 'D']) {
+    assert.equal(consume('tokenFail', keyOf(`body.${other.repeat(43)}`)), null,
+      `옆 어르신의 만료가 429 로 덮였다: ${other}`);
+  }
+  // 위조는 여전히 링크 키를 만들 수 없는 쪽(IP)으로 간다 — 범위가 'ip' 이므로 호출측은
+  // 키를 만들지 않는다. 서명 부분이 규격 밖인 토큰은 키 자체가 비어 있다(IP 로 물러선다).
+  assert.equal(failLimitScope('signature'), 'ip');
+  assert.equal(consumeKey('body.short'), '', '규격 밖 서명으로 링크 키를 만들면 안 된다');
+});
+
 test('이음 제출 라우트: 유효한 링크는 링크 단위, 검증 실패만 IP 단위로 센다', () => {
   // 검증 실패 경로에서만 ipKey 를 쓴다 — 유효 토큰 경로에 ipKey 가 되살아나면 실패한다.
   const failBlock = ROUTE_SRC.slice(
@@ -178,7 +212,15 @@ test('이음 제출 라우트: 유효한 링크는 링크 단위, 검증 실패�
     ROUTE_SRC.indexOf('const linkKey'),
   );
   assert.ok(failBlock.length > 0, '검증 실패 분기를 찾지 못했다(라우트 구조 변경?)');
-  assert.match(failBlock, /consume\('tokenFail',\s*ipKey\(req\)\)/, '위조 홍수를 IP 로 막지 않는다');
+  // 사유별 키 범위는 **등록부**가 정한다(lib/eumToken) — 라우트가 사유 이름을 손으로 적으면
+  // 그 판정이 두 자리에서 정해진다. 범위가 'link' 가 아니면 IP 로 물러선다.
+  assert.match(failBlock, /failLimitScope\(verdict\.reason\) === 'link'/,
+    '검증 실패의 키 범위를 등록부에서 가져오지 않는다');
+  assert.match(failBlock, /consume\('tokenFail',\s*mine \|\| ipKey\(req\)\)/,
+    '위조 홍수를 IP 로 막지 않거나, 링크 키를 못 만들 때 물러서지 않는다');
+  // 그 429 는 **무엇이 막혔는지**까지 로그에 남긴다 — 방 하나가 만료 링크로 예산을 채운 것과
+  // 위조 홍수가 구별되지 않으면 이 고침이 실제로 섰는지 되짚을 근거가 없다.
+  assert.match(failBlock, /rate_limited_\$\{verdict\.reason\}/, '429 가 사유를 지운다');
 
   assert.match(ROUTE_SRC, /const linkKey = consumeKey\(token\)/, '링크 단위 키를 만들지 않는다');
   assert.match(ROUTE_SRC, /consume\('eumSubmit',\s*linkKey/, '제출 한도가 링크 단위가 아니다');

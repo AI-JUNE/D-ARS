@@ -31,7 +31,12 @@ export const LIMIT_POLICY = {
   // 서명토큰 스코프 공개 API: 세션 단위(키 = sessionId)
   visualState:  { windowMs: 60_000, max: 120 },  // 2.5초 폴링(≈24회/분) 대비 5배
   visualAction: { windowMs: 60_000, max: 60 },   // 화면 버튼 조작 — 사람 손 속도 대비 충분
-  // 토큰 검증 실패 전용: IP 단위(키 = ip). 브루트포스만 겨냥해 빡빡하게.
+  // 토큰 검증 실패 전용. 브루트포스만 겨냥해 빡빡하게.
+  // 키는 **사유가 정한다**(기본은 IP · 호출측이 고른다): 서명이 우리 것임이 확인된 뒤에만
+  // 나오는 사유는 그 링크 단위로 센다. 이음 어르신 링크의 `expired` 가 그런 사유이고
+  // (서명·sid·수명이 모두 통과한 뒤의 상태다 — 위조자가 아니라 늦게 누른 어르신이다),
+  // 그것을 IP 로 세는 동안 공유 IP 한 방의 만료 링크들이 서로의 예산을 깎아 **만료 안내가
+  // 429 로 덮였다**. 사유별 범위는 `lib/eumToken.EUM_FAIL_LIMIT_SCOPE` 가 사유와 함께 든다.
   tokenFail:    { windowMs: 60_000, max: 20 },
   // 머신 수집(콜봇 → /api/sessions POST): IP 단위. 통화당 이벤트가 잦아 넉넉히.
   ingest:       { windowMs: 60_000, max: 300 },

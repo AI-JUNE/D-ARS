@@ -2,9 +2,12 @@
 // 계약: 정상 발급→검증 통과 · 위조/파손/만료는 사유별로 구분 · 어떤 입력에도 throw 없음.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   EUM_TOKEN_TTL_MS,
   EUM_TOKEN_MAX_TTL_MS,
+  EUM_FAIL_LIMIT_SCOPE,
+  failLimitScope,
   issueEumToken,
   verifyEumToken,
   withinTokenLifetime,
@@ -203,4 +206,49 @@ test('만료 판정은 sid 를 함께 돌려준다(서명이 이미 검증된 �
   for (const bad of ['abc', '', null]) {
     assert.equal((await verifyEumToken(bad, T0)).sid, undefined, `입력: ${String(bad)}`);
   }
+});
+
+// ── 검증 실패에도 한도의 키가 둘이다 ───────────────────────────────────────
+//
+// 고친 결함: 25회차가 제출 한도를 **링크 단위**로 옮긴 사유는 「토큰이 유효하면 전이되지 않는
+// 키로, 검증 실패만 IP 로 — 실제 위협(브루트포스)만 겨냥한다」였다(lib/apiLimits 머리 주석).
+// 그 고침이 `verdict.ok` 한 분기에서 멈췄고, 옆 분기에 **우리가 발급한 링크**가 섞여 있었다 —
+// `expired` 다. 그 사유는 서명·sid·수명이 **모두 통과한 뒤**에만 나온다. 공유 IP 한 방
+// (복지관·경로당)에서 고르는 사이에 죽은 링크들이 서로의 위협 예산을 깎으면, 그 방의 다음
+// 실패 응답이 410 이 아니라 429 가 되고 화면은 「잠시 후 다시 눌러 주세요」만 말한다 —
+// 죽은 링크에 대해 기다리는 것은 유일하게 아무 효과가 없는 일이다.
+test('한도 키 범위: 만료는 우리 링크라 링크 단위, 그 밖의 실패는 IP 단위다', () => {
+  assert.equal(failLimitScope('expired'), 'link', '만료는 우리가 발급한 링크다');
+  for (const r of ['missing', 'malformed', 'signature', 'lifetime']) {
+    assert.equal(failLimitScope(r), 'ip', `${r}: 위조·잘린 링크는 IP 로 조여야 한다`);
+  }
+  // `lifetime` 만은 서명이 맞는데도 IP 다 — 그것은 **우리가 발급할 수 없는 모양**이고,
+  // 그 토큰을 만들 수 있는 사람은 서명 비밀을 쥔 쪽이다(위 lifetime 테스트 참조).
+  assert.equal(EUM_FAIL_LIMIT_SCOPE.lifetime, 'ip');
+});
+
+test('한도 키 범위: 모르는 사유·프로토타입 이름은 닫히는 쪽(IP)으로 떨어진다', () => {
+  for (const bad of ['', 'nope', 'constructor', '__proto__', 'toString', 'hasOwnProperty',
+    null, undefined, 42, {}, [], Symbol('x')]) {
+    assert.equal(failLimitScope(bad), 'ip', `입력: ${String(bad)}`);
+  }
+  // 등록부에 적힌 값도 그 둘뿐이어야 한다 — 'link' 가 아닌 오타는 ip 로 떨어지지만,
+  // 그때 등록부는 **적은 사람이 의도한 것과 다른 말**을 하게 된다.
+  for (const [reason, scope] of Object.entries(EUM_FAIL_LIMIT_SCOPE)) {
+    assert.ok(scope === 'link' || scope === 'ip', `${reason}: 모르는 범위 이름 — ${scope}`);
+  }
+});
+
+// 등록부 ↔ 검증이 돌려주는 사유를 **양방향**으로 대조한다. 사유가 하나 늘어나면 그 사유의
+// 키 범위를 적게 만드는 것이 이 대조의 목적이다 — 적지 않으면 기본값(ip)으로 조용히
+// 떨어지고, 그때 「만료만 링크 단위」라는 서술이 다시 코드보다 앞선다.
+test('한도 키 등록부가 verifyEumToken 의 사유 전부를 들고 있다(양방향)', () => {
+  const src = readFileSync(new URL('../lib/eumToken.js', import.meta.url), 'utf8');
+  // 이 함수가 돌려줄 수 있는 사유 전부(`return { ok: false, reason: '…' }`).
+  const fromSource = new Set([...src.matchAll(/reason:\s*'([a-z]+)'/g)].map((m) => m[1]));
+  assert.ok(fromSource.size >= 5, `사유를 찾지 못했다(검사가 비어 통과하면 안 된다): ${fromSource.size}`);
+  assert.deepEqual(
+    Object.keys(EUM_FAIL_LIMIT_SCOPE).sort(), [...fromSource].sort(),
+    '검증 사유와 한도 키 등록부가 어긋난다',
+  );
 });

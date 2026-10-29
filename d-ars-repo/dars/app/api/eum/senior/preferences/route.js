@@ -17,7 +17,7 @@
 // 응답은 언제나 무엇이 실제로 일어났는지 그대로 말한다 — `delivered:false` 를 성공처럼
 // 꾸미지 않는다(QUALITY_BAR §3).
 
-import { verifyEumToken } from '@/lib/eumToken';
+import { failLimitScope, verifyEumToken } from '@/lib/eumToken';
 import { consumeKey, consumeStore, consumeMessage } from '@/lib/eumConsume';
 import { buildPreferences } from '@/lib/eumSenior';
 import { readJson } from '@/lib/validate';
@@ -65,9 +65,19 @@ export async function POST(req) {
   // 그래서 유효한 링크는 **링크 단위**로 센다(consumeKey = 서명 부분 · 페이로드 복원 불가).
   // 한 어르신의 재시도가 옆자리 어르신에게 전이되지 않는다. 위조 토큰 홍수는 아래 tokenFail
   // (IP 단위)이 그대로 막는다 — 실제 위협만 겨냥한다는 원칙은 그대로다.
+  // 검증 실패도 **한 바구니가 아니다.** 사유마다 키의 범위가 등록부에 적혀 있다
+  // (`lib/eumToken.EUM_FAIL_LIMIT_SCOPE`) — 서명이 우리 것임이 확인된 뒤에만 나오는 사유
+  // (`expired`)는 **링크 단위**로, 나머지(위조·잘린 링크·우리가 발급할 수 없는 수명)는
+  // IP 단위로 센다. 25회차의 고침이 `verdict.ok` 한 분기에서 멈춰 있던 자리이고, 그 동안
+  // 공유 IP 한 방의 만료 링크들이 서로의 예산을 깎아 **만료 안내가 429 로 덮였다**
+  // (그 등록부 주석 참조). 키를 못 만들면 IP 로 물러선다 — 한도 없이 통과시키지 않는다.
   if (!verdict.ok) {
-    const flood = consume('tokenFail', ipKey(req));
-    if (flood) return finish(flood, 'rate_limited');
+    const mine = failLimitScope(verdict.reason) === 'link' ? consumeKey(token) : '';
+    const flood = consume('tokenFail', mine || ipKey(req));
+    // 429 는 **무엇이 막혔는지**까지 남긴다. 예전에는 `rate_limited` 한 가지라, 방 하나가
+    // 만료 링크로 예산을 채운 것과 위조 홍수가 로그에서 구별되지 않았다 — 하필 그 구별이
+    // 이 고침의 근거였다(관측되지 않는 고침은 다음 사람이 되돌린다).
+    if (flood) return finish(flood, `rate_limited_${verdict.reason}`);
     return finish(tokenFailure(verdict.reason), `token_${verdict.reason}`);
   }
 
