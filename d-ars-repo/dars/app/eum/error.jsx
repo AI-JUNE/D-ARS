@@ -62,8 +62,18 @@
 
 import { useEffect, useRef } from 'react';
 // 순수 포맷터만 가져온다(전송 로직 미사용) — 브라우저에서 외부 통신은 일어나지 않는다.
-// 메시지는 buildEvent 안에서 마스킹되고 스택은 애초에 봉투에 담기지 않는다(lib/monitor 계약).
-import { buildEvent, monitorLine } from '@/lib/monitor';
+// 메시지는 buildEvent 안에서 마스킹되고 스택은 애초에 봉투에 담기지 않는다.
+//
+// ── 고친 결함: **전송 쪽이 어르신 화면 번들에 실려 있었다** ────────────────────────
+// 그 둘을 `@/lib/monitor` 에서 가져오는 동안, 그 모듈이 통째로 이 청크에 들어왔다 —
+// 빌드 산출물(`app/eum/error-*.js`)에 `captureError`·스로틀 Map·`MONITOR_DSN` 조회와
+// **수집기로 POST 하는 `fetch(dsn, …)`** 가 모두 있었다. 그리고 이 청크는 오류가 났을 때만
+// 받는 것이 아니다: `/eum` HTML 의 head 가 **미리 받는다**(어르신이 화면을 열 때마다다).
+// 9회차가 서명 비밀(`lib/eumToken`)을, 26회차가 소진 판정(`lib/eumConsume`)을 어르신 번들에서
+// 떼어 낸 그 경계이고, 그때 `lib/monitor` 를 허용한 사유는 「화면이 전송 쪽을 **부르지**
+// 않는다」였다 — 앞의 두 번이 본 것은 **실리는가**였으니 같은 전제에서 반대 결론을 낸 자리다.
+// 지금 봉투 포맷터는 환경변수도 통신도 모르는 자리에 있다(lib/monitorEvent.js).
+import { buildEvent, monitorLine } from '@/lib/monitorEvent';
 // 문구는 어르신 화면 문구의 단일 출처에서 가져온다. 예전에는 이 파일이 넷을 손으로 적었고,
 // 본문은 「잠시 뒤 **아래** 단추를…」로 **자리를 가리켰다** — 11회차가 제출 실패 안내에서
 // 없앤 바로 그 낱말이다(lib/eumMessage.js 의 EUM_BOUNDARY_MESSAGE 참조).

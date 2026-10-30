@@ -6,10 +6,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MONITOR_LEVELS, DEFAULT_THROTTLE_MS,
-  scrubText, scrubContext, errorShape, normalizeLevel,
-  buildEvent, fingerprint, shouldSend, monitorLine, isMonitorEnabled, captureError,
+  DEFAULT_THROTTLE_MS,
+  fingerprint, shouldSend, isMonitorEnabled, captureError,
 } from '../lib/monitor.js';
+// 봉투를 **짓는** 부분은 환경변수도 통신도 모르는 자리에 있다(브라우저에서 도는 오류 경계가
+// 그 둘을 쓰기 때문이다 — 전송 쪽이 어르신 화면 번들에 실리고 있었다).
+import {
+  MONITOR_LEVELS,
+  scrubText, scrubContext, errorShape, normalizeLevel, buildEvent, monitorLine,
+} from '../lib/monitorEvent.js';
 
 // 콘솔을 잠시 가로채 출력 줄을 수집한다(테스트 로그 오염 방지 겸용).
 function captureConsole(fn) {

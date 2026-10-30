@@ -340,7 +340,8 @@ const CLIENT_FILES = {
 };
 
 // 클라이언트 파일이 import 해도 되는 `@/lib/*` 모듈 ↔ 사유.
-// `env` 가 붙은 항목만 환경변수를 읽을 수 있다(그 사유도 함께 적는다).
+// `env` 가 붙은 항목만 환경변수를 읽을 수 있고, `net` 이 붙은 항목만 **바깥으로 보내는 코드**를
+// 들 수 있다(둘 다 사유를 함께 적는다 — 아래 monitorEvent 자리의 주석이 `net` 이 생긴 이유다).
 const CLIENT_SAFE_LIB = {
   '@/lib/eumSenior': { why: '흐름 규칙의 순수 로직(단계·주소·히스토리·보조 사본 판정) — 저장소도 통신도 없다' },
   // (사유 정정: 「단조 눈금」이라고 적어 두었는데 `performance.now()` 가 없는 환경에서는
@@ -348,12 +349,19 @@ const CLIENT_SAFE_LIB = {
   //  없는 선언만 그것을 가린다. 어느 쪽이든 순수 계산이고 통신·저장소는 없다.)
   '@/lib/eumCountdown': { why: '남은 시간 계산(순수 · 눈금 출처를 함께 든다) — 문서 속성 한 칸만 읽고 쓴다' },
   '@/lib/eumMessage': { why: '화면 문구의 단일 출처 — 문자열뿐이고 import 한 줄도 없다' },
-  '@/lib/fetchJson': { why: '제출 한 번을 보내는 자리 — 상한·오프라인 판정은 브라우저 쪽 사실이다' },
-  '@/lib/monitor': {
-    why: '오류 경계가 쓰는 것은 봉투 포맷터 둘(buildEvent·monitorLine)이고, 화면은 콘솔에만 적는다',
-    // 환경변수를 읽는 줄은 **전송 쪽**(isMonitorEnabled·deliver)이고 화면은 그 길을 부르지
-    // 않는다. 공개 접두어가 아닌 값은 클라이언트 번들에 끼워 넣어지지도 않는다.
-    env: '전송 쪽에서만 읽는다 — 화면이 부르는 포맷터 둘은 환경을 모른다',
+  '@/lib/fetchJson': {
+    why: '제출 한 번을 보내는 자리 — 상한·오프라인 판정은 브라우저 쪽 사실이다',
+    net: '보내는 것이 이 모듈의 일이다 — 주소는 호출측이 적고(우리 API 한 곳) 상한이 걸려 있다',
+  },
+  // 고친 결함: 이 자리는 한동안 `@/lib/monitor` 였고, 사유가 「환경변수를 읽는 줄은 **전송
+  // 쪽**이고 화면은 그 길을 부르지 않는다」였다. 그 사유는 **부르는가**를 본 것이고, 바로 위
+  // 두 항목(eumToken·eumConsume)을 떼어 낸 이유는 **실리는가**였다 — 같은 전제에서 반대
+  // 결론을 낸 자리다. 그리고 실제로 실려 있었다: 빌드 산출물의 `app/eum/error-*.js` 안에
+  // `captureError`·스로틀 Map·`MONITOR_DSN` 조회와 수집기로 POST 하는 `fetch` 가 모두 있었고,
+  // 그 청크는 `/eum` HTML 의 head 가 **미리 받는다**(오류가 나야 받는 것이 아니다).
+  // 지금 봉투 포맷터는 환경변수도 통신도 모르는 자리에 있다(아래 `env` 가 사라진 이유다).
+  '@/lib/monitorEvent': {
+    why: '오류 봉투를 짓는 순수 부분(마스킹·봉투·한 줄 포맷) — 환경변수도 통신도 한 줄 없다',
   },
 };
 
@@ -384,6 +392,19 @@ test('클라이언트 화면이 끌고 들어오는 lib 가 전부 등록돼 있
   assert.deepEqual([...used].sort(), Object.keys(CLIENT_SAFE_LIB).sort(), '등록부와 실제 import 가 어긋난다');
 });
 
+// 바깥으로 내보내는 수단. 어느 하나라도 들어오면 그 모듈은 **어르신 화면에서 바깥과 통할 수
+// 있다**는 뜻이다 — 사유(`net`)를 등록하거나 떼어 내야 한다.
+//
+// 왜 이 축이 늘었나: 종전 대조는 서버 쪽 **성질**(전역 상태·노드 API·서명·DB)과 환경변수만
+// 보았고, 「바깥으로 보내는 코드」는 보지 않았다. 그래서 `@/lib/monitor`(수집기로 POST 하는
+// `deliver` 를 든 전송 모듈)가 「화면이 그 길을 부르지 않는다」는 사유로 통과했다 — 부르는가와
+// 실리는가를 가른 자리이고, 빌드 산출물에는 실려 있었다.
+// 이름을 **좁게 적지 않는다**: `fetch(` 만 찾으면 이 저장소의 보내는 모듈조차 걸리지 않는다
+// (`lib/fetchJson` 은 `const f = fetchImpl || fetch` 로 받아 `f(url, …)` 로 부른다 — 호출
+// 자리에는 그 이름이 없다). 가드가 자기 이름보다 좁아지는 길이 바로 이것이라, 보내는 수단에
+// **닿는 이름**을 전부 본다.
+const OUTBOUND_MARKS = ['fetch', 'XMLHttpRequest', 'sendBeacon', 'WebSocket', 'EventSource'];
+
 test('등록된 모듈은 서버 쪽 성질(전역 상태·노드 API·서명·DB)을 들고 있지 않다', () => {
   for (const [spec, entry] of Object.entries(CLIENT_SAFE_LIB)) {
     assert.ok(entry && typeof entry.why === 'string' && entry.why.length > 10, `${spec}: 사유가 없다`);
@@ -393,6 +414,24 @@ test('등록된 모듈은 서버 쪽 성질(전역 상태·노드 API·서명·D
     }
     if (!entry.env) {
       assert.ok(!code.includes('process.env'), `${spec}: 환경변수를 읽는다 — 사유를 등록하거나 떼어 내라`);
+    }
+    if (!entry.net) {
+      for (const mark of OUTBOUND_MARKS) {
+        assert.ok(!code.includes(mark),
+          `${spec}: 바깥으로 보내는 코드(${mark})가 들어왔다 — 사유를 등록하거나 떼어 내라`);
+      }
+    }
+  }
+  // 사유를 등록한 자리는 **실제로 그 성질을 들고 있어야** 한다(쓰이지 않는 허가는 표를 썩히고,
+  // 다음 사람이 "여기는 보내도 된다" 를 근거 없이 물려받는다).
+  for (const [spec, entry] of Object.entries(CLIENT_SAFE_LIB)) {
+    const code = stripComments(read(`lib/${spec.replace('@/lib/', '')}.js`));
+    if (entry.net) {
+      assert.ok(typeof entry.net === 'string' && entry.net.length > 10, `${spec}: net 사유가 없다`);
+      assert.ok(OUTBOUND_MARKS.some((m) => code.includes(m)), `${spec}: 보내지 않는데 허가가 남아 있다`);
+    }
+    if (entry.env) {
+      assert.ok(code.includes('process.env'), `${spec}: 환경을 읽지 않는데 허가가 남아 있다`);
     }
   }
   // 떼어 낸 **이유가 유효한지** 함께 고정한다(eumToken 쪽 대조와 같은 계약) — 소진 판정

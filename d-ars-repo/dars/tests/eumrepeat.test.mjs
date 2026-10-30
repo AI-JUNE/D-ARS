@@ -310,21 +310,28 @@ test('클라이언트 화면은 소진 판정 모듈을 아예 import 하지 않
 // ── 완료 화면: 실제로 접수된 것만 말한다 ───────────────────────────────────
 test('완료 화면: 409 면 서버가 알려 준 「먼저 접수된 선택」을 읽는다', () => {
   assert.match(FLOW, /parseAccepted\(data && data\.accepted\)/);
-  // 본문 읽기는 이제 **busy 를 푸는 앞**에 있다(바로 아래 「busy 를 푼 뒤에는 await 가 없다」
-  // 테스트의 이유). 그래서 이 갈림에는 `await` 가 없고 미리 읽어 둔 `prior` 를 쓴다 —
-  // 읽는 자리가 하나라는 사실은 그 테스트가 함께 고정한다.
-  assert.match(FLOW, /const prior = await acceptedFrom\(res\);/,
-    '409 본문을 응답 직후 한 자리에서 읽지 않는다');
-  const branch = FLOW.slice(FLOW.indexOf('res.status === 409'), FLOW.indexOf('res.status === 410'));
+  // 본문은 응답과 **함께** 온다(fetchOnce 의 `json: true` — 같은 시간 상한 안에서 읽는다).
+  //
+  // 정정: 한동안 이 자리는 화면이 손으로 하던 본문 읽기(`await acceptedFrom(res)`)를 고정했다.
+  // 그 읽기는 `fetchOnce` 의 상한 **밖**이었다 — `fetch` 는 머리가 오면 resolve 하고 상한
+  // 타이머는 그때 꺼지므로, 서버가 머리만 보내고 본문을 흘리지 않으면 「신청하는 중…」이
+  // 영영 풀리지 않았다. 하필 본문을 읽는 이유가 409 이고, 409 의 전제가 **나쁜 연결**이다
+  // (아래 「busy 를 푼 뒤에는 await 가 없다」가 그 사실을 적어 두고도 그 한 줄은 보지 않았다).
+  assert.match(FLOW, /const prior = res && res\.status === 409 \? parseAccepted\(data && data\.accepted\) : null;/,
+    '409 본문을 응답과 함께(상한 안에서) 받지 않는다');
+  assert.match(FLOW, /json:\s*true/, '본문을 상한 밖에서 읽는다');
+  // 갈림의 시작은 `if (res.status === 409) {` 다 — 본문 판정 한 줄에도 같은 비교가 있으므로
+  // 느슨하게 찾으면 그 위의 200 갈림까지 함께 들어온다.
+  const branch = FLOW.slice(FLOW.indexOf('if (res.status === 409) {'), FLOW.indexOf('if (res.status === 410) {'));
   assert.ok(branch.length > 20, '409 갈림을 찾지 못했다');
   assert.equal(/await/.test(branch), false, '409 갈림이 다시 응답을 기다린다');
   assert.match(branch, /setAccepted\(prior\)/);
   assert.match(branch, /setAlready\(true\)/);
   assert.equal(/finishSubmitted\(body\)/.test(branch), false,
     '방금 고른 것을 접수된 것처럼 그리면 안 된다');
-  // 409 가 아니면 곧바로 null 이어야 한다 — 그래야 다른 경로의 대기가 늘지 않는다.
-  assert.match(FLOW, /if \(!res \|\| res\.status !== 409\) return null;/,
-    '409 가 아닌 응답에서도 본문을 읽으려 기다린다');
+  // 본문을 읽는 자리가 화면에 다시 생기면 그것은 상한 밖이다(tests/nohang 이 전역으로 막는다).
+  assert.equal(/res\.json\(\)/.test(stripSourceComments(FLOW)), false,
+    '화면이 본문을 직접 읽으면 상한 밖에서 멈출 수 있다');
 });
 
 // 정정: 이 테스트는 두 문장이 **화면 안에 적혀 있는지**를 보며 통과했다 — 즉 사본을 고정하는
@@ -414,6 +421,14 @@ test('제출 중 만료 보류가 서버 판정을 무르게 하지 않는다(41
 // 경우다 — 바로 위 테스트들이 적어 둔 그 경로). 그 연결에서 본문 스트림 읽기가 짧다는
 // 보장은 없다. 그래서 자리 하나를 옮기는 대신 **불변식**으로 고정한다 — 다음에 응답을
 // 한 번 더 읽는 코드가 생기는 날 여기서 실패한다.
+//
+// (정정: 그 자리 옮김은 **절반**이었다 — 바로 위 문단이 「본문 스트림 읽기가 짧다는 보장은
+//  없다」고 적어 두고서도 그 읽기에 **상한을 걸지 않았다**. `fetchOnce` 는 응답 머리가 오면
+//  resolve 하며 상한 타이머를 끄므로, 앞으로 옮긴 그 `await` 는 상한 **밖**에서 영영 멈출 수
+//  있었다 — 그러면 busy 가 풀리지 않아 만료 보류는 지켜지지만 「신청하는 중…」이 영영 끝나지
+//  않는다(이 과제가 애초에 fetchOnce 를 들인 이유가 그 상태를 없애는 것이었다).
+//  지금은 본문이 응답과 함께 오므로 submit 안의 `await` 가 **하나뿐**이고, 이 불변식은 자리
+//  약속이 아니라 구조가 되었다.)
 test('busy 를 푼 뒤에는 await 가 없다(만료 보류가 응답을 읽는 사이에 끊기지 않는다)', () => {
   const code = stripSourceComments(FLOW);
   const submitAt = code.indexOf('async function submit');
@@ -423,9 +438,12 @@ test('busy 를 푼 뒤에는 await 가 없다(만료 보류가 응답을 읽는 
   assert.ok(at > 0, 'submit 안에서 busy 를 푸는 자리를 찾지 못했다');
   assert.equal(/await/.test(submitBody.slice(at)), false,
     'busy 를 푼 뒤에 기다리는 자리가 있으면 done 이 아직 false 인 커밋이 생긴다 — 화면이 방금 접수된 신청 위에 만료를 선언할 수 있다');
-  // 본문 읽기는 그 **앞**에 있어야 한다(없으면 409 가 먼저 접수된 선택을 말할 수 없다).
-  const readAt = submitBody.indexOf('await acceptedFrom(res)');
-  assert.ok(readAt > 0 && readAt < at, '409 본문을 busy 를 푼 뒤에 읽는다');
+  // 기다리는 자리는 **하나**여야 한다 — 두 번째 `await` 는 상한 밖의 기다림이거나(본문을
+  // 손으로 읽는 길) busy 를 푼 뒤의 기다림이다. 둘 다 고친 결함이다.
+  const waits = [...submitBody.matchAll(/\bawait\b/g)].length;
+  assert.equal(waits, 1, `submit 안의 기다림이 하나가 아니다(${waits}곳) — 본문은 응답과 함께 와야 한다`);
+  const readAt = submitBody.indexOf('res.status === 409 ? parseAccepted');
+  assert.ok(readAt > 0 && readAt < at, '409 본문 판정이 busy 를 푼 뒤에 있다');
 });
 
 // ── 토큰 왕복(실제 값으로) ─────────────────────────────────────────────────

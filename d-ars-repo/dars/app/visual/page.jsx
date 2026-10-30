@@ -76,13 +76,21 @@ export default function Visual() {
       try {
         // 시간 상한 필수: 응답 없는 폴링은 성공도 실패도 보고하지 않아 아래 연속 실패
         // 카운터를 멈춰 세우고, 장애 폴백(SCREEN_LOST_MESSAGE)이 영영 켜지지 않게 만든다.
-        const { res: r, failure } = await fetchOnce(`/api/visual/state?s=${encodeURIComponent(s)}`, {
-          cache: 'no-store', timeout: SCREEN_POLL_TIMEOUT_MS,
+        //
+        // 고친 결함: 그 상한이 응답 **머리까지만** 덮었다. 본문 읽기(`await r.json()`)는
+        // 상한 밖이라, 서버가 헤더만 보내고 본문을 흘리지 않으면 이 한 바퀴가 `mark()` 를
+        // **한 번도 부르지 않는다** — 연속 실패가 쌓이지 않아 끊김 안내가 영영 뜨지 않고,
+        // 매 주기마다 끝나지 않는 요청이 하나씩 쌓인다. 즉 lib/ivrFallback 이 적어 둔
+        // 「상한 < 주기 → 멈춌 요청은 다음 폴링 전에 반드시 실패로 확정되고 겹겹이 쌓이지
+        // 않는다」가 참이 아니었다. 지금은 본문도 같은 상한 안에서 받아 온다(`json: true`).
+        const { res: r, failure, data: d } = await fetchOnce(`/api/visual/state?s=${encodeURIComponent(s)}`, {
+          cache: 'no-store', json: true, timeout: SCREEN_POLL_TIMEOUT_MS,
         });
         if (failure || !r.ok) { mark(false); return; }
-        const d = await r.json();
         if (!alive) return;
-        if (!d.ok) { mark(false); return; }
+        // 본문을 못 받은 것도(상한·JSON 아님) **실패로 센다** — 노드를 알 수 없으면 화면은
+        // 통화를 따라가지 못하므로, 그 상태가 이어지면 음성 안내로 넘겨야 한다.
+        if (!d || !d.ok) { mark(false); return; }
         mark(true);
         if (d.node && d.node !== lastNode) {   // 콜봇이 새 노드를 push하면 화면 전환
           lastNode = d.node;

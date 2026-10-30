@@ -83,6 +83,36 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 //   failure: 'timeout'(상한 초과로 우리가 끊음) · 'offline'(브라우저가 오프라인) ·
 //            'network'(연결 실패·중단) · null(응답 도착 — 상태코드 판정은 호출부의 몫)
 // 상태코드는 실패로 보지 않는다. 4xx/5xx 도 "응답이 도착한 것"이므로 `res` 로 넘긴다.
+//
+// ── 고친 결함: **상한이 머리만 덮고 본문은 덮지 않았다** ─────────────────────────
+//
+// `fetch` 는 **응답 머리(헤더)가 오면 resolve** 하고 본문은 그 뒤에 스트림으로 온다. 그런데
+// 위 타이머를 끄는 자리가 `finally` 였다 — 즉 머리가 도착한 순간 상한이 풀리고, 호출측이
+// 이어서 하는 `await res.json()` 에는 **아무 상한도 걸려 있지 않았다.** 연결은 살아 있는데
+// 서버가 본문을 흘려 보내지 않으면(모바일 음영·프록시·콜드스타트) 그 약속은 영원히 미해결로
+// 남는다. 이 함수가 생긴 이유가 바로 그 상태를 없애는 것이었는데(위 주석의 두 사고) **한 걸음
+// 뒤에 같은 것이 그대로 남아 있었다.** 세 화면이 모두 그 뒤에서 본문을 읽고 있었다:
+//   · 「이음 어르신 신청」 제출 — 단추가 「신청하는 중…」인 채 영영 멈춘다(`busy` 가 풀리지
+//     않으므로 다시 누를 수도 없고, 그 사이 5분 링크가 죽는다). 하필 본문을 읽는 이유가
+//     409(이미 접수됨)인데, 409 의 전제가 **나쁜 연결**이다.
+//   · 고객 화면 `/visual` 폴링 — 본문에서 멈추면 그 한 바퀴가 `pollNext` 를 **한 번도 부르지
+//     않는다**. 연속 실패가 쌓이지 않아 끊김 안내(SCREEN_LOST_MESSAGE)가 켜지지 않고,
+//     `lib/ivrFallback` 이 「상한(2초) < 주기(2.5초) 이므로 멈춘 요청은 다음 폴링 전에 반드시
+//     실패로 확정되고 겹겹이 쌓이지도 않는다」고 적어 둔 **그 불변식이 참이 아니었다**
+//     (본문에서 멈춘 요청은 매 주기마다 하나씩 쌓인다).
+//   · 로그인 — 단추가 「확인 중…」에서 멈춘다.
+// 왜 아무도 몰랐나: 가드(tests/nohang.test.mjs)는 화면 소스에서 **맨 `fetch(`** 를 찾는다.
+// 본문 읽기는 `fetch` 가 아니라 `res.json()` 이라 그 대조를 지나간다 — 그리고 그 가드는
+// 로그인 쪽의 `try { d = await res.json(); } catch {}` 를 **리터럴로 고정**하고 있었다
+// (결함을 고정하는 테스트였다). 이름은 「응답 없는 요청은 반드시 끝난다」였다.
+//
+// 그래서 본문도 **같은 상한 안에서** 읽는다(`json: true`). 상한을 넘기면 우리가 스트림을
+// 끊으므로 요청이 쌓이지 않고, 그때 돌려주는 것은 다음 둘이다 —
+//   · `res` 는 **그대로 준다**: 상태코드는 이미 도착한 사실이고, 그것이 「무슨 일이 있었는가」를
+//     말하는 가장 값진 조각이다(409 면 「이미 접수됐다」는 사실은 아는 것이다).
+//   · `data` 는 `null` 이고 `bodyFailure` 가 왜인지 말한다 — 모르는 것을 지어내지 않고,
+//     조용히 「본문이 없었다」로 뭉개지도 않는다(조용한 손실 금지).
+// `json` 을 켜지 않은 호출의 반환 모양은 종전과 같다(`data`·`bodyFailure` 는 null).
 export const FETCH_FAILURE_MESSAGE = {
   timeout: '응답이 늦어 요청을 중단했습니다. 다시 시도해 주세요.',
   offline: OFFLINE_MESSAGE,
@@ -95,16 +125,21 @@ export function failureMessage(failure) {
   return FETCH_FAILURE_MESSAGE[failure] || FETCH_FAILURE_MESSAGE.network;
 }
 
+// 본문을 읽지 못한 사유. `null` 이면 읽었다(또는 읽으라고 하지 않았다).
+//   'timeout'   — 상한을 넘겨 **우리가 스트림을 끊었다**(요청이 쌓이지 않는다)
+//   'malformed' — 응답이 도착했지만 JSON 이 아니다(오류 HTML·빈 본문)
+export const BODY_FAILURES = ['timeout', 'malformed'];
+
 export async function fetchOnce(url, opts = {}) {
   const {
     method = 'GET', body, headers, cache,
-    timeout = DEFAULT_TIMEOUT, fetchImpl, navigatorImpl,
+    timeout = DEFAULT_TIMEOUT, fetchImpl, navigatorImpl, json = false,
   } = opts;
 
-  if (isOffline(navigatorImpl)) return { res: null, failure: 'offline' };
+  if (isOffline(navigatorImpl)) return { res: null, failure: 'offline', data: null, bodyFailure: null };
 
   const f = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
-  if (!f) return { res: null, failure: 'network' };
+  if (!f) return { res: null, failure: 'network', data: null, bodyFailure: null };
 
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   // 우리가 끊은 것인지(timeout) 바깥에서 끊긴 것인지(network) 구분한다 — 두 경우의
@@ -123,12 +158,28 @@ export async function fetchOnce(url, opts = {}) {
       body: sendsBody ? JSON.stringify(body) : undefined,
       signal: ctrl ? ctrl.signal : undefined,
     });
-    if (!res) return { res: null, failure: 'network' };
-    return { res, failure: null };
+    if (!res) return { res: null, failure: 'network', data: null, bodyFailure: null };
+    if (!json) return { res, failure: null, data: null, bodyFailure: null };
+    // 본문은 **타이머가 아직 살아 있는 동안**(= finally 앞에서) 읽는다. 상한을 넘기면 위
+    // 타이머가 같은 컨트롤러로 스트림을 끊으므로 이 await 는 반드시 끝난다.
+    let data = null;
+    let bodyFailure = null;
+    try {
+      const read = typeof res.json === 'function' ? await res.json() : undefined;
+      if (read === undefined) bodyFailure = 'malformed';
+      else data = read;
+    } catch {
+      // 우리가 끊은 것인지(timeout) 본문이 JSON 이 아닌 것인지(malformed) 나눠 말한다 —
+      // 두 사실은 호출측이 다음에 할 일이 다르고, 뭉개면 조용한 손실이 된다.
+      bodyFailure = timedOut ? 'timeout' : 'malformed';
+    }
+    return { res, failure: null, data, bodyFailure };
   } catch (err) {
-    if (timedOut) return { res: null, failure: 'timeout' };
-    if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) return { res: null, failure: 'timeout' };
-    return { res: null, failure: 'network' };
+    if (timedOut) return { res: null, failure: 'timeout', data: null, bodyFailure: null };
+    if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+      return { res: null, failure: 'timeout', data: null, bodyFailure: null };
+    }
+    return { res: null, failure: 'network', data: null, bodyFailure: null };
   } finally {
     if (timer) clearTimeout(timer);
   }

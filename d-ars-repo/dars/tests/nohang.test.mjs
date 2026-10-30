@@ -47,12 +47,32 @@ const hangingFetch = () => (url, init) => new Promise((resolve, reject) => {
   sig.addEventListener('abort', () => reject(Object.assign(new Error('a'), { name: 'AbortError' })));
 });
 
+// ── 고친 결함: 멈추는 자리가 **머리 뒤에도** 있었다 ─────────────────────────────
+// 위 가짜 서버는 응답 **머리**조차 주지 않는 경우다. 실제로 더 흔한 것은 머리는 오고
+// **본문이 흘러오지 않는** 경우다(프록시·콜드스타트·모바일 음영). `fetch` 는 머리가 오면
+// resolve 하므로 그때 `fetchOnce` 의 상한은 이미 풀려 있었고, 폴링 한 바퀴는 그 뒤의
+// `await r.json()` 에서 멈췄다 — `pollNext` 를 **한 번도 부르지 않으므로** 연속 실패가
+// 쌓이지 않고 끊김 안내가 영영 뜨지 않는다. 그리고 이 파일의 아래 테스트가 고정해 온
+// 「상한 < 주기 → 겹겹이 쌓이지 않는다」도 그 경로에서는 참이 아니었다(매 주기 하나씩 쌓인다).
+// 이 가짜 서버가 그 경로다.
+const headersOnlyFetch = () => (url, init) => Promise.resolve({
+  ok: true,
+  status: 200,
+  json: () => new Promise((resolve, reject) => {
+    const sig = init && init.signal;
+    if (!sig) return;                     // 상한이 본문까지 덮지 않으면 영영 미해결이다
+    sig.addEventListener('abort', () => reject(Object.assign(new Error('a'), { name: 'AbortError' })));
+  }),
+});
+
 // /visual 폴링 한 바퀴를 그대로 옮긴 것(화면 렌더 없이 판정 부분만).
+// 본문까지 함께 받는다 — 화면이 하는 일과 같아야 재현이 성립한다(옛 판본은 본문을 읽지
+// 않아, 정작 멈추는 자리를 지나가며 통과했다).
 async function pollOnce(state, opts) {
-  const { failure, res } = await fetchOnce('/api/visual/state?s=x', {
-    cache: 'no-store', navigatorImpl: { onLine: true }, ...opts,
+  const { failure, res, data } = await fetchOnce('/api/visual/state?s=x', {
+    cache: 'no-store', json: true, navigatorImpl: { onLine: true }, ...opts,
   });
-  return pollNext(state, !failure && !!res && res.ok);
+  return pollNext(state, !failure && !!res && res.ok && !!data && data.ok === true);
 }
 
 test('응답 없는 서버: 상한이 있으면 연속 실패가 쌓여 화면 끊김 안내가 켜진다', async () => {
@@ -77,8 +97,29 @@ test('상한이 없으면 폴링이 끝나지 않는다 — 고친 결함을 그
 test('성공 응답 한 번으로 즉시 복구된다(일시적 지터를 장애로 굳히지 않는다)', async () => {
   let state = pollInitial();
   state = await pollOnce(state, { timeout: 10, fetchImpl: hangingFetch() });
-  state = await pollOnce(state, { fetchImpl: async () => ({ ok: true, status: 200 }) });
+  state = await pollOnce(state, {
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, node: 'n1' }) }),
+  });
   assert.deepEqual(state, { fails: 0, lost: false });
+});
+
+test('머리만 오고 본문이 멈춘 서버: 그래도 연속 실패가 쌓여 끊김 안내가 켜진다', async () => {
+  let state = pollInitial();
+  for (let i = 0; i < SCREEN_LOST_AFTER; i++) {
+    state = await pollOnce(state, { timeout: 10, fetchImpl: headersOnlyFetch() });
+    assert.equal(state.lost, i + 1 >= SCREEN_LOST_AFTER, `${i + 1}회차 판정`);
+  }
+  assert.equal(state.lost, true,
+    '머리만 받고 본문에서 멈춌는데 끊김을 알리지 못하면 고객은 멈춌 화면에 남는다');
+});
+
+test('본문이 멈추면 한 바퀴가 아예 끝나지 않는다 — 고친 결함을 그대로 재현해 둔다', async () => {
+  // timeout:0 = 상한 없음(= 본문 읽기가 상한 밖이던 예전 상태). `pollNext` 는 한 번도
+  // 불리지 않고, 매 주기마다 끝나지 않는 요청이 하나씩 쌓인다.
+  let settled = false;
+  pollOnce(pollInitial(), { timeout: 0, fetchImpl: headersOnlyFetch() }).then(() => { settled = true; });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(settled, false, '본문에 상한이 없으면 응답 없음이 무장애로 취급된다');
 });
 
 // ── 3. 소스 불변식: 상한 없는 맨 fetch 가 화면에 다시 들어오지 못하게 ─────────
@@ -124,6 +165,44 @@ test('상한이 필요한 화면 세 곳이 실제로 상한 있는 호출을 �
   for (const [rel, re] of cases) assert.match(read(rel), re, `${rel} 에 상한 있는 호출이 없다`);
 });
 
+// ── 고친 결함: 가드가 **요청**만 보고 **본문**은 보지 않았다 ──────────────────────
+//
+// 위 대조는 화면 소스에서 맨 `fetch(` 를 찾는다. 그런데 멈추는 자리는 하나가 더 있었다 —
+// 응답이 도착한 **뒤** 호출측이 손으로 하는 `await res.json()` 이다. `fetchOnce` 는 상한
+// 타이머를 `finally` 에서 껐으므로(머리가 오면 resolve 한다) 그 본문 읽기에는 아무 상한도
+// 걸려 있지 않았고, 세 화면이 모두 그렇게 읽고 있었다. 이 파일의 이름이 「응답 없는 요청은
+// 반드시 끝난다」인데 그 뒤의 한 걸음은 아무도 보지 않은 셈이다(아래 로그인 대조는 그
+// 상한 없는 한 줄을 **리터럴로 고정**하고 있었다 — 결함을 고정하는 테스트였다).
+//
+// 그래서 본문 읽기는 `fetchOnce` 안(= 상한 안)에서만 일어나게 하고, 화면이 직접 읽는 길을
+// 막는다. 예외 목록은 두지 않는다 — 읽어야 하면 `json: true` 를 켜면 된다.
+test('화면(app/**/*.jsx)이 응답 본문을 직접 읽지 않는다(상한 밖에서 멈추지 않게)', () => {
+  const offenders = [];
+  for (const rel of jsxFiles(`${root}app`)) {
+    const src = stripLineComments(read(rel));
+    for (const m of src.matchAll(/\.(json|text|arrayBuffer|blob)\s*\(\s*\)/g)) {
+      // JSON.stringify/parse 같은 호출은 인자가 있어 위 패턴(빈 괄호)에 걸리지 않는다.
+      offenders.push(`${rel}:${src.slice(0, m.index).split('\n').length} ${m[1]}()`);
+    }
+  }
+  assert.deepEqual(
+    offenders, [],
+    `본문 읽기는 상한 안(fetchOnce 의 json:true)에서 해야 한다. 상한 밖의 본문 읽기는 화면을 "처리 중" 에 영원히 가둔다: ${offenders.join(', ')}`,
+  );
+});
+
+test('본문을 쓰는 화면 세 곳이 상한 안에서 받는다(json:true)', () => {
+  const cases = [
+    ['app/eum/senior/[token]/SeniorFlow.jsx', '제출 409 의 「먼저 접수된 선택」'],
+    ['app/login/page.jsx', '로그인 실패 사유'],
+    ['app/visual/page.jsx', '콜봇이 밀어 준 노드'],
+  ];
+  for (const [rel, why] of cases) {
+    const src = stripLineComments(read(rel));
+    assert.match(src, /json:\s*true/, `${rel}: ${why} 을 상한 밖에서 읽는다`);
+  }
+});
+
 test('/visual 폴링은 주기·상한을 lib/ivrFallback 상수에서 가져온다(하드코딩 금지)', () => {
   const src = read('app/visual/page.jsx');
   assert.match(src, /SCREEN_POLL_TIMEOUT_MS/, '상한을 넘기지 않으면 기본값이 주기보다 길어 판정이 밀린다');
@@ -146,7 +225,13 @@ test('제출 실패를 삼키지 않는다 — 오프라인과 지연을 나눠 
 test('로그인: 응답이 JSON 이 아니어도 연결 탓으로 잘못 안내하지 않는다', () => {
   const src = read('app/login/page.jsx');
   // 예전에는 res.json() 의 예외가 catch 로 흘러 "네트워크 오류" 라고 안내됐다(연결은 멀쩡했는데도).
-  assert.match(src, /try \{ d = await res\.json\(\); \} catch \{ d = null; \}/);
+  //
+  // 정정: 그 뒤로 이 대조는 상한 **밖**의 본문 읽기 한 줄을 리터럴로 고정하고 있었다
+  // (`try { d = await res.json(); } catch { d = null; }`) — 게이트웨이가 머리만 보내고 본문을
+  // 흘리지 않으면 버튼이 "확인 중…" 에서 영영 멈추는 자리다. 지금은 본문을 상한 안에서 받고
+  // (`json: true`), 지켜야 할 선은 **안내가 갈리는 방식**이라 그것만 본다.
+  assert.match(src, /data: d \} = await fetchOnce/, '본문을 상한 안에서 받지 않는다');
+  assert.match(src, /if \(!d \|\| !d\.ok\)/, 'JSON 이 아닌 응답(d=null)을 받아 내는 갈림이 없다');
   assert.match(src, /res\.status >= 500/, '서버 오류와 자격 증명 실패를 구분해 안내한다');
 });
 

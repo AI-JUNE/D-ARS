@@ -1,4 +1,4 @@
-// lib/monitor.js — 전역 에러 캡처 + 알림 훅 (상용 필수 §공통-1)
+// lib/monitor.js — 전역 에러 캡처 + 알림 훅 (상용 필수 §공통-1) · **전송 쪽**
 //
 // 목적: 운영 중 발생한 예외를 **일관된 한 줄 JSON**으로 남기고, 외부 수집기(DSN)가
 //   설정된 경우에만 전송한다. 지금까지 각 라우트가 `console.error(e?.message)` 를
@@ -12,107 +12,29 @@
 // 무해화 계약: captureError 는 **어떤 입력·어떤 실패에도 throw 하지 않는다**.
 //   모니터링이 본 요청을 실패시키면 모니터링이 곧 장애 원인이 된다(audit.js 와 동일 계약).
 //
-// 개인정보: 메시지·컨텍스트는 전송 전에 반드시 scrubText 로 마스킹한다.
-//   전화번호·이메일·주민등록번호·카드번호·자격증명은 원문이 로그/외부로 나가지 않는다.
+// ── 봉투를 **짓는** 부분은 이 파일에 없다 → lib/monitorEvent.js ─────────────────
+//
+// 고친 결함: 마스킹·봉투·한 줄 포맷이 여기 함께 있었고, 그 중 둘(`buildEvent`·`monitorLine`)을
+// **브라우저에서 도는 오류 경계**가 쓴다(`app/error.jsx`·`app/eum/error.jsx` — 둘 다 콘솔에만
+// 적는다). 그래서 이 모듈이 통째로 클라이언트 번들에 실렸다 — 빌드 산출물의
+// `app/eum/error-*.js` 안에 `captureError`·스로틀 Map·`MONITOR_DSN` 조회, 그리고 수집기로
+// **POST 하는 `deliver`(`fetch(dsn, …)`)** 까지 들어 있었고, 그 청크는 `/eum` HTML 의 head 가
+// **미리 받는다**(어르신이 화면을 열 때마다다). 자세한 사유와 「왜 지금 새는 값은 없는가」는
+// 그 파일의 머리 주석에 적었다. 전송·스로틀·DSN 판정은 여기 남고, 저쪽을 **다시 export 하지
+// 않는다**(import 경로가 둘이면 단일 출처가 다시 말뿐이 된다 · lib/eumMessage 와 같은 계약).
+//
+// 개인정보: 메시지·컨텍스트는 전송 전에 반드시 scrubText 로 마스킹한다(lib/monitorEvent).
 //   스택트레이스는 내부 경로가 드러나므로 **전송 대상에서 제외**한다(콘솔에만 남는다).
 
-// 심각도 어휘(자유 문자열 금지 — 필터·알림 라우팅 가능성 확보)
-export const MONITOR_LEVELS = ['fatal', 'error', 'warn'];
+import { buildEvent, monitorLine } from './monitorEvent.js';
+
 const DEFAULT_LEVEL = 'error';
 
 // 같은 오류가 폭주할 때 알림이 도배되지 않도록 하는 기본 창(밀리초)
 export const DEFAULT_THROTTLE_MS = 60_000;
 
-// 메시지 길이 상한(로그 폭주 방어)
-const MAX_MSG = 300;
-
-// ── PII·자격증명 마스킹(순수 함수) ────────────────────────────────
-// 규칙 순서가 중요하다: 자릿수가 겹치는 패턴(주민번호 · 카드 · 전화)은 넓은 것부터 지운다.
-const SCRUB_RULES = [
-  // 자격증명: bearer 토큰 / key=... / token=... / password=... / secret=...
-  [/\b(bearer)\s+[\w.\-~+/=]+/gi, '$1 [redacted]'],
-  [/\b(api[_-]?key|token|secret|password|passwd|pwd)\s*[=:]\s*[^\s&,;"']+/gi, '$1=[redacted]'],
-  // 주민등록번호(6-7)
-  [/\b\d{6}[-\s]?[1-4]\d{6}\b/g, '[rrn]'],
-  // 카드번호(4-4-4-4)
-  [/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[card]'],
-  // 이메일
-  [/\b[\w.+-]+@[\w-]+\.[\w.-]+\b/g, '[email]'],
-  // 전화번호: 휴대폰(01x) · 유선(02/0xx) 모두
-  [/\b0\d{1,2}[-\s]?\d{3,4}[-\s]?\d{4}\b/g, '[phone]'],
-];
-
-// 문자열에서 PII·자격증명을 마스킹하고 길이를 제한한다. 문자열이 아니면 ''.
-export function scrubText(s, max = MAX_MSG) {
-  if (typeof s !== 'string' || !s) return '';
-  let out = s;
-  for (const [re, to] of SCRUB_RULES) out = out.replace(re, to);
-  return out.length > max ? out.slice(0, max) : out;
-}
-
-// 컨텍스트(평면 객체)를 마스킹한다. 키 8개 상한 · 원시값만(감사로그 sanitizeDetail 과 동일 보수 정책).
-export function scrubContext(ctx) {
-  if (!ctx || typeof ctx !== 'object' || Array.isArray(ctx)) return {};
-  const out = {};
-  let n = 0;
-  for (const k of Object.keys(ctx)) {
-    if (n >= 8) break;
-    const v = ctx[k];
-    if (v == null) continue;
-    const t = typeof v;
-    if (t === 'string') out[k] = scrubText(v, 120);
-    else if (t === 'number' || t === 'boolean') out[k] = v;
-    else continue;
-    n++;
-  }
-  return out;
-}
-
-// Error(또는 임의 값)에서 전송 가능한 형태만 뽑는다. 스택은 제외한다(내부 경로 노출 방지).
-export function errorShape(err) {
-  if (err instanceof Error) {
-    return { name: err.name || 'Error', message: scrubText(err.message) };
-  }
-  if (typeof err === 'string') return { name: 'Error', message: scrubText(err) };
-  if (err && typeof err === 'object') {
-    const name = typeof err.name === 'string' ? err.name : 'Error';
-    const message = typeof err.message === 'string' ? err.message : '';
-    return { name, message: scrubText(message) };
-  }
-  return { name: 'Error', message: '' };
-}
-
-// 레벨 정규화(화이트리스트 밖은 기본값으로).
-export function normalizeLevel(level) {
-  return MONITOR_LEVELS.includes(level) ? level : DEFAULT_LEVEL;
-}
-
-// 수집기로 보낼 이벤트(평면 객체). now 주입 가능 — 테스트 결정성.
-export function buildEvent({
-  err,
-  level,
-  source = 'server',
-  requestId = null,
-  env = 'unknown',
-  commit = null,
-  context,
-  now = new Date(),
-} = {}) {
-  const e = errorShape(err);
-  return {
-    ts: now.toISOString(),
-    level: normalizeLevel(level),
-    source: typeof source === 'string' && source ? source.slice(0, 40) : 'server',
-    name: e.name,
-    message: e.message,
-    requestId: typeof requestId === 'string' && requestId ? requestId.slice(0, 64) : null,
-    env: typeof env === 'string' ? env : 'unknown',
-    commit: typeof commit === 'string' && commit ? commit : null,
-    context: scrubContext(context),
-  };
-}
-
 // 같은 오류를 묶는 키. 메시지의 가변부(숫자)는 제거해 "같은 유형"을 하나로 본다.
+// (스로틀 전용이라 전송 쪽에 남는다 — 봉투를 짓는 일이 아니다.)
 export function fingerprint(event) {
   const e = event || {};
   const msg = String(e.message || '').replace(/\d+/g, '#');
@@ -131,11 +53,6 @@ export function shouldSend(state, key, now = Date.now(), windowMs = DEFAULT_THRO
     for (const [k, t] of state) if (now - t >= windowMs) state.delete(k);
   }
   return true;
-}
-
-// 콘솔 한 줄 포맷(수집기 파싱 가능한 JSON · 접두어 [MONITOR] 고정 — [AUDIT] 와 동일 관례).
-export function monitorLine(event) {
-  return '[MONITOR] ' + JSON.stringify(event);
 }
 
 // DSN 설정 여부(= 외부 전송 활성 여부). 미설정이면 이 모듈은 콘솔 전용으로 동작한다.
@@ -193,9 +110,9 @@ async function deliver(event, dsn) {
 }
 
 // 익명 default export 금지(ESLint import/no-anonymous-default-export) — apiError.js 와 동일 관례.
+// 봉투를 짓는 이름들은 **여기 담지 않는다** — 담으면 그것이 곧 두 번째 import 경로가 된다
+// (lib/monitorEvent.js 의 머리 주석 참조).
 const monitor = {
-  MONITOR_LEVELS, DEFAULT_THROTTLE_MS,
-  scrubText, scrubContext, errorShape, normalizeLevel,
-  buildEvent, fingerprint, shouldSend, monitorLine, isMonitorEnabled, captureError,
+  DEFAULT_THROTTLE_MS, fingerprint, shouldSend, isMonitorEnabled, captureError,
 };
 export default monitor;

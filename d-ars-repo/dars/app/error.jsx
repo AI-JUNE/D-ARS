@@ -2,7 +2,11 @@
 import Link from 'next/link';
 import { useEffect } from 'react';
 // 순수 포맷터만 가져온다(전송 로직 미사용) — 브라우저에서 외부 통신은 일어나지 않는다.
-import { buildEvent, monitorLine } from '@/lib/monitor';
+//
+// 고친 결함: 그 둘을 `@/lib/monitor` 에서 가져오는 동안 **전송 쪽이 함께 번들에 실렸다**
+// (빌드 산출물에 `captureError`·`MONITOR_DSN` 조회·수집기로 POST 하는 `fetch` 가 들어 있었다).
+// "전송 로직 미사용" 은 **부르지 않는다**는 뜻이었고, 실리지 않는다는 뜻은 아니었다.
+import { buildEvent, monitorLine } from '@/lib/monitorEvent';
 
 export default function Error({ error, reset }) {
   // 원인 추적: 화면에는 스택·메시지를 노출하지 않고 콘솔에만 남긴다.

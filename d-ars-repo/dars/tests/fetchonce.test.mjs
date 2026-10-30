@@ -5,7 +5,9 @@
 // 성공도 실패도 보고하지 않아 **장애 폴백이 영영 켜지지 않게** 만든다.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchOnce, failureMessage, FETCH_FAILURE_MESSAGE, DEFAULT_TIMEOUT } from '../lib/fetchJson.js';
+import {
+  fetchOnce, failureMessage, FETCH_FAILURE_MESSAGE, DEFAULT_TIMEOUT, BODY_FAILURES,
+} from '../lib/fetchJson.js';
 
 const online = { onLine: true };
 const offline = { onLine: false };
@@ -142,4 +144,91 @@ test('안내 문구에 기술 용어(AbortError·status 숫자)를 노출하지 
 test('이상 입력(url 미지정·opts 없음)에도 throw 하지 않는다', async () => {
   const out = await fetchOnce(undefined, { fetchImpl: async () => { throw new Error('x'); }, navigatorImpl: online });
   assert.equal(out.failure, 'network');
+});
+
+// ── 상한은 **본문까지** 덮는다 ──────────────────────────────────────────────
+//
+// 고친 결함: `fetch` 는 응답 **머리**가 오면 resolve 하고 본문은 그 뒤에 온다. 그런데 상한
+// 타이머를 끄는 자리가 `finally` 였으므로, 머리가 도착한 순간 상한이 풀리고 호출측이 이어서
+// 하는 `await res.json()` 에는 아무 상한도 없었다 — 이 파일의 머리 주석이 지키겠다고 적은
+// 바로 그 선("응답이 오지 않는 요청은 반드시 끝난다")이 한 걸음 뒤에서 깨져 있었다.
+// 세 화면이 모두 그 뒤에서 본문을 읽었다(이음 제출 · /visual 폴링 · 로그인).
+
+// 머리는 즉시 주고 본문은 **영원히 흘리지 않는** 서버. signal.abort 를 존중한다.
+function headersOnlyFetch(status = 409) {
+  return (url, init) => Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => new Promise((resolve, reject) => {
+      const sig = init && init.signal;
+      if (!sig) return;            // 상한이 없으면 이 약속은 영원히 미해결 — 고친 결함이다
+      sig.addEventListener('abort', () => reject(Object.assign(new Error('a'), { name: 'AbortError' })));
+    }),
+  });
+}
+
+test('본문이 오지 않으면 같은 상한이 끊는다 — 상태코드는 그대로 전한다', async () => {
+  const out = await fetchOnce('/api/x', {
+    json: true, timeout: 20, fetchImpl: headersOnlyFetch(409), navigatorImpl: online,
+  });
+  assert.equal(out.failure, null, '머리는 도착했다 — 요청 자체가 실패한 것은 아니다');
+  assert.ok(out.res && out.res.status === 409, '상태코드는 이미 도착한 사실이라 버리지 않는다');
+  assert.equal(out.data, null, '모르는 본문을 지어내지 않는다');
+  assert.equal(out.bodyFailure, 'timeout', '조용히 "본문이 없었다" 로 뭉개면 안 된다');
+});
+
+test('본문 읽기가 상한을 넘겨도 끝난다(옛 코드의 무한 대기를 재현해 둔다)', async () => {
+  // 상한이 없으면(timeout:0) 본문 읽기는 영원히 미해결 — 그것이 화면을 "처리 중" 에 가둔다.
+  let settled = false;
+  fetchOnce('/api/x', {
+    json: true, timeout: 0, fetchImpl: headersOnlyFetch(200), navigatorImpl: online,
+  }).then(() => { settled = true; });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(settled, false, '상한 없는 본문 읽기는 성공도 실패도 보고하지 않는다');
+
+  // 상한이 있으면 반드시 끝난다.
+  const out = await fetchOnce('/api/x', {
+    json: true, timeout: 20, fetchImpl: headersOnlyFetch(200), navigatorImpl: online,
+  });
+  assert.equal(out.bodyFailure, 'timeout');
+});
+
+test('json:true — 정상 본문은 data 로 돌려주고 bodyFailure 는 없다', async () => {
+  const res = { ok: false, status: 409, json: async () => ({ ok: false, accepted: { activity: 'walk' } }) };
+  const out = await fetchOnce('/api/x', { json: true, fetchImpl: async () => res, navigatorImpl: online });
+  assert.equal(out.failure, null);
+  assert.equal(out.bodyFailure, null);
+  assert.deepEqual(out.data, { ok: false, accepted: { activity: 'walk' } });
+  assert.equal(out.res.status, 409, '본문을 읽어도 응답 자체는 그대로 넘긴다');
+});
+
+test('json:true — 본문이 JSON 이 아니면 timeout 과 **다르게** 말한다', async () => {
+  const res = { ok: false, status: 502, json: async () => { throw new SyntaxError('<html>'); } };
+  const out = await fetchOnce('/api/x', { json: true, fetchImpl: async () => res, navigatorImpl: online });
+  assert.equal(out.failure, null);
+  assert.equal(out.data, null);
+  assert.equal(out.bodyFailure, 'malformed', '게이트웨이 오류 페이지를 연결 탓으로 안내하면 안 된다');
+  assert.equal(out.res.status, 502);
+});
+
+test('json:true — json() 이 없는 응답에도 throw 하지 않는다', async () => {
+  const out = await fetchOnce('/api/x', {
+    json: true, fetchImpl: async () => ({ ok: true, status: 204 }), navigatorImpl: online,
+  });
+  assert.equal(out.bodyFailure, 'malformed');
+  assert.equal(out.data, null);
+});
+
+test('json 을 켜지 않으면 본문을 읽지 않는다(반환 모양도 종전과 같다)', async () => {
+  let read = 0;
+  const res = { ok: true, status: 200, json: async () => { read += 1; return { ok: true }; } };
+  const out = await fetchOnce('/api/x', { fetchImpl: async () => res, navigatorImpl: online });
+  assert.equal(read, 0, '읽으라고 하지 않은 본문을 읽으면 호출측이 두 번 읽을 수 없게 된다');
+  assert.equal(out.res, res);
+  assert.equal(out.data, null);
+  assert.equal(out.bodyFailure, null);
+});
+
+test('본문 실패 사유는 등록부 둘뿐이다(모르는 이름이 조용히 늘지 않게)', () => {
+  assert.deepEqual([...BODY_FAILURES].sort(), ['malformed', 'timeout']);
 });

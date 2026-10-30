@@ -19,8 +19,13 @@ export default function LoginPage() {
     setErr(''); setBusy(true);
     // 시간 상한이 필요한 이유: 예전에는 맨 fetch 라 서버가 응답하지 않으면 버튼이
     // disabled 인 채 "확인 중…" 에서 영영 멈췄다. 실패했다는 말도, 다시 누를 방법도 없었다.
-    const { res, failure } = await fetchOnce('/api/auth/login', {
-      method: 'POST', body: { username: username.trim(), password },
+    //
+    // 본문도 **같은 상한 안에서** 읽는다(`json: true`). 고친 결함: 그 상한은 응답 머리까지만
+    // 덮었고, 바로 아래에서 손으로 하던 `await res.json()` 은 상한 밖이었다 — 게이트웨이가
+    // 헤더만 보내고 본문을 흘리지 않으면 버튼은 다시 "확인 중…" 에서 영영 멈춘다
+    // (lib/fetchJson 의 그 자리 주석 · 응답이 JSON 이 아닌 경우의 안내는 그대로다).
+    const { res, failure, data: d } = await fetchOnce('/api/auth/login', {
+      method: 'POST', json: true, body: { username: username.trim(), password },
     });
     if (failure) {
       setErr(failure === 'offline'
@@ -28,10 +33,9 @@ export default function LoginPage() {
         : '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.');
       setBusy(false); return;
     }
-    // 응답이 JSON 이 아닐 수 있다(게이트웨이 오류 페이지 등). 예전에는 여기서 던진 예외가
-    // catch 로 흘러 "네트워크 오류" 라고 잘못 안내됐다 — 연결은 멀쩡했는데도.
-    let d = null;
-    try { d = await res.json(); } catch { d = null; }
+    // 응답이 JSON 이 아닐 수 있다(게이트웨이 오류 페이지 등). 그때 `d` 는 null 이고 아래
+    // 안내는 **상태코드**로 갈린다 — 예전에는 그 예외가 catch 로 흘러 "네트워크 오류" 라고
+    // 잘못 안내됐다(연결은 멀쩡했는데도).
     if (!d || !d.ok) {
       setErr((d && d.error) || (res.status >= 500
         ? '서버 오류로 로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.'

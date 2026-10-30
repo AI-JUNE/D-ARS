@@ -8,7 +8,9 @@
 // monitor.js 와의 역할 분담:
 //   - monitor.js : **예외**를 캡처해 알림(DSN)까지 보낸다. 접두어 [MONITOR].
 //   - log.js     : **모든 요청**의 결과를 남긴다(정상 포함). 접두어 [LOG]. 외부 전송 없음.
-//   PII 마스킹 규칙은 하나여야 하므로 monitor.js 의 scrubText 를 재사용한다(규칙 이중화 금지).
+//   PII 마스킹 규칙은 하나여야 하므로 그 규칙(scrubText)을 재사용한다(규칙 이중화 금지).
+//   가져오는 자리는 `lib/monitorEvent.js` 다 — 마스킹·봉투는 전송 쪽(monitor.js)에서 떼어
+//   냈다(브라우저에서 도는 오류 경계가 봉투 포맷터를 쓰기 때문이다 · 그 파일 머리 주석).
 //
 // 개인정보: 경로의 쿼리스트링은 **통째로 버린다**(전화번호·이름이 가장 흔하게 새는 곳).
 //   메시지는 scrubText 로 마스킹한다. 바디는 어떤 경우에도 로그에 넣지 않는다.
@@ -16,7 +18,7 @@
 // 무해화 계약: 이 모듈의 함수는 **어떤 입력에도 throw 하지 않는다**(monitor.js·audit.js 와 동일).
 //   로깅이 요청을 실패시키면 로깅이 곧 장애 원인이 된다.
 
-import { scrubText } from './monitor.js';
+import { scrubText } from './monitorEvent.js';
 
 // 레벨 어휘(자유 문자열 금지 — 수집기 필터 가능성 확보)
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error'];

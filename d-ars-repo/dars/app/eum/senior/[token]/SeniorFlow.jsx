@@ -506,23 +506,6 @@ export default function SeniorFlow({
     go(4, { activity, timeslot, done: true });
   }
 
-  // 409 본문에서 「먼저 접수된 선택」을 읽는다. 읽지 못하면 null — 모른다고 말하는 편이
-  // 그럴듯하게 채우는 것보다 낫다. 본문이 JSON 이 아니어도 던지지 않는다.
-  //
-  // 409 **인지까지 여기서 가른다.** 그래야 호출측이 응답이 도착한 직후 조건 없이 한 번
-  // 부를 수 있다 — 본문 읽기를 `busy` 를 푸는 **앞**으로 옮기는 것이 이번 고침이고
-  // (submit 의 그 자리 주석), 응답이 없거나 다른 상태코드면 여기서 곧바로 null 이라
-  // 기다리는 시간이 늘지 않는다.
-  async function acceptedFrom(res) {
-    if (!res || res.status !== 409) return null;
-    try {
-      const data = await res.json();
-      return parseAccepted(data && data.accepted);
-    } catch {
-      return null;
-    }
-  }
-
   async function submit() {
     // 중복 전송 방지는 **우리 몫이다.** 예전에는 버튼이 `disabled` 가 되어 브라우저가 막아 주었고,
     // 그 대가로 포커스가 사라졌다(위 주석). 이제 버튼이 눌릴 수 있는 상태로 남으므로,
@@ -567,11 +550,19 @@ export default function SeniorFlow({
     // 시간 상한(fetchOnce)이 필요한 이유: 맨 fetch 에는 상한이 없어, 서버가 응답하지 않으면
     // 이 화면은 "신청하는 중…" 인 채 **영영 멈춰 있었다**. 그때 단추는 다시 누를 수도 없고,
     // 그 사이 5분 만료가 지나 링크까지 죽는다 — 어르신은 무엇이 잘못됐는지 알 길이 없다.
-    const { res, failure } = await fetchOnce('/api/eum/senior/preferences', {
+    //
+    // 고친 결함: 그 상한이 **머리까지만** 덮고 있었다. `fetch` 는 헤더가 오면 resolve 하고
+    // 본문은 그 뒤에 오는데, 409 본문 읽기(`await res.json()`)는 상한 **밖**이었다 — 즉
+    // 위 주석이 없앴다고 적은 「영영 멈춘 신청하는 중…」이 한 걸음 뒤에 그대로 남아 있었다.
+    // 하필 본문을 읽는 이유가 409 이고, 409 의 전제가 **나쁜 연결**이다(첫 요청이 서버에
+    // 닿았는데 응답이 늦어 다시 누른 경우다). 지금은 본문도 같은 상한 안에서 읽는다
+    // (`json: true` · lib/fetchJson 의 그 자리 주석).
+    const { res, failure, data } = await fetchOnce('/api/eum/senior/preferences', {
       method: 'POST',
+      json: true,
       body: { token, activity, timeslot },
     });
-    // ── 응답 **본문까지 읽은 뒤에** busy 를 푼다 ───────────────────────────
+    // ── 응답 **본문까지 받은 뒤에** busy 를 푼다 ───────────────────────────
     //
     // 고친 결함: `setBusy(false)` 와 「이 화면이 무엇이 되는가」를 정하는 상태 변경 사이에
     // `await` 가 하나 있었다 — 409 본문 읽기다. 22회차는 「응답을 기다리는 동안 화면이
@@ -580,13 +571,12 @@ export default function SeniorFlow({
     // 눈금이 0 에 닿아 있으면 화면은 **서버가 방금 「이미 접수됐다」고 답한 신청** 위에
     // 「링크가 만료되었습니다」를 그린다(되돌릴 단추가 없는 화면이고, 전환과 함께 그 제목이
     // 낭독된다 — 어르신이 듣는 첫 마디가 거짓이다).
-    // 하필 이 경로의 전제가 **나쁜 연결**이다 — 첫 요청이 서버에 닿았는데 응답이 늦어 다시
-    // 누른 경우가 409 다(22회차가 적어 둔 그 경로 그대로). 그 연결에서 본문 스트림을 읽는
-    // 데 걸리는 시간이 짧다는 보장은 없다.
-    // 그래서 읽기를 앞으로 옮긴다 — 재발 방지는 자리 하나가 아니라 **불변식**으로 둔다:
-    // 「busy 를 푼 뒤에는 `await` 가 없다」(tests/eumrepeat.test.mjs 가 소스로 대조한다).
-    // 409 가 아니면 `acceptedFrom` 이 곧바로 null 이므로 다른 경로의 대기는 늘지 않는다.
-    const prior = await acceptedFrom(res);
+    // 이제 그 `await` 는 **아예 없다** — 본문은 위 한 번의 기다림에 함께 담겨 온다. 즉
+    // 「busy 를 푼 뒤에는 await 가 없다」는 불변식이 자리 약속이 아니라 **구조**가 되었고,
+    // submit 안의 `await` 가 하나뿐임을 테스트가 고정한다(tests/eumrepeat.test.mjs).
+    // 본문을 못 읽어도(상한·JSON 아님) `res` 는 그대로다 — 「이미 접수됐다」는 **상태코드가
+    // 말하는 사실**이고, 모르는 것은 접수된 내용뿐이다(그때 화면은 요약을 그리지 않는다).
+    const prior = res && res.status === 409 ? parseAccepted(data && data.accepted) : null;
     submittingRef.current = false;
     setBusy(false);
 
@@ -613,7 +603,7 @@ export default function SeniorFlow({
     // 라고 말했다. 담당자에게 간 것은 첫 선택인데 어르신은 바뀐 줄 믿고, 약속 날 서로 다른
     // 것을 기대한 채 만난다. 어긋난 줄 아는 사람이 아무도 없다는 것이 이 오류의 성질이다.
     if (res.status === 409) {
-      // 본문은 위에서 이미 읽었다(busy 를 푸는 앞) — 여기서 더 기다리지 않는다.
+      // 본문은 응답과 **함께** 받아 두었다(fetchOnce 의 `json: true`) — 여기서 기다리지 않는다.
       setAlready(true);
       setAccepted(prior);
       finishSubmitted(prior ? { ...body, ...prior } : null);
