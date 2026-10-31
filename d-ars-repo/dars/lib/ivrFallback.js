@@ -49,6 +49,62 @@ export const SCREEN_LOST_AFTER = 4;
 export const SCREEN_POLL_INTERVAL_MS = 2500;
 export const SCREEN_POLL_TIMEOUT_MS = 2000;
 
+// ── 콜봇 **대면 응답**도 반드시 돌아와야 한다 ──────────────────────────────
+//
+// 고친 결함: 바로 위 네 줄은 「상한이 없으면 응답 없음이 무장애로 취급된다」를 적어 두고
+// 그것을 **고객 화면 쪽에만** 걸어 두었다. 이 계약의 판정(`decideInbound`·`decideRelay`)이
+// 읽는 값은 **우리가 제3자에게 건 요청의 결과**인데(`lib/cpaas.sendSms`·`notifyCallbot`),
+// 그 두 요청에는 시간 상한이 **한 줄도 없었다**. 상한이 가장 필요한 자리가 바깥으로 나가는
+// 요청인데 하필 거기만 비어 있었던 셈이다.
+//
+// 무엇이 일어나나 — 위 문단이 화면 쪽에서 적어 둔 것과 **같은 사고**이고, 한 걸음 더 앞이다.
+//   · 인입 웹훅(`POST /api/cpaas/voice`): SMS 게이트웨이가 연결만 살려 두고 응답하지 않으면
+//     `sendSms` 는 성공도 실패도 돌려주지 않는다 → `decideInbound` 가 **한 번도 불리지 않고**
+//     `fallback` 봉투를 실은 응답이 **아예 나가지 않는다.** 이 파일 머리 주석이 막겠다고 적어
+//     둔 사고("콜봇이 「화면을 보세요」라고 안내한 뒤 고객이 빈 화면 앞에서 기다린다")가
+//     그대로 일어나고, 유일한 방어선은 **콜봇 벤더 쪽 타임아웃**으로 밀려난다(우리 계약이
+//     아니라 남의 설정이다 — 아래 `callbotShouldUseIvr` 1번).
+//   · 화면 액션(`POST /api/visual/action`): `notifyCallbot` 은 상한 없는 요청을 **3번**
+//     되풀이한다. 그 자리의 주석은 "서버리스 10초 한도 내(0.2s,0.4s)" 라고 적어 두었는데,
+//     그 셈은 **기다리는 시간(백오프)만** 세고 요청 자체의 시간을 세지 않는다 — 요청 하나가
+//     멈추면 한도까지 가도 끝나지 않고, 그 사이 고객은 누른 단추 앞에서 기다린다.
+//     docs/IVR_FALLBACK.md 의 운영 확인 절차 2번도 같은 셈으로 "응답 없는 주소 → 200 ·
+//     RELAY_FAILED(≈0.6초 후)" 라고 적고 있었다 — 그 절차를 실제로 밟으면 200 이 오지 않는다.
+// 왜 아무도 몰랐나: 「응답 없는 요청은 반드시 끝난다」 가드(`tests/nohang.test.mjs`)가 보는
+// 범위는 **화면**(`app/**/*.jsx`)뿐이다. 서버가 바깥으로 거는 요청은 그 대조에 들어 있지
+// 않았다 — 가드가 자기 이름보다 좁았던 또 한 자리이고, 이번에 좁았던 축은 **누가 거는가**다.
+//
+// 그래서 상한을 여기 둔다. 자리를 이 파일로 고른 이유는 위 폴링 상한과 같다 —
+// **판정이 반드시 일어나려면 요청이 반드시 끝나야 한다**는 것이 이 계약의 전제이고,
+// 그 전제를 지키는 값은 계약과 같은 자리에 있어야 한다(`lib/cpaas` 가 가져다 쓴다).
+// 값 2초는 `SCREEN_POLL_TIMEOUT_MS`·`lib/monitor.deliver` 와 같은 값이다(운영 기준값이며
+// 실측 지표가 아니다). 재시도 횟수·백오프는 **종전 거동 그대로**다 — 이번에 바뀐 것은
+// 「끝나지 않을 수 있다」뿐이고, 정책은 건드리지 않는다.
+export const RELAY_TIMEOUT_MS = 2000;
+export const RELAY_MAX_ATTEMPTS = 3;
+export const RELAY_RETRY_BASE_MS = 200;
+
+// 서버리스 함수 한 번의 예산(Vercel 기본값). 아래 최악 소요가 이 안에 들어야
+// **우리가** 판정을 내려 응답을 보낼 수 있다 — 넘으면 플랫폼이 함수를 먼저 끊고,
+// 그때 콜봇이 받는 것은 `fallback` 봉투가 아니라 아무것도 아니다.
+export const RELAY_BUDGET_MS = 10000;
+
+// 릴레이 한 번(재시도 포함)의 **최악 소요**. 요청 시간과 백오프를 함께 센다 —
+// 백오프만 세던 셈이 위 결함의 전부였다. 테스트가 이 값을 예산과 대조한다
+// (「선언한 감지 시간이 실제 상수의 곱과 맞는다」와 같은 계약: 문서가 코드보다 앞서지 않게).
+export function relayWorstCaseMs(
+  attempts = RELAY_MAX_ATTEMPTS,
+  timeoutMs = RELAY_TIMEOUT_MS,
+  baseMs = RELAY_RETRY_BASE_MS,
+) {
+  const n = Number.isInteger(attempts) && attempts > 0 ? attempts : 1;
+  const t = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 0;
+  const b = Number.isFinite(baseMs) && baseMs > 0 ? baseMs : 0;
+  let backoff = 0;
+  for (let i = 0; i < n - 1; i++) backoff += b * (1 << i);
+  return n * t + backoff;
+}
+
 function isObj(v) { return !!v && typeof v === 'object'; }
 
 /** 판정 결과 객체를 만든다(항상 같은 모양). */
