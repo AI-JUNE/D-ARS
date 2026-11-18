@@ -42,15 +42,15 @@ const LP = `<style>
    받아 오므로 랜딩만 제3자 스타일시트를 한 번 더 기다릴 이유가 없다.
    ────────────────────────────────────────────────────────────────────────── */
 :root{
-  --brand:#2563eb; --brand-d:#1d4ed8; --brand-l:#bfdbfe; --brand-xl:#eef4ff;
-  --ink:#0f172a; --body:#475569; --mut:#64748b;
-  --line:#e2e8f0; --line2:#eef2f7; --bg:#f8fafc; --card:#fff;
+  --brand:#2457C5; --brand-d:#1B45A0; --brand-l:#C9D6F2; --brand-xl:#EEF3FC;
+  --ink:#191F28; --body:#4E5968; --mut:#5F6B78;
+  --line:#E5E8EB; --line2:#EEF0F3; --bg:#F7F8FA; --card:#fff;
   /* 히어로·푸터 네이비와 그 위의 글자색은 랜딩만 쓰는 칸이다(콘솔에는 어두운 면이 없다).
      쓰지 않는 칸은 두지 않는다 — --brand2·--navy3·--ok 는 아무 규칙도 읽지 않고 있었다. */
   --navy1:#0b1220; --navy2:#132445; --on-navy:#9fb2d4;
   --radius:16px;
-  --shadow:0 1px 2px rgba(15,23,42,.05),0 4px 16px rgba(15,23,42,.06);
-  --shadow-lg:0 20px 46px rgba(15,23,42,.13),0 6px 18px rgba(15,23,42,.07);
+  --shadow:0 8px 24px -18px rgba(25,31,40,.35);
+  --shadow-lg:0 18px 40px -26px rgba(25,31,40,.3);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}

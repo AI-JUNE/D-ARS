@@ -8,11 +8,11 @@
    전용이고 그 화면은 이 변수를 쓰지 않는다.
    ────────────────────────────────────────────────────────────────────────── */
 :root{
-  --brand:#2563eb;--brand-d:#1d4ed8;--brand-l:#bfdbfe;--brand-xl:#eef4ff;
-  --bg:#f8fafc;--panel:#fff;--panel2:#f6f8fc;--ink:#0f172a;--muted:#64748b;
-  --line:#e2e8f0;--line2:#eef2f7;
-  --ok:#0f6b37;--warn:#92400e;--bad:#9f1239;--info:#1d4ed8;
-  --sidebar:#ffffff;--sidebar-2:#f6f8fc;--shadow:0 1px 2px rgba(15,23,42,.05),0 4px 16px rgba(15,23,42,.06);
+  --brand:#2457C5;--brand-d:#1B45A0;--brand-l:#C9D6F2;--brand-xl:#EEF3FC;
+  --bg:#F7F8FA;--panel:#fff;--panel2:#F1F3F6;--ink:#191F28;--muted:#5F6B78;
+  --line:#E5E8EB;--line2:#EEF0F3;
+  --ok:#3C764C;--warn:#99610E;--bad:#9f1239;--info:#1B45A0;
+  --sidebar:#ffffff;--sidebar-2:#F1F3F6;--shadow:0 8px 24px -18px rgba(25,31,40,.35);
   --nav-h:56px;--side-w:238px;
 }
 *{box-sizing:border-box}
