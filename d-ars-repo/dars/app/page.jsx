@@ -87,7 +87,11 @@ nav{display:flex;align-items:center;justify-content:space-between;height:70px}
 .navmenu{display:flex;gap:30px;font-size:15px;font-weight:600;color:var(--body)}
 .navmenu a:hover{color:var(--brand)}
 .navright{display:flex;align-items:center;gap:16px}
-.login{font-weight:700;font-size:15px;color:var(--body)}
+.logo-sub{font-weight:600;font-size:13px;color:var(--mut);letter-spacing:0;padding-left:9px;margin-left:2px;border-left:1px solid var(--line)}
+.btn-sm{font-size:14px;padding:9px 18px;border-radius:99px}
+.btn-primary.btn-sm{box-shadow:0 14px 32px -22px rgba(36,87,197,.35)}
+.btn:focus-visible,.navmenu a:focus-visible,.logo:focus-visible,footer a:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+footer a:focus-visible{outline-color:#fff}
 
 /* HERO */
 .hero{background:radial-gradient(1100px 500px at 78% -8%,#1b3e7e 0%,transparent 60%),linear-gradient(160deg,var(--navy1),var(--navy2) 60%,#0f1e3d);color:#fff;position:relative;overflow:hidden}
@@ -190,7 +194,8 @@ footer a:hover{color:#fff}
 /* 푸터 바닥 줄은 어두운 면이다 — 여기서 --mut(#64748b)을 쓰면 #0a1226 위 3.9:1 로 AA 미달이
    된다. 같은 면의 링크색(--on-navy #9fb2d4 · 7.3:1)으로 적는다. 색 한 벌이라도 **면에 따라
    고르는 값이 다르다**: 흰 바탕의 보조색을 어두운 바탕에 그대로 옮기지 않는다. */
-.badge-ai{display:inline-flex;gap:6px;font-size:12px;color:var(--on-navy);flex-wrap:wrap}
+.fnote{font-size:12px;color:var(--on-navy);margin-top:12px}
+.badge-ai{display:inline-flex;gap:16px;font-size:12px;color:var(--on-navy);flex-wrap:wrap}
 .badge-ai .flink{display:inline;margin:0;font-size:12px;color:var(--on-navy);text-decoration:underline}
 .badge-ai .flink:hover{color:#fff}
 @media(max-width:900px){.hero-in,.sol{grid-template-columns:1fr}.stats,.cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr 1fr}.hero h1{font-size:38px}.h2{font-size:30px}.viz{height:360px}}
@@ -199,8 +204,11 @@ footer a:hover{color:#fff}
   .wrap{padding:0 18px}
   /* 링크 5종 가로 넘침 방지. 숨겨도 잃는 것이 없다 — 다섯 항목 모두 **이 페이지 안의 섹션**을
      가리키므로 좁은 화면에서는 그대로 내려가며 읽힌다(종전 주석은 「동일 항목은 푸터에서
-     접근」이라 적었는데, 푸터의 그 줄들은 아직 목적지가 없는 글이다). */
+     접근」이라 적었는데, 푸터의 그 줄들은 아직 목적지가 없는 글이었다. 2단계에서 푸터 링크를
+     모두 실제 목적지로 배선했다). */
   .navmenu{display:none}
+  .logo-sub{display:none}
+  .navright{gap:8px}
   section{padding:64px 0}
   .cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr}
   .pcard.hot{transform:none}      /* 1열에서 scale(1.03) 은 인접 카드와 겹침 */
@@ -266,9 +274,9 @@ footer a:hover{color:#fff}
 
 
 <header><div class="wrap"><nav>
-  <div class="logo"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#2563eb"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#3b82f6"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#2563eb"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div>
-  <div class="navmenu"><a href="#lp-solution">서비스 소개</a><a href="#lp-product">주요 기능</a><a href="#lp-cases">도입 효과</a><a href="#lp-tech">기술 표준</a><a href="#lp-pricing">요금안내</a></div>
-  <div class="navright"><a class="login" href="/login">로그인</a><a class="btn btn-primary" href="/pricing">무료 체험하기</a></div>
+  <a class="logo" href="/" aria-label="D-ARS 보이는 ARS 홈"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#2457C5"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#2457C5" opacity=".7"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#2457C5"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#2457C5" opacity=".7"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#2457C5" opacity=".7"/></svg>D-ARS<span class="logo-sub">보이는 ARS</span></a>
+  <div class="navmenu"><a href="#lp-solution">서비스 소개</a><a href="#lp-product">제품 구성</a><a href="#lp-cases">적용 업무</a><a href="#lp-tech">연동 기술</a><a href="#lp-pricing">요금 안내</a></div>
+  <div class="navright"><a class="btn btn-outline btn-sm" href="/login">로그인</a><a class="btn btn-primary btn-sm" href="${contactHref(LEGAL_META.contactEmail, '')}">도입 문의</a></div>
 </nav></div></header>
 
 <!-- HERO -->
@@ -417,12 +425,13 @@ footer a:hover{color:#fff}
 <!-- FOOTER -->
 <footer><div class="wrap">
   <div class="fgrid">
-    <div><div class="logo" style="color:#fff;margin-bottom:14px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#3b82f6"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#60a5fa"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#3b82f6"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div><p style="font-size:14px;max-width:280px">AI와 음성기술로 고객과 기업을 연결하는 스마트한 커뮤니케이션 솔루션.</p></div>
-    <div><h5>솔루션</h5><a>AI 음성봇</a><a>보이는 ARS</a><a>통화 분석</a><a>스마트 라우팅</a></div>
-    <div><h5>회사</h5><a>회사 소개</a><a>뉴스룸</a><a>파트너</a><a>채용</a></div>
-    <div><h5>지원</h5><a>고객센터</a><a>도입 문의</a><a>FAQ</a><a>자료실</a></div>
+    <div><div class="logo" style="color:#fff;margin-bottom:14px"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#3b82f6"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#60a5fa"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#3b82f6"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#60a5fa"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#3b82f6"/></svg>D-ARS</div><p style="font-size:14px;max-width:300px">전화 중에 고객 휴대폰으로 안내 화면을 보내는 보이는 ARS 서비스입니다.</p></div>
+    <div><h5>서비스</h5><a href="#lp-solution">서비스 소개</a><a href="#lp-product">제품 구성</a><a href="#lp-cases">적용 업무</a><a href="#lp-process">도입 절차</a></div>
+    <div><h5>이용 안내</h5><a href="#lp-pricing">요금 안내</a><a href="/visual">체험 화면</a><a href="/login">로그인</a></div>
+    <div><h5>문의</h5><a href="${contactHref(LEGAL_META.contactEmail, '')}">도입 문의</a><a href="mailto:${LEGAL_META.contactEmail}">${LEGAL_META.contactEmail}</a></div>
   </div>
-  <div class="fbottom"><span>© 2026 D-ARS. All rights reserved.</span><span class="badge-ai"><a href="/legal/privacy" class="flink">개인정보처리방침</a> · <a href="/legal/terms" class="flink">이용약관</a> · 본 서비스는 생성형 AI가 함께 응대합니다 (AI기본법 제31조)</span></div>
+  <div class="fbottom"><span>${LEGAL_META.operator}${LEGAL_META.businessNumber ? ` | 사업자등록번호 ${LEGAL_META.businessNumber}` : ''} | 문의 ${LEGAL_META.contactEmail}</span><span class="badge-ai"><a href="/legal/privacy" class="flink">개인정보처리방침</a><a href="/legal/terms" class="flink">이용약관</a></span></div>
+  <p class="fnote">이 서비스의 일부 응대와 안내문은 인공지능이 생성합니다. 상담원 연결이 필요하면 안내에 따라 요청해 주십시오.</p>
 </div></footer>`;
 export default function Home() {
   return <main suppressHydrationWarning dangerouslySetInnerHTML={{ __html: LP }} />;

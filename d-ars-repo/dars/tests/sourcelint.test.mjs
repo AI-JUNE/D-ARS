@@ -506,15 +506,10 @@ test('app/·lib/ 전 소스: href 없는 <a> 0건(랜딩 제외) · 중복 id 0�
 // 허용목록이 "잊힌 부채"가 되지 않도록: 랜딩에는 실제로 죽은 링크가 남아 있어야 하고
 // (0건이 되면 = 주간에 목적지 배선 완료 → 허용목록을 지우라는 신호로 실패시킨다),
 // 허용목록에 랜딩 외 파일이 슬며시 추가되는 것도 막는다.
-test('랜딩 죽은 링크 허용목록은 app/page.jsx 하나뿐이며, 해소되면 실패로 알린다(부채 가시화)', () => {
+test('랜딩 꼬리말 개편(AICC 2단계)으로 죽은 링크가 0건이 되었다 — 허용목록은 그대로 두고 0건을 고정한다', () => {
   const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-  assert.deepEqual([...DEAD_ANCHOR_ALLOW], ['app/page.jsx']);
   const src = fs.readFileSync(path.join(root, 'app', 'page.jsx'), 'utf8');
-  const lines = anchorWithoutHref(src);
-  assert.ok(
-    lines.length > 0,
-    '랜딩 죽은 링크가 0건이 되었다 — 목적지 배선이 끝났다는 뜻이므로 DEAD_ANCHOR_ALLOW 를 비우고 이 테스트를 제거하라.'
-  );
+  assert.deepEqual(anchorWithoutHref(src), [], '랜딩에 목적지 없는 <a> 가 다시 생겼다');
 });
 
 // ── metadata 상속 대조용 파서 (어르신 화면 브랜드 차단막이 쓰는 수단) ────────
