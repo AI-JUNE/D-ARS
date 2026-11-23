@@ -171,7 +171,7 @@ export default function Sessions() {
             <SortTh sort={sort} onSort={setSort} k="phone">고객</SortTh>
             <SortTh sort={sort} onSort={setSort} k="scenario">시나리오</SortTh>
             <th scope="col">현재 노드</th>
-            <SortTh sort={sort} onSort={setSort} k="step">여정</SortTh>
+            <SortTh sort={sort} onSort={setSort} k="step">진행 단계</SortTh>
             <SortTh sort={sort} onSort={setSort} k="elapsed">경과</SortTh>
             <SortTh sort={sort} onSort={setSort} k="status">상태</SortTh>
           </tr></thead>

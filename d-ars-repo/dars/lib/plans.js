@@ -21,7 +21,7 @@ export const PLANS = [
   {
     id: 'pilot', name: '파일럿', price: '무료', unit: '체험',
     sub: '도입 전 기능 검증',
-    feats: ['데모 데이터로 전체 기능 체험', '보이는 ARS 화면 미리보기', '시나리오 1종·기본 통계', '이메일 문의 지원'],
+    feats: ['예시 자료로 전체 기능 체험', '보이는 ARS 화면 미리보기', '시나리오 1종·기본 통계', '이메일 문의 지원'],
     cta: '무료로 체험', href: '/dashboard', highlight: false,
   },
   {
