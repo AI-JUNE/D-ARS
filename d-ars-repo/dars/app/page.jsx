@@ -42,14 +42,14 @@ const LP = `<style>
    받아 오므로 랜딩만 제3자 스타일시트를 한 번 더 기다릴 이유가 없다.
    ────────────────────────────────────────────────────────────────────────── */
 :root{
-  --brand:#2457C5; --brand-d:#1B45A0; --brand-l:#C9D6F2; --brand-xl:#EEF3FC;
-  --ink:#191F28; --body:#4E5968; --mut:#5F6B78;
-  --line:#E5E8EB; --line2:#EEF0F3; --bg:#F7F8FA; --card:#fff;
+  --brand:var(--gw-blue-600); --brand-d:var(--gw-blue-700); --brand-l:#B3D4FF; --brand-xl:var(--gw-blue-50);
+  --ink:var(--gw-n900); --body:var(--gw-n700); --mut:var(--gw-n600);
+  --line:#DCDFE4; --line2:#EBECF0; --bg:var(--gw-n50); --card:#fff;
   /* 히어로·푸터 네이비와 그 위의 글자색은 랜딩만 쓰는 칸이다(콘솔에는 어두운 면이 없다).
      쓰지 않는 칸은 두지 않는다 — --brand2·--navy3·--ok 는 아무 규칙도 읽지 않고 있었다. */
   --navy1:#0b1220; --navy2:#132445; --on-navy:#9fb2d4;
   --radius:16px;
-  --shadow:0 8px 24px -18px rgba(25,31,40,.35);
+  --shadow:var(--gw-shadow-raised);
   --shadow-lg:0 18px 40px -26px rgba(25,31,40,.3);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -267,7 +267,7 @@ footer a:hover{color:#fff}
 
 
 <header><div class="wrap"><nav>
-  <a class="logo" href="/" aria-label="D-ARS 보이는 ARS 홈"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#2457C5"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#2457C5" opacity=".7"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#2457C5"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#2457C5" opacity=".7"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#2457C5" opacity=".7"/></svg>D-ARS<span class="logo-sub">보이는 ARS</span></a>
+  <a class="logo" href="/" aria-label="D-ARS 보이는 ARS 홈"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><rect x="1" y="9" width="3" height="6" rx="1.5" fill="#0C66E4"/><rect x="6" y="5" width="3" height="14" rx="1.5" fill="#0C66E4" opacity=".7"/><rect x="11" y="2" width="3" height="20" rx="1.5" fill="#0C66E4"/><rect x="16" y="6" width="3" height="12" rx="1.5" fill="#0C66E4" opacity=".7"/><rect x="21" y="9" width="2.4" height="6" rx="1.2" fill="#0C66E4" opacity=".7"/></svg>D-ARS<span class="logo-sub">보이는 ARS</span></a>
   <div class="navmenu"><a href="#lp-solution">서비스 소개</a><a href="#lp-product">제품 구성</a><a href="#lp-cases">적용 업무</a><a href="#lp-tech">연동 기술</a><a href="#lp-pricing">요금 안내</a></div>
   <div class="navright"><a class="btn btn-outline btn-sm" href="/login">로그인</a><a class="btn btn-primary btn-sm" href="${contactHref(LEGAL_META.contactEmail, '')}">도입 문의</a></div>
 </nav></div></header>

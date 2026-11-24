@@ -70,7 +70,7 @@ export function toExcelHTML(rows, columns, sheetName = 'Sheet1', opts = {}) {
       + `padding:6px 10px;font-size:12px">${esc(opts.subtitle)}</td></tr>`
     : '';
   const th = columns.map(c =>
-    `<th style="background:#2457C5;color:#fff;border:1px solid #cbd5e1;padding:6px 10px;font-weight:700">${esc(c.label)}</th>`
+    `<th style="background:#0C66E4;color:#fff;border:1px solid #cbd5e1;padding:6px 10px;font-weight:700">${esc(c.label)}</th>`
   ).join('');
   const body = rows.map(r => '<tr>' + columns.map(c => {
     const v = typeof c.value === 'function' ? c.value(r) : r[c.value];
@@ -117,11 +117,11 @@ export function printPDF(title, rows, columns, opts = {}) {
   const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>${esc(title)}</title><style>
 *{box-sizing:border-box}
 body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#0f172a;margin:28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.brand{display:flex;align-items:center;gap:8px;font-weight:800;color:#2457C5;font-size:13px}
-.brand .dot{width:11px;height:11px;border-radius:50%;background:#2457C5;display:inline-block}
+.brand{display:flex;align-items:center;gap:8px;font-weight:800;color:#0C66E4;font-size:13px}
+.brand .dot{width:11px;height:11px;border-radius:50%;background:#0C66E4;display:inline-block}
 h1{font-size:20px;margin:8px 0 2px}.meta,.sub{color:#64748b;font-size:12px}.sub{margin-top:2px}
 table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}
-th{background:#2457C5;color:#fff;text-align:left;padding:7px 10px;border:1px solid #cbd5e1;font-weight:700}
+th{background:#0C66E4;color:#fff;text-align:left;padding:7px 10px;border:1px solid #cbd5e1;font-weight:700}
 td{padding:6px 10px;border:1px solid #e2e8f0;word-break:break-word}tbody tr:nth-child(even){background:#f8fafc}
 td.empty{text-align:center;color:#64748b;padding:18px}
 .foot{margin-top:18px;color:#94a3b8;font-size:11px;border-top:1px solid #eef2f7;padding-top:8px}

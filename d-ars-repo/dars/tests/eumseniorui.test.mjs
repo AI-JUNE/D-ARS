@@ -1659,7 +1659,7 @@ test('어르신 page 는 레이아웃이 이미 말한 키를 다시 적지 않�
 test('어르신 화면의 주소창 색은 제품 브랜드색이 아니라 이 화면의 바탕색이다', () => {
   // 루트는 포털 브랜드색(AICC 라인 #2563eb)을 themeColor 로 선언하고, viewport 도 metadata 처럼 상속된다.
   // 값이 테라코타에서 블루로 바뀐 것은 포털 쪽 사정이고, 덮어야 하는 **사실**은 그대로다.
-  assert.match(rootLayout, /themeColor:\s*'#2457C5'/, '루트 선언이 바뀌었다 — 덮을 값을 다시 보라');
+  assert.match(rootLayout, /themeColor:\s*'#0C66E4'/, '루트 선언이 바뀌었다 — 덮을 값을 다시 보라');
   assert.match(eumLayout, /export const viewport\s*=/, '어르신 화면이 viewport 를 덮지 않는다');
   assert.match(eumLayout, /themeColor:\s*EUM_COLORS\.bg/, '색은 lib/eumTheme 단일 출처에서 가져와야 한다');
   const hex = [...stripComments(eumLayout).matchAll(/#[0-9a-fA-F]{3,6}\b/g)].map((m) => m[0]);

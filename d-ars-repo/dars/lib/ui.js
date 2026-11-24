@@ -1,5 +1,5 @@
 export const NODE_TYPES = {
-  VISUAL_LAUNCH:{ic:'🚀',c:'#2457C5',name:'보이는 ARS 런칭'},
+  VISUAL_LAUNCH:{ic:'🚀',c:'#0C66E4',name:'보이는 ARS 런칭'},
   SHOW_MENU:{ic:'🧭',c:'#1d4ed8',name:'메뉴 표출'},
   SHOW_CARD:{ic:'🗂️',c:'#0f6b37',name:'정보 카드'},
   REQUEST_DOC:{ic:'📋',c:'#92400e',name:'필요서류 안내'},

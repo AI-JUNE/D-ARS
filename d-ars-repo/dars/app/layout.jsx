@@ -1,3 +1,4 @@
+import './gowon-ds.css';
 import './globals.css';
 
 const DESC = '보이는 ARS(Visual ARS) · 콜봇 연계 운영 포털 — 시나리오·실시간 세션·멀티모달 이력·UMS·리포트를 한 곳에서 관리합니다.';
@@ -36,7 +37,7 @@ export const metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#2457C5',
+  themeColor: '#0C66E4',
 };
 
 export default function RootLayout({ children }) {

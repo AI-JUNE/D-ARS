@@ -8,11 +8,11 @@
    전용이고 그 화면은 이 변수를 쓰지 않는다.
    ────────────────────────────────────────────────────────────────────────── */
 :root{
-  --brand:#2457C5;--brand-d:#1B45A0;--brand-l:#C9D6F2;--brand-xl:#EEF3FC;
-  --bg:#F7F8FA;--panel:#fff;--panel2:#F1F3F6;--ink:#191F28;--muted:#5F6B78;
-  --line:#E5E8EB;--line2:#EEF0F3;
-  --ok:#3C764C;--warn:#99610E;--bad:#9f1239;--info:#1B45A0;
-  --sidebar:#ffffff;--sidebar-2:#F1F3F6;--shadow:0 8px 24px -18px rgba(25,31,40,.35);
+  --brand:var(--gw-blue-600);--brand-d:var(--gw-blue-700);--brand-l:#B3D4FF;--brand-xl:var(--gw-blue-50);
+  --bg:var(--gw-n50);--panel:#fff;--panel2:var(--gw-n100);--ink:var(--gw-n900);--muted:var(--gw-n600);
+  --line:#DCDFE4;--line2:#EBECF0;
+  --ok:var(--gw-success);--warn:var(--gw-warning);--bad:var(--gw-danger);--info:var(--gw-info);
+  --sidebar:#ffffff;--sidebar-2:var(--gw-n100);--shadow:var(--gw-shadow-raised);
   --nav-h:56px;--side-w:238px;
 }
 *{box-sizing:border-box}

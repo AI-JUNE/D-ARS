@@ -1,0 +1,29 @@
+/* GOWON 디자인 시스템 v1.0 (2026-11-23) 토큰. 단일 색 출처.
+   원본: 10. GOWON-Platform/docs/화면확인/ds1123/gowon-v1/gowon-ds.css 의 :root 블록을 그대로 옮겼다.
+   원본 값이 바뀌면 이 파일만 같이 고친다. 서비스 전용 값은 --svc-* 로 따로 두고 아래 공통 토큰을 덮어쓰지 않는다.
+   컴포넌트 규칙(.gw-*)과 요소 선택자(body, h1, a)는 아직 들이지 않았다: 전역 요소 규칙은 이음 어르신 화면 가드(tests/eumseniorui)가 분류한다. */
+:root{
+  /* 중립 */
+  --gw-n0:#FFFFFF; --gw-n50:#F7F8F9; --gw-n100:#F1F2F4; --gw-n200:#DCDFE4; --gw-n300:#B3B9C4;
+  --gw-n600:#626F86; --gw-n700:#44546F; --gw-n900:#172B4D;
+  /* 주색 */
+  --gw-blue-600:#0C66E4; --gw-blue-700:#0055CC; --gw-blue-50:#E9F2FF;
+  /* 상태 (글자 / 바탕) */
+  --gw-success:#216E4E; --gw-success-bg:#DCFFF1;
+  --gw-warning:#7F5F01; --gw-warning-bg:#FFF7D6;
+  --gw-danger:#AE2E24;  --gw-danger-bg:#FFECEB; --gw-danger-solid:#C9372C;
+  --gw-info:#0055CC;    --gw-info-bg:#E9F2FF;
+  --gw-discovery:#5E4DB2; --gw-discovery-bg:#F3F0FF;
+  /* 의미 토큰 */
+  --gw-text:var(--gw-n900); --gw-text-subtle:var(--gw-n700); --gw-text-subtlest:var(--gw-n600);
+  --gw-surface:var(--gw-n0); --gw-surface-sunken:var(--gw-n50); --gw-surface-hover:var(--gw-n100);
+  --gw-surface-selected:var(--gw-blue-50);
+  --gw-border:rgba(9,30,66,.14); --gw-border-strong:rgba(9,30,66,.31); --gw-border-focus:#388BFF;
+  --gw-link:var(--gw-blue-600);
+  /* 모서리, 그림자 */
+  --gw-r-sm:3px; --gw-r-md:4px; --gw-r-lg:8px;
+  --gw-shadow-raised:0 1px 1px rgba(9,30,66,.25),0 0 1px rgba(9,30,66,.31);
+  --gw-shadow-overlay:0 8px 12px rgba(9,30,66,.15),0 0 1px rgba(9,30,66,.31);
+  /* 골격 */
+  --gw-ctrl-h:32px; --gw-row-h:40px; --gw-topbar-h:48px; --gw-sidebar-w:240px;
+}
