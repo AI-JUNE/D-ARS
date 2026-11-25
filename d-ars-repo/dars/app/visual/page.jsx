@@ -95,7 +95,7 @@ export default function Visual() {
         if (d.node && d.node !== lastNode) {   // 콜봇이 새 노드를 push하면 화면 전환
           lastNode = d.node;
           if (NODE_STEP[d.node] != null) setStep(NODE_STEP[d.node]);
-          push({ who: 'bot', text: '통화 진행에 맞춰 화면으로 안내해 드릴게요.', node: d.node });
+          push({ who: 'bot', text: '통화 진행에 맞춰 화면을 안내합니다.', node: d.node });
         }
         if (d.gen && GK.includes(d.gen)) setGen((cur) => (cur === d.gen ? cur : d.gen));  // 통화 중 톤 전환
         if (d.status === '완료') setStep(4);
@@ -113,30 +113,30 @@ export default function Visual() {
     const id = ++runId.current;
     setPlaying(true); setMsgs([]); setStep(0); setTyping(false); setListening(false);
     await wait(400);
-    await bot('안녕하세요, 고객센터입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내해 드릴게요.', null, id);
+    await bot('안녕하세요, 고객센터입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내합니다.', null, id);
     if (id !== runId.current) return;
     setStep(1); await cust('김순자입니다. 기초연금을 신청하고 싶어요', id);
-    await bot('네, 본인확인 되었어요. 말씀만 하시면 신청서를 대신 채워드릴게요.', 'SHOW_WELFARE_FORM', id);
+    await bot('네, 본인확인 되었어요. 말씀하시는 내용으로 신청서를 대신 작성합니다.', 'SHOW_WELFARE_FORM', id);
     if (id !== runId.current) return;
-    setStep(2); await bot('기초연금부터 접수해 드릴게요. 필요하시면 노인맞춤돌봄도 함께 신청할 수 있어요.', null, id);
+    setStep(2); await bot('기초연금부터 접수합니다. 필요하시면 노인맞춤돌봄도 함께 신청할 수 있어요.', null, id);
     await cust('가끔 손주도 봐주고 말동무해줄 사람이 있으면 좋겠어', id);
     await bot('그러시군요. 가까운 청년·아동과 3세대로 이어드릴 수 있어요.', 'SHOW_TRIO_MATCH', id);
     if (id !== runId.current) return;
     setStep(3); await bot('매칭 전에는 4단계 안전검증을 꼭 거치니 안심하셔도 돼요.', 'SHOW_SAFETY_CHECK', id);
     await bot('그동안 쌓으신 봉사시간과 상생카드도 확인해 보세요.', 'SHOW_CARD_POINTS', id);
     if (id !== runId.current) return;
-    await bot('접수에 필요한 서류예요. 문자로도 보내드릴게요.', 'SHOW_DOCS', id);
+    await bot('접수에 필요한 서류예요. 문자로도 보내 드립니다.', 'SHOW_DOCS', id);
     setStep(4); await bot('신청이 접수되었어요. 담당 코디네이터가 곧 연락드릴게요. 편하게 기다려 주세요.', null, id);
     if (id === runId.current) setPlaying(false);
   };
 
   const pick = async (node) => {
     const id = ++runId.current; setPlaying(false);
-    if (node === 'SHOW_WELFARE_FORM') { setStep(2); await cust('복지 신청하고 싶어요', id); await bot('말씀만 하시면 신청서를 채워드릴게요.', node, id); }
+    if (node === 'SHOW_WELFARE_FORM') { setStep(2); await cust('복지 신청하고 싶어요', id); await bot('말씀하시는 내용으로 신청서를 작성합니다.', node, id); }
     if (node === 'SHOW_TRIO_MATCH') { setStep(3); await cust('3세대 매칭 신청할래요', id); await bot('청년·어르신·아동 트리오로 이어드려요.', node, id); }
     if (node === 'SHOW_SAFETY_CHECK') { setStep(3); await cust('안전한지 걱정돼요', id); await bot('4단계 안전검증으로 안심하셔도 돼요.', node, id); }
     if (node === 'SHOW_CARD_POINTS') { setStep(2); await cust('내 봉사시간이랑 상생카드 얼마예요?', id); await bot('적립 내역이에요.', node, id); }
-    if (node === 'TRANSFER_COORDINATOR') { setStep(3); await cust('사람이랑 얘기하고 싶어요', id); await bot('지역 코디네이터로 연결해 드릴게요.', node, id); }
+    if (node === 'TRANSFER_COORDINATOR') { setStep(3); await cust('사람이랑 얘기하고 싶어요', id); await bot('지역 코디네이터로 연결합니다.', node, id); }
   };
 
   // 109회차: 루트 div → main 랜드마크(WCAG 1.3.1). 인라인 스타일 그대로 — 표시 불변

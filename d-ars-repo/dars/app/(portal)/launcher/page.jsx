@@ -8,8 +8,8 @@ import { useMemo, useState } from 'react';
 const DEFAULTS = {
   trigger: 'auto',
   invite: true,
-  inviteText: '[GOWON] 보이는 ARS로 더 편하게 안내해 드릴게요. 아래 링크를 눌러 화면으로 확인하세요 ▶ https://d-ars.app/v/{code}',
-  header: '보이는 ARS · 화면 안내',
+  inviteText: '[GOWON] 보이는 ARS 화면 안내 링크입니다. 아래 링크를 눌러 화면으로 확인하세요. https://d-ars.app/v/{code}',
+  header: '보이는 ARS 화면 안내',
   brandName: 'GOWON',
   fallbackVoice: true,
   timeout: 5,
