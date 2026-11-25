@@ -128,7 +128,7 @@ section.band{padding:48px 0}
 .faq summary{cursor:pointer;font-weight:700;font-size:16px;padding:18px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}
 .faq summary::-webkit-details-marker{display:none}
 .faq summary::after{content:"+";color:var(--brand);font-size:20px;line-height:1}
-.faq details[open] summary::after{content:"\2212"}
+.faq details[open] summary::after{content:"\\2212"}
 .faq details p{color:var(--body);font-size:15px;line-height:1.7;padding:0 0 18px}
 .faq summary:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:6px}
 
