@@ -25,7 +25,7 @@ function Preview({ t }) {
   return (
     <div style={{ background: '#f4f1ee', borderRadius: 16, padding: 12, border: '1px solid var(--line)' }}>
       <div style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', borderRadius: '12px 12px 0 0', padding: '10px 12px', fontSize: 12, fontWeight: 700 }}>
-        📞 보이는 ARS · 화면 안내
+        보이는 ARS 화면 안내
       </div>
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderTop: 0, borderRadius: '0 0 12px 12px', padding: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>

@@ -150,7 +150,7 @@ export default function PortalLayout({ children }) {
         <div className="side-foot">
           <div className="gw-logo">GOWON</div>
           <div className="gw-stat"><span className="d" />연결됨 · Neon</div>
-          <div className="gw-build">D-ARS · 콜봇 연계 · v4</div>
+          <div className="gw-build">D-ARS 콜봇 연계 v4</div>
         </div>
       </aside>
 

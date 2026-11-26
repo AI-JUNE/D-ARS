@@ -73,11 +73,11 @@ export default function LoginPage() {
 
         {info.demo && (
           <div className="auth-demo">
-            <div className="auth-demo-t">데모 계정 {info.enforced ? '' : '· 현재 접근 제한 미적용(운영자가 AUTH_ENFORCE=1로 활성화)'}</div>
+            <div className="auth-demo-t">샘플 계정 {info.enforced ? '' : '(현재 접근 제한 미적용, 운영자가 AUTH_ENFORCE=1로 활성화)'}</div>
             <div className="auth-chips">
-              <button type="button" className="auth-chip" onClick={() => fill('admin')}>admin · 관리자</button>
-              <button type="button" className="auth-chip" onClick={() => fill('operator')}>operator · 상담</button>
-              <button type="button" className="auth-chip" onClick={() => fill('viewer')}>viewer · 뷰어</button>
+              <button type="button" className="auth-chip" onClick={() => fill('admin')}>admin (관리자)</button>
+              <button type="button" className="auth-chip" onClick={() => fill('operator')}>operator (상담사)</button>
+              <button type="button" className="auth-chip" onClick={() => fill('viewer')}>viewer (뷰어)</button>
             </div>
             <div className="auth-demo-p">비밀번호 공통: <code>dars2026!</code></div>
           </div>

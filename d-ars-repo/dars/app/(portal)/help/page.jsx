@@ -31,8 +31,8 @@ export default function Help() {
   }, []);
   return (
     <>
-      <div className="sectionhead"><h2>도움말 · FAQ</h2>
-        <span className="d">보이는 ARS 관리자 포털 사용 안내 · 자주 묻는 질문</span></div>
+      <div className="sectionhead"><h2>도움말과 FAQ</h2>
+        <span className="d">보이는 ARS 관리자 포털 사용 안내, 자주 묻는 질문</span></div>
 
       <div className="grid g4" style={{marginBottom:16}}>
         <div className="card kpi">
@@ -66,7 +66,7 @@ export default function Help() {
           ))}
         </div>
         <div className="muted" style={{marginTop:12, fontSize:12.5}}>
-          운영 문의: 관리자(GOWON) · 시스템 문제 발생 시 <b>/api/health</b> 상태를 먼저 확인하세요.
+          운영 문의: 관리자(GOWON). 시스템 문제 발생 시 <b>/api/health</b> 상태를 먼저 확인하세요.
         </div>
       </div>
     </>

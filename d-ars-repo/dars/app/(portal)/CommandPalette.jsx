@@ -99,7 +99,7 @@ export default function CommandPalette() {
           <input
             ref={inputRef}
             className="cmdk-input"
-            placeholder="페이지 이동 · 검색 (예: 세션, 통계, ums)"
+            placeholder="페이지 검색 (예: 세션, 통계, ums)"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={onKeyDown}
@@ -137,7 +137,7 @@ export default function CommandPalette() {
           <span><kbd>↵</kbd> 열기</span>
           <span><kbd>Esc</kbd> 닫기</span>
           <span className="sp" />
-          <span className="muted">빠른 이동 · <kbd>Ctrl</kbd>+<kbd>K</kbd></span>
+          <span className="muted">빠른 이동 <kbd>Ctrl</kbd>+<kbd>K</kbd></span>
         </div>
       </div>
     </div>

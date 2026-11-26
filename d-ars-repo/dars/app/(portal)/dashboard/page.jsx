@@ -151,7 +151,7 @@ export default function Dashboard() {
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.12s' }}>
         <h3>📊 일별 운영 추이 <span className="tag t-info" style={{ marginLeft: 6 }}>{days}</span></h3>
-        <div className="d">멀티모달 전환 · 완료 · 이탈 (건) · 막대에 마우스를 올리면 상세</div>
+        <div className="d">멀티모달 전환, 완료, 이탈 (건)</div>
         {daily.length > 0
           ? <GroupedBars data={daily} series={BAR_SERIES} />
           : <div className="skl" style={{ height: 210 }} />}
@@ -164,7 +164,7 @@ export default function Dashboard() {
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.16s' }}>
         <h3>📡 실시간 세션 <span className="tag t-info" style={{ marginLeft: 6 }}>LIVE</span></h3>
-        <div className="d">개인정보 자동 마스킹 · 5초 갱신</div>
+        <div className="d">개인정보 자동 마스킹, 5초 간격 갱신</div>
         <table className="tbl" aria-label="실시간 진행 세션"><thead><tr><th scope="col">세션</th><th scope="col">고객</th><th scope="col">시나리오</th><th scope="col">단계</th><th scope="col">경과</th></tr></thead>
           <tbody>{sessions.slice(0, 6).map(s => (<tr key={s.id}><td><b>{s.id}</b></td><td>{s.phone}</td><td>{s.scenario}</td>
             <td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{stepLabel(s.step)}</span></td>

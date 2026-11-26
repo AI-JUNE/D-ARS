@@ -77,7 +77,7 @@ export default function Notifications() {
     <>
       <div className="sectionhead">
         <h2>알림 센터</h2>
-        <span className="d">운영 지표에서 자동 도출된 알림 · 30초 갱신</span>
+        <span className="d">운영 지표에서 자동 도출된 알림, 30초 간격 갱신</span>
         {custom && <span className="tag t-info">사용자 기준 적용 중</span>}
         <span className="sp" />
         <button type="button" className="btn sm" aria-expanded={open} onClick={() => setOpen(v => !v)}>⚙ 알림 기준</button>
@@ -100,7 +100,7 @@ export default function Notifications() {
                   value={draft[s.key] === '' ? '' : draft[s.key]}
                   onChange={e => onField(s.key, e.target.value)}
                   onBlur={() => onBlurField(s.key)} />
-                <span className="muted thr-h">{s.help} · 기본 {s.def}{s.unit} · {s.min}~{s.max}</span>
+                <span className="muted thr-h">{s.help}, 기본 {s.def}{s.unit}, {s.min}~{s.max}</span>
               </label>
             ))}
           </div>

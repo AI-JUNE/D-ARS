@@ -72,7 +72,7 @@ export default function Stats() {
           {daily.length > 0 ? <AreaChart data={col('multimodal')} labels={labels} unit="건" color="#2563eb" /> : <div className="skl" style={{ height: 176 }} />}
         </div>
         <div className="card reveal" style={{ animationDelay: '.16s' }}>
-          <h3>📊 일별 전환·완료·이탈</h3><div className="d">{days} · 막대 호버 시 상세</div>
+          <h3>일별 전환, 완료, 이탈</h3><div className="d">{days}</div>
           {daily.length > 0 ? <GroupedBars data={daily} series={BAR_SERIES} height={188} /> : <div className="skl" style={{ height: 188 }} />}
         </div>
       </div>

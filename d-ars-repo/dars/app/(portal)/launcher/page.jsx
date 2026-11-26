@@ -58,7 +58,7 @@ export default function Launcher() {
     <>
       <div className="sectionhead">
         <h2>런처 설정</h2>
-        <span className="d">보이는 ARS가 고객 휴대폰에 표출되는 방식 · 초대 문구 · 폴백 정책을 구성</span>
+        <span className="d">보이는 ARS가 고객 휴대폰에 표출되는 방식, 초대 문구, 폴백 정책 설정</span>
       </div>
 
       <div className="grid g2" style={{ alignItems: 'start' }}>
@@ -94,7 +94,7 @@ export default function Launcher() {
           </div>
 
           <div className="card">
-            <b style={{ fontSize: 14 }}>초대 · 브랜딩</b>
+            <b style={{ fontSize: 14 }}>초대 문구와 브랜딩</b>
             <div style={{ marginTop: 6 }}>
               <Row label="문자(SMS) 초대" hint="미지원 단말/미응답 시 초대 링크를 문자로 발송">
                 <Toggle on={cfg.invite} onClick={() => set('invite', !cfg.invite)} label="문자(SMS) 초대" />
@@ -109,7 +109,7 @@ export default function Launcher() {
               <Row label="상단 헤더 문구" hint="런처 화면 최상단에 표시">
                 <input className="input" value={cfg.header} onChange={e => set('header', e.target.value)} aria-label="상단 헤더 문구" style={{ width: '100%', maxWidth: 240 }} />
               </Row>
-              <Row label="브랜드 표기" hint="발신 주체 · 로고 텍스트">
+              <Row label="브랜드 표기" hint="발신 주체, 로고 텍스트">
                 <input className="input" value={cfg.brandName} onChange={e => set('brandName', e.target.value)} aria-label="브랜드 표기" style={{ width: '100%', maxWidth: 240 }} />
               </Row>
               <Row label="브랜드 컬러" hint="전 화면 공통(고정)">
@@ -119,7 +119,7 @@ export default function Launcher() {
           </div>
 
           <div className="card">
-            <b style={{ fontSize: 14 }}>세션 · 폴백 정책</b>
+            <b style={{ fontSize: 14 }}>세션과 폴백 정책</b>
             <div style={{ marginTop: 6 }}>
               <Row label="음성 ARS 유지" hint="화면 미지원/미응답 시 기존 음성 흐름 계속">
                 <Toggle on={cfg.fallbackVoice} onClick={() => set('fallbackVoice', !cfg.fallbackVoice)} label="음성 ARS 유지" />

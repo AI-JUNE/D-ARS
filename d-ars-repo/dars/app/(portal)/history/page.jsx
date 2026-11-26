@@ -111,7 +111,7 @@ export default function History() {
     <>
       <div className="sectionhead">
         <h2>멀티모달 이력</h2>
-        <span className="d">보이는 ARS 상호작용 로그 · 15초 자동 갱신 · 번호 마스킹</span>
+        <span className="d">보이는 ARS 상호작용 로그, 15초 간격 갱신, 번호 마스킹</span>
         <span className="sp" />
         <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
       </div>
@@ -167,7 +167,7 @@ export default function History() {
       <SelectionNote S={S} />
 
       <div className="card" style={{ marginTop: 4 }}>
-        <h3>상호작용 로그 <span className="muted" style={{ fontWeight: 600, fontSize: 12.5, wordBreak: 'break-word' }}>· {total}건{srvRange ? ` · ${rangeLabel(srvRange)}` : ''}</span>
+        <h3>상호작용 로그 <span className="muted" style={{ fontWeight: 600, fontSize: 12.5, wordBreak: 'break-word' }}>{total}건{srvRange ? `, ${rangeLabel(srvRange)}` : ''}</span>
           {swap > 0 && <span className="tag t-warn" style={{ marginLeft: 6 }}>상담원 전환 {swap}</span>}
         </h3>
         <table className="tbl" aria-label="멀티모달 상호작용 이력">

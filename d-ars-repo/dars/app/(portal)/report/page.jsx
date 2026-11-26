@@ -66,7 +66,7 @@ export default function Report() {
     <>
       <div className="sectionhead noprint">
         <h2>운영 리포트</h2>
-        <span className="d">일별 운영 지표 요약 · 인쇄하여 PDF로 저장</span>
+        <span className="d">일별 운영 지표 요약, 인쇄 후 PDF 저장</span>
         <div className="sp" />
         <div className="seg" role="group" aria-label="조회 기간">
           {RANGE_PRESETS.map(r => (
@@ -83,7 +83,7 @@ export default function Report() {
         <div className="rp-head">
           <div className="rp-brand"><span className="dot" /> D-ARS · 보이는 ARS</div>
           <h1 className="rp-title">운영 리포트</h1>
-          <div className="rp-meta">생성 {now || '…'} · 운영 GOWON · {period}</div>
+          <div className="rp-meta">생성 {now || '…'}, 운영 GOWON, {period}</div>
           <div className="rp-meta">{conditions}</div>
         </div>
 
