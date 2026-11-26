@@ -6,7 +6,7 @@ import { fetchOnce } from '@/lib/fetchJson';
 // 보이는 ARS 고객 화면 데모 — 통화 중 화면 동반 안내 시연
 // 콜봇 events node 키(합의안): SHOW_WELFARE_FORM · SHOW_TRIO_MATCH · SHOW_SAFETY_CHECK
 //                              · SHOW_CARD_POINTS · TRANSFER_COORDINATOR · SHOW_DOCS
-const journey = ['연결', '본인확인', '신청·상담', '매칭·안내', '완료'];
+const journey = ['연결', '본인확인', '신청과 상담', '매칭과 안내', '완료'];
 const GENS = [
   { k: 'senior', label: '어르신', scale: 1.16 },
   { k: 'youth', label: '청년', scale: 1.0 },
@@ -15,8 +15,8 @@ const GENS = [
 const MENU = [
   ['SHOW_WELFARE_FORM', '복지 신청'],
   ['SHOW_TRIO_MATCH', '3세대 매칭'],
-  ['SHOW_SAFETY_CHECK', 'AI 안부·안전'],
-  ['SHOW_CARD_POINTS', '상생카드·봉사'],
+  ['SHOW_SAFETY_CHECK', 'AI 안부 확인'],
+  ['SHOW_CARD_POINTS', '상생카드와 봉사'],
   ['TRANSFER_COORDINATOR', '코디네이터 연결'],
 ];
 // 노드→스텝 인디케이터 매핑(정적 상수 — 컴포넌트 밖 모듈 스코프로 올려 렌더마다 재생성되지 않게 하고
@@ -116,26 +116,26 @@ export default function Visual() {
     await bot('안녕하세요, 고객센터입니다. 무엇을 도와드릴까요? 화면으로도 함께 안내합니다.', null, id);
     if (id !== runId.current) return;
     setStep(1); await cust('김순자입니다. 기초연금을 신청하고 싶어요', id);
-    await bot('네, 본인확인 되었어요. 말씀하시는 내용으로 신청서를 대신 작성합니다.', 'SHOW_WELFARE_FORM', id);
+    await bot('본인 확인이 완료되었습니다. 말씀하신 내용으로 신청서를 작성합니다.', 'SHOW_WELFARE_FORM', id);
     if (id !== runId.current) return;
-    setStep(2); await bot('기초연금부터 접수합니다. 필요하시면 노인맞춤돌봄도 함께 신청할 수 있어요.', null, id);
+    setStep(2); await bot('기초연금부터 접수합니다. 노인맞춤돌봄도 함께 신청할 수 있습니다.', null, id);
     await cust('가끔 손주도 봐주고 말동무해줄 사람이 있으면 좋겠어', id);
-    await bot('그러시군요. 가까운 청년·아동과 3세대로 이어드릴 수 있어요.', 'SHOW_TRIO_MATCH', id);
+    await bot('그러시군요. 가까운 청년, 아동과 3세대 매칭이 가능합니다.', 'SHOW_TRIO_MATCH', id);
     if (id !== runId.current) return;
-    setStep(3); await bot('매칭 전에는 4단계 안전검증을 꼭 거치니 안심하셔도 돼요.', 'SHOW_SAFETY_CHECK', id);
-    await bot('그동안 쌓으신 봉사시간과 상생카드도 확인해 보세요.', 'SHOW_CARD_POINTS', id);
+    setStep(3); await bot('매칭 전에 4단계 안전검증을 진행합니다.', 'SHOW_SAFETY_CHECK', id);
+    await bot('누적 봉사시간과 상생카드 내역입니다.', 'SHOW_CARD_POINTS', id);
     if (id !== runId.current) return;
-    await bot('접수에 필요한 서류예요. 문자로도 보내 드립니다.', 'SHOW_DOCS', id);
-    setStep(4); await bot('신청이 접수되었어요. 담당 코디네이터가 곧 연락드릴게요. 편하게 기다려 주세요.', null, id);
+    await bot('접수에 필요한 서류입니다. 문자로도 발송합니다.', 'SHOW_DOCS', id);
+    setStep(4); await bot('신청이 접수되었습니다. 담당 코디네이터가 연락합니다.', null, id);
     if (id === runId.current) setPlaying(false);
   };
 
   const pick = async (node) => {
     const id = ++runId.current; setPlaying(false);
     if (node === 'SHOW_WELFARE_FORM') { setStep(2); await cust('복지 신청하고 싶어요', id); await bot('말씀하시는 내용으로 신청서를 작성합니다.', node, id); }
-    if (node === 'SHOW_TRIO_MATCH') { setStep(3); await cust('3세대 매칭 신청할래요', id); await bot('청년·어르신·아동 트리오로 이어드려요.', node, id); }
-    if (node === 'SHOW_SAFETY_CHECK') { setStep(3); await cust('안전한지 걱정돼요', id); await bot('4단계 안전검증으로 안심하셔도 돼요.', node, id); }
-    if (node === 'SHOW_CARD_POINTS') { setStep(2); await cust('내 봉사시간이랑 상생카드 얼마예요?', id); await bot('적립 내역이에요.', node, id); }
+    if (node === 'SHOW_TRIO_MATCH') { setStep(3); await cust('3세대 매칭 신청할래요', id); await bot('청년, 어르신, 아동 3세대로 매칭합니다.', node, id); }
+    if (node === 'SHOW_SAFETY_CHECK') { setStep(3); await cust('안전한지 걱정돼요', id); await bot('매칭 전에 4단계 안전검증을 진행합니다.', node, id); }
+    if (node === 'SHOW_CARD_POINTS') { setStep(2); await cust('내 봉사시간이랑 상생카드 얼마예요?', id); await bot('적립 내역입니다.', node, id); }
     if (node === 'TRANSFER_COORDINATOR') { setStep(3); await cust('사람이랑 얘기하고 싶어요', id); await bot('지역 코디네이터로 연결합니다.', node, id); }
   };
 
@@ -151,17 +151,17 @@ export default function Visual() {
         <div style={{ background: '#f8fafc', borderRadius: 34, overflow: 'hidden', height: 'min(760px,84vh)', minHeight: 540, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', padding: '20px 18px 13px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <b style={{ fontSize: 15.5 }}>D-ARS · 보이는 ARS</b>
-              <span style={{ fontSize: 11, background: 'rgba(255,255,255,.18)', padding: '4px 9px', borderRadius: 999 }}>{live ? '● 실시간 연동' : '● 통화 연결됨'}</span>
+              <b style={{ fontSize: 15.5 }}>D-ARS 보이는 ARS</b>
+              <span style={{ fontSize: 11, background: 'rgba(255,255,255,.18)', padding: '4px 9px', borderRadius: 999 }}>{live ? '실시간 연동' : '통화 연결'}</span>
             </div>
-            <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>통화 중 화면 동반 안내 · 데모 화면</div>
+            <div style={{ fontSize: 12, opacity: .92, marginTop: 5 }}>통화 중 화면 안내, 체험 화면</div>
           </div>
           <div style={{ background: '#eef4ff', borderBottom: '1px solid #e2e8f0', color: '#1d4ed8', fontSize: 11, padding: '7px 16px' }}>
-            ℹ️ 본 상담은 생성형 AI가 함께 응대합니다 (AI 기본법 제31조 고지). · 본 화면은 데모이며 실제 고객 데이터가 아닙니다.</div>
+            본 상담은 생성형 AI가 함께 응대합니다(AI 기본법 제31조 고지). 본 화면은 체험용이며 실제 고객 데이터가 아닙니다.</div>
           {/* 장애 폴백 안내: 항상 DOM 에 두고(display:none 이면 aria-live 낭독이 누락된다) 끊겼을 때만 내용·높이를 채운다.
               색 대비: #9f1239 on #fbe2e7 ≈ 6.5:1 (어르신 배율에도 S() 로 확대). */}
           <div role="status" aria-live="assertive" style={{ background: '#fbe2e7', borderBottom: lost ? '1px solid #f3cbd5' : 0, color: '#9f1239', fontSize: S(13), fontWeight: 700, padding: lost ? '9px 16px' : 0, lineHeight: 1.45 }}>
-            {lost ? `📞 ${SCREEN_LOST_MESSAGE}` : ''}</div>
+            {lost ? SCREEN_LOST_MESSAGE : ''}</div>
           <div style={{ display: 'flex', gap: 6, padding: '9px 14px 4px', alignItems: 'center' }}>
             <span style={{ fontSize: 10.5, color: '#64748b', fontWeight: 700 }}>세대별 화면</span>
             {GENS.map((g) => (
@@ -181,12 +181,12 @@ export default function Visual() {
             {typing && <Typing S={S} />}
           </div>
           <div style={{ padding: '8px 14px', minHeight: 34, fontSize: S(12), color: listening ? '#1d4ed8' : '#64748b', fontWeight: 600 }}>
-            {listening ? '🎙️ 고객님 말씀을 듣고 있어요…' : (typing ? '💬 안내를 준비하고 있어요…' : '메뉴를 누르거나 통화를 시작하세요')}</div>
+            {listening ? '음성을 인식하는 중입니다' : (typing ? '안내를 준비하는 중입니다' : '메뉴를 누르거나 통화를 시작하세요')}</div>
           <div style={{ padding: '6px 12px 10px', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {MENU.map(([node, label]) => (
               <button type="button" key={node} onClick={() => pick(node)} style={{ ...btnStyle, fontSize: S(12.5) }}>{label}</button>))}
             <button type="button" onClick={play} disabled={playing} style={{ ...btnStyle, background: playing ? '#93b4f5' : '#2563eb', color: '#fff', flex: '1 1 100%', fontSize: S(13), cursor: playing ? 'default' : 'pointer' }}>
-              {playing ? '● 시연 진행 중…' : '▶ 자동 시연'}</button>
+              {playing ? '시연 진행 중' : '자동 시연'}</button>
           </div>
         </div>
       </div>
@@ -213,7 +213,7 @@ function Bubble({ m, S }) {
     }}>
       {/* 말한 쪽 표시: 브랜드색은 봇에만 쓰고 고객 쪽은 중립 회색으로 둔다 — 블루 한 색으로
           옮기면서 종전(테라코타/브라운)이 갖고 있던 두 화자의 구분이 사라지지 않게. */}
-      <div style={{ fontSize: S(10), fontWeight: 800, marginBottom: 3, color: bot ? '#2563eb' : '#64748b' }}>{bot ? '보이는 ARS · AI' : '고객 발화 (STT)'}</div>
+      <div style={{ fontSize: S(10), fontWeight: 800, marginBottom: 3, color: bot ? '#2563eb' : '#64748b' }}>{bot ? '보이는 ARS AI' : '고객 발화 (STT)'}</div>
       {m.text}
       {m.node && <NodeCard node={m.node} S={S} />}
     </div>
@@ -224,46 +224,46 @@ function NodeCard({ node, S }) {
   const box = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 11, marginTop: 8, fontSize: S(12.5) };
   const title = (t) => <b style={{ fontSize: S(13), color: '#1d4ed8' }}>{t}</b>;
   const kv = (k, v) => (<div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px dashed #eee' }}><span style={{ color: '#64748b' }}>{k}</span><b>{v}</b></div>);
-  const chip = (t, done) => (<span style={{ fontSize: S(11), fontWeight: 700, padding: '3px 8px', borderRadius: 999, marginRight: 5, marginTop: 5, display: 'inline-block', background: done ? '#e7f7ee' : '#eef4ff', color: done ? '#0f6b37' : '#1d4ed8' }}>{done ? '✓ ' : ''}{t}</span>);
+  const chip = (t, done) => (<span style={{ fontSize: S(11), fontWeight: 700, padding: '3px 8px', borderRadius: 999, marginRight: 5, marginTop: 5, display: 'inline-block', background: done ? '#e7f7ee' : '#eef4ff', color: done ? '#0f6b37' : '#1d4ed8' }}>{done ? '완료 ' : ''}{t}</span>);
 
   if (node === 'SHOW_WELFARE_FORM') return (
-    <div style={box}>{title('🗣️ 복지 신청 (말로 신청)')}
+    <div style={box}>{title('복지 신청(음성 신청)')}
       <div style={{ margin: '7px 0 3px' }}>{chip('기초연금')}{chip('노인맞춤돌봄')}{chip('에너지바우처')}</div>
-      {kv('신청자', '김순자 어르신')}{kv('대상 확인', '자동 조회됨 · 적격')}
-      <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: S(11.5) }}>말씀하시면 신청서가 자동으로 채워집니다. 금액·자격은 코디네이터가 확인해 드려요.</div>
+      {kv('신청자', '김순자 어르신')}{kv('대상 확인', '자동 조회, 적격')}
+      <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: S(11.5) }}>말씀하신 내용이 신청서에 자동 입력됩니다. 금액과 자격은 코디네이터가 확인합니다.</div>
     </div>);
   if (node === 'SHOW_TRIO_MATCH') return (
-    <div style={box}>{title('🤝 3세대 트리오 매칭')}
+    <div style={box}>{title('3세대 매칭')}
       <div style={{ display: 'flex', gap: 6, margin: '8px 0' }}>
         {[['어르신', '김순자'], ['청년', '이도윤'], ['아동', '박서아']].map(([r, n]) => (
           <div key={r} style={{ flex: 1, textAlign: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 4px' }}>
             <div style={{ fontSize: S(10.5), color: '#1d4ed8', fontWeight: 700 }}>{r}</div><b style={{ fontSize: S(12) }}>{n}</b></div>))}
       </div>
-      {kv('근접', '도보 800m · 같은 동')}{kv('활동', '주 2회 · 말동무·돌봄')}
+      {kv('근접', '도보 800m, 같은 동')}{kv('활동', '주 2회, 말동무와 돌봄')}
     </div>);
   if (node === 'SHOW_SAFETY_CHECK') return (
-    <div style={box}>{title('🛡️ 4단계 안전검증')}
+    <div style={box}>{title('4단계 안전검증')}
       <div style={{ marginTop: 6 }}>{chip('본인 면접', 1)}{chip('범죄경력 조회', 1)}{chip('아동학대 전력', 1)}{chip('추천인 확인')}</div>
-      <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: S(11.5) }}>검증을 통과한 이웃만 매칭돼요. 안심하고 이용하세요.</div>
+      <div style={{ marginTop: 7, color: '#1d4ed8', fontSize: S(11.5) }}>검증을 통과한 이웃만 매칭됩니다.</div>
     </div>);
   if (node === 'SHOW_CARD_POINTS') return (
-    <div style={box}>{title('💳 상생카드 · 봉사시간')}
+    <div style={box}>{title('상생카드와 봉사시간')}
       {kv('누적 봉사시간', '32시간')}{kv('상생카드 포인트', '12,400 P')}{kv('이번 달 활동', '4회')}
     </div>);
   if (node === 'TRANSFER_COORDINATOR') return (
-    <div style={box}>{title('📞 코디네이터 연결')}
+    <div style={box}>{title('코디네이터 연결')}
       <div style={{ display: 'flex', gap: 8, marginTop: 7, alignItems: 'center' }}>
-        <span style={{ flex: 1, color: '#64748b' }}>담당 상담사 연결 · 예상 대기 30초</span>
-        <button type="button" onClick={(e) => { e.currentTarget.textContent = '연결 중…'; e.currentTarget.style.background = '#0f6b37'; }}
+        <span style={{ flex: 1, color: '#64748b' }}>담당 상담사 연결, 예상 대기 30초</span>
+        <button type="button" onClick={(e) => { e.currentTarget.textContent = '연결 중'; e.currentTarget.style.background = '#0f6b37'; }}
           style={{ border: 0, background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>연결</button>
       </div>
     </div>);
   if (node === 'SHOW_DOCS') return (
-    <div style={box}>{title('📋 필요 서류 · 접수')}
+    <div style={box}>{title('필요 서류와 접수')}
       <div style={{ margin: '6px 0' }}>{chip('신분증')}{chip('통장 사본')}{chip('주민등록등본')}</div>
       <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
         <span style={{ flex: 1, color: '#64748b' }}>서류 안내를 문자로 받기</span>
-        <button type="button" onClick={(e) => { e.currentTarget.textContent = '발송완료 ✓'; e.currentTarget.style.background = '#0f6b37'; }}
+        <button type="button" onClick={(e) => { e.currentTarget.textContent = '발송 완료'; e.currentTarget.style.background = '#0f6b37'; }}
           style={{ border: 0, background: '#2563eb', color: '#fff', fontWeight: 800, fontSize: S(12), padding: '8px 12px', borderRadius: 9, cursor: 'pointer' }}>문자 발송</button>
       </div>
     </div>);
