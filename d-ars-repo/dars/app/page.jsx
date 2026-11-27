@@ -7,14 +7,14 @@ export const dynamic = 'force-static';
 // 루트 metadata 는 운영 포털 기준('D-ARS · 보이는 ARS 관리자')이라 공개 랜딩에 그대로 쓰면
 // 제품 소개 화면이 '관리자'로 표기된다. 이 페이지에서만 제품 기준 제목·설명으로 덮어쓴다.
 export const metadata = {
-  title: 'D-ARS · 보이는 ARS 솔루션',
+  title: 'D-ARS 보이는 ARS 솔루션',
   description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
   openGraph: {
-    title: 'D-ARS · 보이는 ARS 솔루션',
+    title: 'D-ARS 보이는 ARS 솔루션',
     description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
   },
   twitter: {
-    title: 'D-ARS · 보이는 ARS 솔루션',
+    title: 'D-ARS 보이는 ARS 솔루션',
     description: 'AI 음성봇과 보이는 ARS로 전화 인입부터 화면 안내까지 잇는 디지털 ARS 솔루션.',
   },
 };
@@ -34,9 +34,9 @@ const planCard = (p) => `<div class="pcard${p.highlight ? ' hot' : ''}">${p.high
 const LP = `<style>
 /* ──────────────────────────────────────────────────────────────────────────
    AICC 라인 토큰 — app/globals.css 와 **같은 값**이다(기준 원본
-   2. Callbot/v2/callbot-portal/public/admin.html 의 마지막 :root · index.html 랜딩).
-   종전 이 블록은 랜딩만의 한 벌이었다: 경계선 #e6ebf3(콘솔은 #e2e8f0) · 바탕
-   #f6f8fc(#f8fafc) · 보조색 #94a3b8(흰 바탕 2.56:1 — WCAG AA 미달) · 파란빛이 섞인
+   2. Callbot/v2/callbot-portal/public/admin.html 의 마지막 :root, index.html 랜딩).
+   종전 이 블록은 랜딩만의 한 벌이었다: 경계선 #e6ebf3(콘솔은 #e2e8f0), 바탕
+   #f6f8fc(#f8fafc), 보조색 #94a3b8(흰 바탕 2.56:1, WCAG AA 미달), 파란빛이 섞인
    그림자. 「홈 → 로그인 → 콘솔」로 넘어가는 동안 선과 바탕이 미세하게 두 번 갈렸다.
    글꼴 @import 는 두지 않는다 — globals.css 가 이미 같은 CDN 에서 Pretendard 를
    받아 오므로 랜딩만 제3자 스타일시트를 한 번 더 기다릴 이유가 없다.
@@ -45,8 +45,8 @@ const LP = `<style>
   --brand:var(--gw-blue-600); --brand-d:var(--gw-blue-700); --brand-l:#B3D4FF; --brand-xl:var(--gw-blue-50);
   --ink:var(--gw-n900); --body:var(--gw-n700); --mut:var(--gw-n600);
   --line:#DCDFE4; --line2:#EBECF0; --bg:var(--gw-n50); --card:#fff;
-  /* 히어로·푸터 네이비와 그 위의 글자색은 랜딩만 쓰는 칸이다(콘솔에는 어두운 면이 없다).
-     쓰지 않는 칸은 두지 않는다 — --brand2·--navy3·--ok 는 아무 규칙도 읽지 않고 있었다. */
+  /* 히어로와 푸터 네이비와 그 위의 글자색은 랜딩만 쓰는 칸이다(콘솔에는 어두운 면이 없다).
+     쓰지 않는 칸은 두지 않는다 — --brand2, --navy3, --ok 는 아무 규칙도 읽지 않고 있었다. */
   --navy1:#0b1220; --navy2:#132445; --on-navy:#9fb2d4;
   --radius:16px;
   --shadow:var(--gw-shadow-raised);
@@ -57,7 +57,7 @@ html{scroll-behavior:smooth}
 body{font-family:Pretendard,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased;letter-spacing:-.015em}
 .wrap{max-width:1200px;margin:0 auto;padding:0 24px}
 a{color:inherit;text-decoration:none}
-/* 버튼 — 기준 원본 규격(globals.css 의 .btn.primary · index.html 의 .btn.ghost).
+/* 버튼 — 기준 원본 규격(globals.css 의 .btn.primary, index.html 의 .btn.ghost).
    주된 버튼은 **단색 브랜드색**이다(종전 135° 그라데이션 + 알파 .5 그림자는 콘솔의 어느
    버튼과도 다른 모양이었다). 호버 리프트는 아래 hover:hover 블록에서만 건다. */
 .btn{display:inline-flex;align-items:center;gap:8px;font-weight:700;font-size:15px;border-radius:12px;padding:12px 22px;cursor:pointer;border:0;white-space:nowrap;
@@ -65,7 +65,7 @@ a{color:inherit;text-decoration:none}
 .btn-primary{background:var(--brand);color:#fff;box-shadow:0 6px 16px rgba(37,99,235,.24)}
 .btn-primary:hover{background:var(--brand-d);box-shadow:0 8px 20px rgba(37,99,235,.32)}
 .btn-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.25)}
-/* 히어로·CTA 띠의 투명 버튼은 **자기 호버를 반드시 적어 둔다.** globals.css 의
+/* 히어로와 CTA 띠의 투명 버튼은 **자기 호버를 반드시 적어 둔다.** globals.css 의
    .btn:hover{background:var(--brand-xl)} 가 선택자 특이도에서 .btn-ghost 를 이기므로,
    이 한 줄이 없으면 어두운 면 위에서 호버 시 바탕이 연한 하늘색(#eef4ff)으로 바뀌고 흰
    글자가 그 위에 남아 **글씨가 사라진다**(1.1:1). */
@@ -135,7 +135,7 @@ section.band{padding:48px 0}
 /* cards */
 .cards4{grid-template-columns:repeat(4,1fr)}
 .cards3{grid-template-columns:repeat(3,1fr)}
-/* 카드 — 콘솔 .card 규격: 라운드 16 · 경계선 --line2 · 그림자 --shadow,
+/* 카드 — 콘솔 .card 규격: 라운드 16, 경계선 --line2, 그림자 --shadow,
    호버는 그림자/경계선만(들어 올리는 효과는 hover:hover 에서 건다). */
 .card{background:var(--card);border:1px solid var(--line2);border-radius:var(--radius);padding:28px;box-shadow:var(--shadow);
   transition:box-shadow .22s ease,border-color .22s ease,transform .22s ease}
@@ -163,7 +163,7 @@ section.band{padding:48px 0}
 .tag{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font-size:12px;font-weight:800;padding:5px 14px;border-radius:999px}
 .pcard h3{font-size:19px;font-weight:800}
 .pcard .amt{font-size:34px;font-weight:900;margin:14px 0 4px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-/* 금액 뒤 단위는 본문 보조색(--mut #64748b · 흰 바탕 4.76:1)으로 적는다 —
+/* 금액 뒤 단위는 본문 보조색(--mut #64748b, 흰 바탕 4.76:1)으로 적는다 —
    종전 #94a3b8 은 2.56:1 로 AA 미달이었고, 그 자리가 바로 「무엇당 얼마인가」다. */
 .pcard .amt small{font-size:15px;color:var(--mut);font-weight:700}
 .pcard .plink{display:block;text-align:center;font-size:13px;font-weight:700;color:var(--brand-d);margin-top:10px;text-decoration:underline}
@@ -194,14 +194,14 @@ footer a:hover{color:#fff}
    섞여 있었다 — 어두운 면의 보조색 한 가지로 모은다. */
 .fbottom{border-top:1px solid rgba(255,255,255,.08);margin-top:34px;padding-top:20px;font-size:13px;color:var(--on-navy);display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
 /* 푸터 바닥 줄은 어두운 면이다 — 여기서 --mut(#64748b)을 쓰면 #0a1226 위 3.9:1 로 AA 미달이
-   된다. 같은 면의 링크색(--on-navy #9fb2d4 · 7.3:1)으로 적는다. 색 한 벌이라도 **면에 따라
+   된다. 같은 면의 링크색(--on-navy #9fb2d4, 7.3:1)으로 적는다. 색 한 벌이라도 **면에 따라
    고르는 값이 다르다**: 흰 바탕의 보조색을 어두운 바탕에 그대로 옮기지 않는다. */
 .fnote{font-size:12px;color:var(--on-navy);margin-top:12px}
 .badge-ai{display:inline-flex;gap:16px;font-size:12px;color:var(--on-navy);flex-wrap:wrap}
 .badge-ai .flink{display:inline;margin:0;font-size:12px;color:var(--on-navy);text-decoration:underline}
 .badge-ai .flink:hover{color:#fff}
 @media(max-width:900px){.hero-in,.sol{grid-template-columns:1fr}.stats,.cards4,.cards3,.price,.proc,.fgrid{grid-template-columns:1fr 1fr}.hero h1{font-size:38px}.h2{font-size:30px}.viz{height:360px}}
-/* 121회차 모바일 실측 QA: 900px 아래 단계가 없어 720px 미만에서 헤더 가로 넘침·2열 카드 압착이 발생 → 단계 보강(무붕괴·무오버랩) */
+/* 121회차 모바일 실측 QA: 900px 아래 단계가 없어 720px 미만에서 헤더 가로 넘침과 2열 카드 압착이 발생해 단계 보강(무붕괴, 무오버랩) */
 @media(max-width:720px){
   .wrap{padding:0 18px}
   /* 링크 5종 가로 넘침 방지. 숨겨도 잃는 것이 없다 — 다섯 항목 모두 **이 페이지 안의 섹션**을
@@ -249,9 +249,9 @@ footer a:hover{color:#fff}
 }
 .btn:active{transform:translateY(0) scale(.98);box-shadow:none}
 
-/* ── 모션 민감 사용자 — 전환·리프트·무한 애니메이션 전부 생략(디자인 원칙 7) ──
+/* ── 모션 민감 사용자: 전환, 리프트, 무한 애니메이션 전부 생략(디자인 원칙 7) ──
    랜딩에는 이 질의가 **한 번도 없었다**: 히어로의 음성 파형(.wave i)은 1.1초마다 영영
-   높이가 변했고, 카드·버튼은 호버마다 떠올랐고, 내비는 부드럽게 스크롤했다. 콘솔
+   높이가 변했고, 카드와 버튼은 호버마다 떠올랐고, 내비는 부드럽게 스크롤했다. 콘솔
    (globals.css)은 같은 효과를 모두 끄고 있었으니 한 제품이 두 가지 약속을 한 셈이다.
    파형은 애니메이션만 끄면 높이가 0이 되어 사라지므로 **정지한 막대**로 남긴다. */
 @media (prefers-reduced-motion:reduce){
