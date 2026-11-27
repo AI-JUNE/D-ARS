@@ -16,7 +16,7 @@ function Kpi2({ icon, n, l, delta, deltaDir = 'up', spark, color = '#2563eb', de
   return (
     <div className="card kpi2 reveal" style={{ animationDelay: `${delay}s` }}>
       <div className="top">
-        <span className="ic">{icon}</span>
+        {icon && <span className="ic">{icon}</span>}
         <div className="n"><Counter value={n} /></div>
       </div>
       <div className="l">{l}</div>
@@ -116,28 +116,28 @@ export default function Dashboard() {
         </div>
         {period && <span className="muted" style={{ fontSize: 12.5, wordBreak: 'break-word' }}>{period}</span>}
         <span className="sp" />
-        <a href="/report" className="btn sm">📄 운영 리포트 (PDF)</a>
+        <a href="/report" className="btn sm">운영 리포트 다운로드</a>
       </div>
 
       <ErrorBanner message={err} onRetry={() => { setErr(null); setTick(t => t + 1); }} />
 
       <div className="grid g4">
         {/* 증감 배지는 시계열이 있는 지표에만 표시(가짜 증감률 제거) */}
-        <Kpi2 icon="📡" n={fmtNum(activeSessions(sessAgg))} l="진행 중 세션" spark={col('inbound')} color="#2563eb" delay={0} />
-        <Kpi2 icon="🚀" n={fmtNum(mmSum)} l={`멀티모달 전환 (${days})`} delta={dMm?.text} deltaDir={dMm?.dir} spark={col('multimodal')} color="#2563eb" delay={0.06} />
-        <Kpi2 icon="✉️" n={fmtNum(umsTotal)} l="문자발송(UMS)" spark={col('completed')} color="#1d4ed8" delay={0.12} />
-        <Kpi2 icon="✅" n={`${done}%`} l="사용 완료율" delta={dDone?.text} deltaDir={dDone?.dir} spark={col('completed')} color="#0f6b37" delay={0.18} />
+        <Kpi2 n={fmtNum(activeSessions(sessAgg))} l="진행 중 세션" spark={col('inbound')} color="#2563eb" delay={0} />
+        <Kpi2 n={fmtNum(mmSum)} l={`멀티모달 전환 (${days})`} delta={dMm?.text} deltaDir={dMm?.dir} spark={col('multimodal')} color="#2563eb" delay={0.06} />
+        <Kpi2 n={fmtNum(umsTotal)} l="문자발송(UMS)" spark={col('completed')} color="#1d4ed8" delay={0.12} />
+        <Kpi2 n={`${done}%`} l="사용 완료율" delta={dDone?.text} deltaDir={dDone?.dir} spark={col('completed')} color="#0f6b37" delay={0.18} />
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
         <div className="card reveal" style={{ animationDelay: '.1s' }}>
-          <h3>📈 일별 멀티모달 전환</h3><div className="d">{days} · 지점에 마우스를 올리면 값 표시</div>
+          <h3>일별 멀티모달 전환</h3><div className="d">조회 기간 {days}, 단위 건</div>
           {daily.length > 0
             ? <AreaChart data={col('multimodal')} labels={labels} unit="건" color="#2563eb" />
             : <div className="skl" style={{ height: 176 }} />}
         </div>
         <div className="card reveal" style={{ animationDelay: '.16s' }}>
-          <h3>📋 서비스별 완료율</h3><div className="d">멀티모달 서비스 사용 완료</div>
+          <h3>서비스별 완료율</h3><div className="d">멀티모달 서비스별 사용 완료 비율</div>
           <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap', marginTop: 6 }}>
             <Donut value={overall} label="전체 평균" />
             <div style={{ flex: 1, minWidth: 220 }}>
@@ -150,7 +150,7 @@ export default function Dashboard() {
       </div>
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.12s' }}>
-        <h3>📊 일별 운영 추이 <span className="tag t-info" style={{ marginLeft: 6 }}>{days}</span></h3>
+        <h3>일별 운영 추이<span className="tag t-info" style={{ marginLeft: 6 }}>{days}</span></h3>
         <div className="d">멀티모달 전환, 완료, 이탈 (건)</div>
         {daily.length > 0
           ? <GroupedBars data={daily} series={BAR_SERIES} />
@@ -163,8 +163,8 @@ export default function Dashboard() {
       </div>
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.16s' }}>
-        <h3>📡 실시간 세션 <span className="tag t-info" style={{ marginLeft: 6 }}>LIVE</span></h3>
-        <div className="d">개인정보 자동 마스킹, 5초 간격 갱신</div>
+        <h3>실시간 세션<span className="tag t-info" style={{ marginLeft: 6 }}>LIVE</span></h3>
+        <div className="d">개인정보 마스킹 적용, 5초 간격 갱신</div>
         <table className="tbl" aria-label="실시간 진행 세션"><thead><tr><th scope="col">세션</th><th scope="col">고객</th><th scope="col">시나리오</th><th scope="col">단계</th><th scope="col">경과</th></tr></thead>
           <tbody>{sessions.slice(0, 6).map(s => (<tr key={s.id}><td><b>{s.id}</b></td><td>{s.phone}</td><td>{s.scenario}</td>
             <td><span className={'tag ' + (s.step >= 4 ? 't-ok' : 't-info')}>{stepLabel(s.step)}</span></td>
