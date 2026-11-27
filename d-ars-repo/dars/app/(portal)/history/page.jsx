@@ -121,22 +121,22 @@ export default function History() {
 
       <div className="grid g4">
         <div className="card kpi"><div className="n">{total}</div><div className="l">전체 상호작용</div></div>
-        <div className="card kpi"><div className="n">{pct(done, total)}%</div><div className="l">완료율 · {done}건</div></div>
+        <div className="card kpi"><div className="n">{pct(done, total)}%</div><div className="l">완료율, {done}건</div></div>
         <div className="card kpi"><div className="n">{drop}</div><div className="l">이탈</div></div>
         <div className="card kpi"><div className="n" title={fmtDur(avg)} aria-label={'평균 소요 ' + fmtDur(avg)}>{fmt(avg)}</div><div className="l">평균 소요</div></div>
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
         <div className="card reveal" style={{ animationDelay: '.1s' }}>
-          <h3>🎯 처리 결과 분포</h3><div className="d">완료 · 이탈 · 상담원 전환 비율 (현재 조건 전체)</div>
+          <h3>처리 결과 분포</h3><div className="d">완료, 이탈, 상담사 전환 비율 (현재 조건 전체)</div>
           <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center', padding: '10px 0 2px' }}>
             <Donut value={pct(done, total)} color="#0f6b37" label={`완료 ${done}건`} />
             <Donut value={pct(drop, total)} color="#9f1239" label={`이탈 ${drop}건`} />
-            <Donut value={pct(swap, total)} color="#92400e" label={`상담원 전환 ${swap}건`} />
+            <Donut value={pct(swap, total)} color="#92400e" label={`상담사 전환 ${swap}건`} />
           </div>
         </div>
         <div className="card reveal" style={{ animationDelay: '.16s' }}>
-          <h3>📡 채널별 상호작용</h3><div className="d">건수 비중 · 상위 채널 (현재 조건 전체)</div>
+          <h3>채널별 상호작용</h3><div className="d">건수 비중, 상위 채널 (현재 조건 전체)</div>
           {chDist.length > 0
             ? chDist.map(c => <ProgressRow key={c.name} label={c.name} value={c.count} total={total} suffix="건" color="#2563eb" />)
             : <div className="muted" style={{ padding: '18px 0', textAlign: 'center' }}>조건에 맞는 이력이 없습니다.</div>}
@@ -153,8 +153,8 @@ export default function History() {
         <span className="sp" />
         <input
           className="input"
-          placeholder="시나리오·서비스·결과 검색"
-          aria-label="시나리오·서비스·결과 검색"
+          placeholder="시나리오, 서비스, 결과 검색"
+          aria-label="시나리오, 서비스, 결과 검색"
           value={L.q}
           onChange={e => L.setQ(e.target.value)}
           enterKeyHint="search"
@@ -168,7 +168,7 @@ export default function History() {
 
       <div className="card" style={{ marginTop: 4 }}>
         <h3>상호작용 로그 <span className="muted" style={{ fontWeight: 600, fontSize: 12.5, wordBreak: 'break-word' }}>{total}건{srvRange ? `, ${rangeLabel(srvRange)}` : ''}</span>
-          {swap > 0 && <span className="tag t-warn" style={{ marginLeft: 6 }}>상담원 전환 {swap}</span>}
+          {swap > 0 && <span className="tag t-warn" style={{ marginLeft: 6 }}>상담사 전환 {swap}</span>}
         </h3>
         <table className="tbl" aria-label="멀티모달 상호작용 이력">
           <thead><tr>

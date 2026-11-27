@@ -146,7 +146,7 @@ export default function Sessions() {
         {/* role="status": SSE 연결/폴백 전환을 스크린리더에도 낭독(WCAG 4.1.3) — 점은 장식이라 aria-hidden */}
         <span className="d" role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: live ? '#0f6b37' : '#92400e', boxShadow: live ? '0 0 0 3px rgba(15,107,55,.15)' : 'none', flex: '0 0 auto' }} />
-          {live ? '실시간 스트림 연결됨' : '자동 갱신(4초) · 번호 마스킹'}
+          {live ? '실시간 스트림 연결됨' : '4초 간격 갱신, 번호 마스킹'}
         </span>
         <span className="sp" /><button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button></div>
       <ErrorBanner message={L.error || liveErr || aggErr || X.error} onRetry={retry} />
@@ -154,12 +154,12 @@ export default function Sessions() {
       <div className="grid g4">
         <div className="card kpi"><div className="n">{total}</div><div className="l">진행 세션</div></div>
         <div className="card kpi"><div className="n" title={fmtDur(avg)} aria-label={'평균 경과 ' + fmtDur(avg)}>{fmt(avg)}</div><div className="l">평균 경과</div></div>
-        <div className="card kpi"><div className="n">{guide}</div><div className="l">안내·발송 단계</div></div>
-        <div className="card kpi"><div className="n">{swap}</div><div className="l">상담원 전환 대기</div></div>
+        <div className="card kpi"><div className="n">{guide}</div><div className="l">안내, 링크 발송 단계</div></div>
+        <div className="card kpi"><div className="n">{swap}</div><div className="l">상담사 전환 대기</div></div>
       </div>
       <div className="card" style={{ marginTop: 16 }}><h3>세션 보드</h3>
         <div className="toolbar">
-          <input className="input" placeholder="세션ID·시나리오·노드 검색" aria-label="세션ID·시나리오·노드 검색" value={L.q} onChange={e => L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e => onSearchEnter(e, L.flush)} style={{ flex: '1 1 200px' }} />
+          <input className="input" placeholder="세션 ID, 시나리오, 노드 검색" aria-label="세션 ID, 시나리오, 노드 검색" value={L.q} onChange={e => L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e => onSearchEnter(e, L.flush)} style={{ flex: '1 1 200px' }} />
           <span className="muted" style={{ fontSize: 12 }}>{fmtNum(total)}건</span>
         </div>
         <SavedViews screen="sessions" />
