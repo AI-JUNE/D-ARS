@@ -113,7 +113,7 @@ export default function History() {
         <h2>멀티모달 이력</h2>
         <span className="d">보이는 ARS 상호작용 로그, 15초 간격 갱신, 번호 마스킹</span>
         <span className="sp" />
-        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>CSV 다운로드</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>Excel 다운로드</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>PDF 다운로드</button>
       </div>
 
       <ErrorBanner message={L.error || aggErr || X.error} onRetry={retry} />

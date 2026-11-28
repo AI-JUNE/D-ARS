@@ -47,7 +47,7 @@ export default function Stats() {
 
   return (
     <>
-      <div className="sectionhead"><h2>이용 통계</h2><span className="d">멀티모달·스마트ARS 이용 분석{period ? ` · ${period}` : ''}</span>
+      <div className="sectionhead"><h2>이용 통계</h2><span className="d">{period ? `조회 기간 ${period}, 멀티모달과 보이는 ARS 이용 현황` : '멀티모달과 보이는 ARS 이용 현황'}</span>
         <span className="sp" />
         <div className="seg" role="group" aria-label="조회 기간">
           {RANGE_PRESETS.map(r => (
@@ -60,15 +60,15 @@ export default function Stats() {
       <ErrorBanner message={err} onRetry={load} />
 
       <div className="grid g4">
-        <KpiCard icon="📥" n={kIn.n} l="총 인입" delta={kIn.d?.text} deltaDir={kIn.d?.dir} spark={col('inbound')} color="#1d4ed8" delay={0} />
-        <KpiCard icon="🚀" n={kMm.n} l="멀티모달 전환" delta={kMm.d?.text} deltaDir={kMm.d?.dir} spark={col('multimodal')} color="#2563eb" delay={0.06} />
-        <KpiCard icon="✅" n={kDone.n} l="완료" delta={kDone.d?.text} deltaDir={kDone.d?.dir} spark={col('completed')} color="#0f6b37" delay={0.12} />
-        <KpiCard icon="⚠️" n={kDrop.n} l="이탈" delta={kDrop.d?.text} deltaDir={kDrop.d?.dir} spark={col('dropped')} color="#9f1239" delay={0.18} />
+        <KpiCard n={kIn.n} l="총 인입" delta={kIn.d?.text} deltaDir={kIn.d?.dir} spark={col('inbound')} color="#1d4ed8" delay={0} />
+        <KpiCard n={kMm.n} l="멀티모달 전환" delta={kMm.d?.text} deltaDir={kMm.d?.dir} spark={col('multimodal')} color="#2563eb" delay={0.06} />
+        <KpiCard n={kDone.n} l="완료" delta={kDone.d?.text} deltaDir={kDone.d?.dir} spark={col('completed')} color="#0f6b37" delay={0.12} />
+        <KpiCard n={kDrop.n} l="이탈" delta={kDrop.d?.text} deltaDir={kDrop.d?.dir} spark={col('dropped')} color="#9f1239" delay={0.18} />
       </div>
 
       <div className="grid g2" style={{ marginTop: 16 }}>
         <div className="card reveal" style={{ animationDelay: '.1s' }}>
-          <h3>📈 일별 멀티모달 전환</h3><div className="d">{days} · 호버 시 값 표시</div>
+          <h3>일별 멀티모달 전환</h3><div className="d">{days} 기준, 단위 건</div>
           {daily.length > 0 ? <AreaChart data={col('multimodal')} labels={labels} unit="건" color="#2563eb" /> : <div className="skl" style={{ height: 176 }} />}
         </div>
         <div className="card reveal" style={{ animationDelay: '.16s' }}>
@@ -78,7 +78,7 @@ export default function Stats() {
       </div>
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.12s' }}>
-        <h3>📋 서비스별 완료율</h3><div className="d">발송 대비 사용 완료</div>
+        <h3>서비스별 완료율</h3><div className="d">발송 대비 사용 완료</div>
         {services.length > 0
           ? services.map(r => <ProgressRow key={r.name} label={r.name} value={r.done} total={r.sent}
               color={pct(r.done, r.sent) >= 75 ? '#0f6b37' : pct(r.done, r.sent) >= 60 ? '#92400e' : '#9f1239'} />)
@@ -86,8 +86,8 @@ export default function Stats() {
       </div>
 
       <div className="card reveal" style={{ marginTop: 16, animationDelay: '.18s' }}>
-        <h3>🔎 서비스별 상세</h3>
-        <table className="tbl" aria-label="서비스별 상세 통계"><thead><tr><th scope="col">서비스</th><th scope="col">발송</th><th scope="col">자동런칭</th><th scope="col">문자발송</th><th scope="col">이탈</th><th scope="col">완료</th><th scope="col">완료율</th></tr></thead>
+        <h3>서비스별 상세</h3>
+        <table className="tbl" aria-label="서비스별 상세 통계"><thead><tr><th scope="col">서비스</th><th scope="col">발송</th><th scope="col">화면 전환</th><th scope="col">문자 발송</th><th scope="col">이탈</th><th scope="col">완료</th><th scope="col">완료율</th></tr></thead>
           <tbody>{services.map(r => { const p = pct(r.done, r.sent); return (<tr key={r.name}>
             <td><b>{r.name}</b></td><td>{r.sent}</td><td>{r.launch}</td><td>{r.sms}</td><td>{r.drop}</td><td><b>{r.done}</b></td>
             <td style={{ minWidth: 120 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><div className="bar2" style={{ flex: 1 }}><i style={{ width: p + '%', background: 'linear-gradient(90deg,#2563eb,#2563ebcc)' }} /></div><span className="muted" style={{ fontSize: 11, fontWeight: 700 }}>{p}%</span></div></td></tr>); })}</tbody></table>
