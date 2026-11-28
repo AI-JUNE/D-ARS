@@ -96,7 +96,7 @@ export default function Ums() {
   const exportPdf = () => R.run((rows, opts) => printPDF('UMS 발송 내역', rows, exportCols, opts));
   return (
     <>
-      <div className="sectionhead"><h2>UMS 문자발송</h2><span className="d">보이는 ARS 서류·영수증 링크 발송 로그</span></div>
+      <div className="sectionhead"><h2>UMS 문자발송</h2><span className="d">보이는 ARS 서류, 영수증 링크 발송 이력</span></div>
       <ErrorBanner message={sendErr || X.error || L.error} onRetry={retry} />
       {(X.busy || X.truncated) && <div className="muted noprint" style={{fontSize:12, margin:'0 0 8px', wordBreak:'break-word'}}>{X.busy ? '전체 내보내기 준비 중…' : truncationNote(X.truncated, X.maxRows)}</div>}
       <div className="grid g4">
@@ -109,10 +109,10 @@ export default function Ums() {
         <RangeSeg value={range} onChange={setRange} label="조회 기간" />
         <div className="seg" role="group" aria-label="발송 상태">{STATUSES.map(f=>(
           <button key={f} type="button" className={filter===f?'on':''} aria-pressed={filter===f} onClick={()=>setFilter(f)}>{f}</button>))}</div>
-        <input className="input" placeholder="서비스·서류 검색(서버 검색)" aria-label="서비스·서류 검색" value={L.q} onChange={e=>L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e=>onSearchEnter(e, L.flush)} style={{flex:'1 1 160px'}} />
+        <input className="input" placeholder="서비스, 서류 검색" aria-label="서비스, 서류 검색" value={L.q} onChange={e=>L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e=>onSearchEnter(e, L.flush)} style={{flex:'1 1 160px'}} />
         <span className="sp" />
-        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
-        <button type="button" className="btn primary sm" onClick={test}>✉️ 테스트 발송</button>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>CSV 다운로드</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>Excel 다운로드</button><button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>PDF 다운로드</button>
+        <button type="button" className="btn primary sm" onClick={test}>테스트 발송</button>
       </div>
       <SavedViews screen="ums" />
       <SelectionNote S={S} />

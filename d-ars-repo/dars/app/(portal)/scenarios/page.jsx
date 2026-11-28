@@ -156,7 +156,7 @@ export default function Scenarios() {
     setSaveErr(null);
     if (data && data.id) setCur({ ...data, nodes: [...(data.nodes || cur.nodes)] }); // 상향된 버전 즉시 반영
     reload();
-    T.show('저장됨 · 버전 상향'); // 비차단 — SSE·폴링을 멈추지 않고 포커스를 옮기지 않는다
+    T.show('저장했습니다. 버전을 올렸습니다.'); // 비차단 — SSE·폴링을 멈추지 않고 포커스를 옮기지 않는다
   };
   const create = async () => {
     const name = prompt('시나리오명','새 시나리오'); if (name===null) return;
@@ -166,18 +166,18 @@ export default function Scenarios() {
     if (data && data.id) select(data);
     reload();
   };
-  const validate = () => { const ok=cur.nodes.some(n=>n.type==='VISUAL_LAUNCH')&&cur.nodes.some(n=>n.type==='END'); T.show(ok?'✓ 검증 통과 · 런칭·종료 노드 정상':'⚠ 런칭/종료 노드를 확인하세요', ok?'ok':'warn'); };
+  const validate = () => { const ok=cur.nodes.some(n=>n.type==='VISUAL_LAUNCH')&&cur.nodes.some(n=>n.type==='END'); T.show(ok?'검증을 통과했습니다. 런칭 노드와 종료 노드가 있습니다.':'런칭 노드와 종료 노드가 모두 있는지 확인하세요.', ok?'ok':'warn'); };
 
   return (
     <>
-      <div className="sectionhead"><h2>비주얼 시나리오 관리</h2><span className="d">화면 흐름 노드 구성 · 콜봇 시나리오 연계</span>
+      <div className="sectionhead"><h2>비주얼 시나리오 관리</h2><span className="d">화면 흐름 노드 구성, 콜봇 시나리오 연계</span>
         <span className="sp" />
-        <div className="seg" role="group" aria-label="뷰 전환"><button type="button" className={view==='builder'?'on':''} aria-pressed={view==='builder'} onClick={()=>setView('builder')}>🧩 빌더</button>
-          <button type="button" className={view==='board'?'on':''} aria-pressed={view==='board'} onClick={()=>setView('board')}>🗂️ 보드</button>
-          <button type="button" className={view==='table'?'on':''} aria-pressed={view==='table'} onClick={()=>setView('table')}>📋 표</button></div>
-        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>⬇ CSV</button>
-        <button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>⬇ Excel</button>
-        <button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>🖨 PDF</button>
+        <div className="seg" role="group" aria-label="뷰 전환"><button type="button" className={view==='builder'?'on':''} aria-pressed={view==='builder'} onClick={()=>setView('builder')}>빌더</button>
+          <button type="button" className={view==='board'?'on':''} aria-pressed={view==='board'} onClick={()=>setView('board')}>보드</button>
+          <button type="button" className={view==='table'?'on':''} aria-pressed={view==='table'} onClick={()=>setView('table')}>표</button></div>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportCsv}>CSV 다운로드</button>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportXlsx}>Excel 다운로드</button>
+        <button type="button" className="btn sm" disabled={X.busy} onClick={exportPdf}>PDF 다운로드</button>
         <button type="button" className="btn primary sm" onClick={create}>+ 시나리오</button>
       </div>
 
@@ -186,7 +186,7 @@ export default function Scenarios() {
 
       <div className="toolbar">
         <RangeSeg value={range} onChange={setRange} label="수정일 기간" />
-        <input className="input" placeholder="시나리오명·ID·유형·상태 검색(서버 검색)" aria-label="시나리오명·ID·유형·상태 검색" value={L.q} onChange={e=>L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e=>onSearchEnter(e, L.flush)} style={{flex:'1 1 200px'}} />
+        <input className="input" placeholder="시나리오명, ID, 유형, 상태 검색" aria-label="시나리오명, ID, 유형, 상태 검색" value={L.q} onChange={e=>L.setQ(e.target.value)} enterKeyHint="search" onKeyDown={e=>onSearchEnter(e, L.flush)} style={{flex:'1 1 200px'}} />
         <span className="muted" role="status" style={{fontSize:12}}>{L.searching || L.loading ? '검색 중…' : `${fmtNum(L.total)}건`}</span>
       </div>
 
@@ -204,7 +204,7 @@ export default function Scenarios() {
                   <div key={s.id} className="node" style={{cursor:'pointer'}}
                     {...pressableProps(()=>{select(s);setView('builder');}, `${s.name} 시나리오 빌더에서 열기`)}>
                     <div className="ic" style={{background:'#2563eb',fontSize:12}}>{s.type==='아웃바운드'?'OB':'IB'}</div>
-                    <div className="body"><b>{s.name}</b><span>v{s.version} · {(s.nodes||[]).length}노드 · {s.updated_by||''}</span>
+                    <div className="body"><b>{s.name}</b><span>v{s.version}, {(s.nodes||[]).length}노드, {s.updated_by||''}</span>
                       <div style={{display:'flex',gap:3,marginTop:5,flexWrap:'wrap'}}>
                         {(s.nodes||[]).map(n=>{const t=NODE_TYPES[n.type];return <span key={n.id} title={t?.name} style={{fontSize:13}}>{t?t.ic:'●'}</span>;})}
                       </div>
@@ -263,17 +263,17 @@ export default function Scenarios() {
                 aria-pressed 로 현재 선택 항목을 낭독(시각적 .on 강조와 동일 정보 — WCAG 2.1.1·4.1.2) */}
             {L.rows.map(s=>(<div key={s.id} className={'item'+(s.id===cur.id?' on':'')} aria-pressed={s.id===cur.id}
               {...pressableProps(()=>select(s), `${s.name} 시나리오 선택`)}>
-              <b>{s.name}</b><span>{s.type} · v{s.version} · {s.status} · {(s.nodes||[]).length}노드</span></div>))}
+              <b>{s.name}</b><span>{s.type}, v{s.version}, {s.status}, {(s.nodes||[]).length}노드</span></div>))}
             {L.rows.length===0 && <EmptyBox loading={L.loading} error={L.error} keep={SCN_KEEP} empty="등록된 시나리오가 없습니다" style={{ padding: '12px 0' }} />}
             <ListMore shown={L.rows.length} total={L.total} hasMore={L.hasMore} loading={L.loadingMore} onMore={L.loadMore} />
           </div>
           <div className="card">
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}}>
               <h3 style={{margin:0}}>{cur.name}</h3>
-              <span className="d" style={{margin:0}}>{cur.type} · v{cur.version} · {cur.updated_by||''}</span>
+              <span className="d" style={{margin:0}}>{cur.type}, v{cur.version}, {cur.updated_by||''}</span>
               <span className="sp" />
-              <button type="button" className="btn sm" onClick={validate}>✓ 검증</button>
-              <button type="button" className="btn primary sm" onClick={save}>💾 버전 저장</button>
+              <button type="button" className="btn sm" onClick={validate}>검증</button>
+              <button type="button" className="btn primary sm" onClick={save}>버전 저장</button>
             </div>
             {cur.nodes.map((n,i)=>{const t=NODE_TYPES[n.type]||{ic:'●',c:'#999',name:n.type};return (
               <div className="node" key={n.id}>
@@ -283,9 +283,9 @@ export default function Scenarios() {
                 {/* 접근 가능한 이름(110회차): ↑·↓·✕ 는 기호뿐이라 스크린리더가 어떤 노드의 무슨 조작인지
                     낭독하지 못하던 것을 노드명·순번 포함 aria-label 로 마감(WCAG 4.1.2) */}
                 <button type="button" className="btn sm" aria-label={`${t.name} 노드 #${i+1} 라벨 수정`} onClick={()=>editLabel(n.id)}>수정</button>
-                <button type="button" className="btn sm" aria-label={`${t.name} 노드 #${i+1} 위로 이동`} onClick={()=>move(n.id,-1)}>↑</button>
-                <button type="button" className="btn sm" aria-label={`${t.name} 노드 #${i+1} 아래로 이동`} onClick={()=>move(n.id,1)}>↓</button>
-                <button type="button" className="btn sm danger" aria-label={`${t.name} 노드 #${i+1} 삭제`} onClick={()=>delNode(n.id)}>✕</button>
+                <button type="button" className="btn sm" aria-label={`${t.name} 노드 #${i+1} 위로 이동`} onClick={()=>move(n.id,-1)}>위로</button>
+                <button type="button" className="btn sm" aria-label={`${t.name} 노드 #${i+1} 아래로 이동`} onClick={()=>move(n.id,1)}>아래로</button>
+                <button type="button" className="btn sm danger" aria-label={`${t.name} 노드 #${i+1} 삭제`} onClick={()=>delNode(n.id)}>삭제</button>
               </div>);})}
             {cur.nodes.length===0 && <div className="d">노드가 없습니다. 오른쪽 팔레트에서 추가하세요.</div>}
           </div>
